@@ -1,0 +1,16 @@
+version: '3'
+services:
+  ros2-robot:
+    build:
+      context: .
+      dockerfile: docker/robot.Dockerfile
+    network_mode: host
+    privileged: true
+    env_file:
+      - .env
+    environment: 
+      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+    volumes:
+      - /dev:/dev
+      - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
+    command: ros2 launch my_robot_bringup robot.launch.py

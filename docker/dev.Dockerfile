@@ -1,4 +1,4 @@
-FROM my_robot_base
+FROM ros2_base
 
 RUN apt update && apt install -y \
     ros-humble-rviz2 \

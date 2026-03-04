@@ -1,4 +1,4 @@
-FROM my_robot_base
+FROM ros2_base
 
 COPY ros2_ws/src/ $ROS_WS/src/
 COPY ros2_ws/config/ $ROS_WS/config/

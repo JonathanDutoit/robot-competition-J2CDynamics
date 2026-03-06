@@ -6,7 +6,7 @@ from threading import Condition
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from flask import Flask, Response
-from ultralytics import YOLO
+from inference import get_model
 
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
@@ -17,11 +17,11 @@ app = Flask(__name__)
 # ── Config ────────────────────────────────────────────────────────────────────
 MAIN_SIZE   = (640, 480)   # streaming resolution
 LORES_SIZE  = (320, 320)   # inference resolution (must be divisible by 32)
-MODEL_PATH  = "./model/yolo11n_model.blob" # auto-downloaded on first run
 CONF_THRESH = 0.4
+MODEL_NAME = "duplo-merged-v3-tkqpb/1"
 # ─────────────────────────────────────────────────────────────────────────────
 
-model = YOLO(MODEL_PATH)
+model = get_model(MODEL_NAME)
 
 # Shared detection state
 latest_detections = []
@@ -59,17 +59,16 @@ picam2.start_recording(JpegEncoder(), FileOutput(output))
 
 # ── Inference thread (lores → YOLO) ──────────────────────────────────────────
 def inference_thread():
-    """Grab lores YUV frames and run YOLO — no OpenCV needed."""
+    """Grab lores frames and run YOLO."""
     global latest_detections
     while True:
         frame = picam2.capture_array("lores") 
         pil_img = Image.fromarray(frame) 
 
-        results = model.predict(
-            source=pil_img,
-            imgsz=LORES_SIZE[0],
-            conf=CONF_THRESH,
-            verbose=False,
+        results = model.infer(
+            pil_img,
+            confidence=CONF_THRESH,
+            img_size=LORES_SIZE[0]
         )
 
         dets = []

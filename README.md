@@ -10,7 +10,7 @@ Raspberry pi 5 informations:
 
 | Hostname | Username | Password | 
 | -------- | -------- | -------- | 
-| duplo-obliterator | j2cdynamics | robotcompetition2026 | 
+| duplo-obliterator | j2cdynamics | ******* | 
 
 After being sure that the Raspberry pi 5 is powered up, you can connect by ssh (`user@hostname`): 
 

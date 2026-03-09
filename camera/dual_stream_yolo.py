@@ -2,41 +2,42 @@ import io
 import time
 import threading
 from threading import Condition
-import ncnn
-
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+import cv2
 from flask import Flask, Response
-from inference import get_model
-
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
+import onnxruntime as ort
 
 app = Flask(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MAIN_SIZE   = (640, 480)   # streaming resolution
-LORES_SIZE  = (320, 320)   # inference resolution (must be divisible by 32)
-CONF_THRESH = 0.4
-PARAM_PATH  = "./ncnn_model/model.ncnn.param"
-BIN_PATH    = "./ncnn_model/model.ncnn.bin"
-INPUT_NAME  = "in0"        # check your .param file for the actual input layer name
-OUTPUT_NAME = "out0"       # check your .param file for the actual output layer name
-CLASS_NAMES = ["duplo"] 
+MAIN_SIZE    = (640, 480)
+LORES_SIZE   = (320, 320)
+CONF_THRESH  = 0.4
+MODEL_PATH   = "model/best_int8.onnx"
+CLASS_NAMES  = ["duplo"]
+INFER_FPS    = 5   # ✅ cap inference rate (lower = less heat)
+JPEG_QUALITY = 60  # ✅ lower quality = less CPU on encode
 # ─────────────────────────────────────────────────────────────────────────────
 
-net = ncnn.Net()
-net.opt.use_vulkan_compute = False  # set True if you have Vulkan GPU support
-net.load_param(PARAM_PATH)
-net.load_model(BIN_PATH)
+# ── Load Model ─────────────────────────────────
+sess_options = ort.SessionOptions()
+sess_options.intra_op_num_threads = 2   # limit ONNX CPU threads
+sess_options.inter_op_num_threads = 1
+session    = ort.InferenceSession(MODEL_PATH, sess_options,
+                                  providers=["CPUExecutionProvider"])
+input_name = session.get_inputs()[0].name
+print("[startup] ONNX model loaded OK")
 
-# Shared detection state
-latest_detections = []
+SCALE_X = MAIN_SIZE[0] / LORES_SIZE[0]
+SCALE_Y = MAIN_SIZE[1] / LORES_SIZE[1]
+
+latest_detections: list = []
 det_lock = threading.Lock()
 
-
-# ── Streaming output ──────────────────────────────────────────────────────────
+# ── Load Camera ────────────────────────────────────────────────────────────────────
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):
         self.frame = None
@@ -47,90 +48,64 @@ class StreamingOutput(io.BufferedIOBase):
             self.frame = buf
             self.condition.notify_all()
 
-
-output = StreamingOutput()
-
-
-# ── Camera setup ──────────────────────────────────────────────────────────────
+cam_output = StreamingOutput()
 picam2 = Picamera2()
-
 config = picam2.create_video_configuration(
     main={"size": MAIN_SIZE, "format": "RGB888"},
-    lores={"size": LORES_SIZE, "format": "RGB888"}, 
-    buffer_count=4,
+    lores={"size": LORES_SIZE, "format": "RGB888"},
+    buffer_count=2,          # ✅ reduced from 4 — less memory pressure
     queue=False,
     encode="main",
 )
 picam2.configure(config)
-picam2.start_recording(JpegEncoder(), FileOutput(output))
+picam2.start_recording(JpegEncoder(), FileOutput(cam_output))
+print("[startup] Camera started")
 
+# ── Shared preprocessed input buffer (avoid alloc every frame) ───────────────
+_inp_buffer = np.empty((1, 3, LORES_SIZE[1], LORES_SIZE[0]), dtype=np.float32)  # ✅ reuse
 
-# ── Inference thread (lores → YOLO) ──────────────────────────────────────────
+# ── Inference thread ──────────────────────────────────────────────────────────
 def inference_thread():
-    """Grab lores frames and run YOLO."""
     global latest_detections
+    target_dt = 1.0 / INFER_FPS
+    print("[inference] Thread started")
+
     while True:
-        frame = picam2.capture_array("lores") 
-        
-        # Preprocess: HWC uint8 → CHW float32, normalize 0–1
-        img = frame.astype(np.float32) / 255.0
-        img = np.transpose(img, (2, 0, 1))  # HWC → CHW
-        mat_in = ncnn.Mat(img)
+        t0 = time.time()
+        try:
+            frame = picam2.capture_array("lores")
 
-        ex = net.create_extractor()
-        ex.input(INPUT_NAME, mat_in)
-        _, mat_out = ex.extract(OUTPUT_NAME)
+            np.divide(frame, 255.0, out=_inp_buffer[0].transpose(1, 2, 0)
+                      .reshape(LORES_SIZE[1], LORES_SIZE[0], 3)
+                      .view(np.float32))
 
-        # mat_out shape is typically (num_detections, 6): [x1,y1,x2,y2,conf,cls]
-        output_np = np.array(mat_out)
-        
-        #pil_img = Image.fromarray(frame) 
+            _inp_buffer[0] = frame.transpose(2, 0, 1).astype(np.float32) / 255.0
 
-        #results = model.infer(
-        #    pil_img,
-        #    confidence=CONF_THRESH,
-        #    img_size=LORES_SIZE[0]
-        #)
+            output_np = session.run(None, {input_name: _inp_buffer})[0][0]  # (300, 6)
 
-        dets = []
-        for row in output_np:
-            x1, y1, x2, y2, conf, cls_id = row[:6]
-            if conf < CONF_THRESH:
-                continue
-            label = CLASS_NAMES[int(cls_id)]
-            dets.append((int(x1), int(y1), int(x2), int(y2), label, float(conf)))
+            dets = []
+            for row in output_np:
+                x1, y1, x2, y2, conf, cls = row
+                if conf < CONF_THRESH:
+                    continue
 
-        with det_lock:
-            latest_detections = dets
+                x1 = int(np.clip(x1 * SCALE_X, 0, MAIN_SIZE[0]))
+                y1 = int(np.clip(y1 * SCALE_Y, 0, MAIN_SIZE[1]))
+                x2 = int(np.clip(x2 * SCALE_X, 0, MAIN_SIZE[0]))
+                y2 = int(np.clip(y2 * SCALE_Y, 0, MAIN_SIZE[1]))
 
+                if x2 > x1 and y2 > y1:
+                    dets.append((x1, y1, x2, y2, CLASS_NAMES[int(cls)], float(conf)))
 
-# ── Overlay drawing (Pillow only) ─────────────────────────────────────────────
-def draw_detections_on_jpeg(jpeg_bytes, dets, main_size, lores_size):
-    """
-    Decode JPEG → draw boxes with Pillow → re-encode to JPEG bytes.
-    OpenCV is NOT used here.
-    """
-    sx = main_size[0] / lores_size[0]
-    sy = main_size[1] / lores_size[1]
+            with det_lock:
+                latest_detections = dets
 
-    img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
-    draw = ImageDraw.Draw(img)
+        except Exception as e:
+            print(f"[inference] Error: {e}")
 
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
-    except OSError:
-        font = ImageFont.load_default()
-
-    for (x1, y1, x2, y2, label, conf) in dets:
-        rx1, ry1 = int(x1 * sx), int(y1 * sy)
-        rx2, ry2 = int(x2 * sx), int(y2 * sy)
-        draw.rectangle([rx1, ry1, rx2, ry2], outline=(0, 255, 0), width=2)
-        text = f"{label} {conf:.2f}"
-        draw.text((rx1 + 2, max(ry1 - 16, 0)), text, fill=(0, 255, 0), font=font)
-
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=80)
-    return buf.getvalue()
+        # Sleep only the remaining time to hit target FPS
+        elapsed = time.time() - t0
+        time.sleep(max(0.0, target_dt - elapsed))
 
 
 # ── MJPEG generator ───────────────────────────────────────────────────────────
@@ -138,57 +113,46 @@ def generate_frames():
     prev_time = time.time()
 
     while True:
-        with output.condition:
-            output.condition.wait()
-            jpeg_bytes = output.frame  # already a JPEG buffer from JpegEncoder
+        with cam_output.condition:
+            cam_output.condition.wait()
+            jpeg_bytes = cam_output.frame
 
         with det_lock:
             dets = list(latest_detections)
 
-        # Only decode/redraw if there's something to annotate
-        if dets:
-            jpeg_bytes = draw_detections_on_jpeg(jpeg_bytes, dets, MAIN_SIZE, LORES_SIZE)
+        frame_np = cv2.imdecode(np.frombuffer(jpeg_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if frame_np is None:
+            continue
 
-        # FPS — drawn with Pillow as well
+        for (x1, y1, x2, y2, label, conf) in dets:
+            cv2.rectangle(frame_np, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame_np, f"{label} {conf:.2f}",
+                        (x1 + 2, max(y1 - 6, 10)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+
         now = time.time()
         fps = 1.0 / (now - prev_time + 1e-9)
         prev_time = now
+        cv2.putText(frame_np, f"FPS: {fps:.1f}", (10, 24),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2, cv2.LINE_AA)
 
-        img = Image.open(io.BytesIO(jpeg_bytes))
-        draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
-        except OSError:
-            font = ImageFont.load_default()
-        draw.text((10, 8), f"FPS: {fps:.1f}", fill=(0, 200, 255), font=font)
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=80)
-        jpeg_bytes = buf.getvalue()
+        _, jpeg_buf = cv2.imencode(".jpg", frame_np, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+        out = jpeg_buf.tobytes()
 
-        yield (
-            b"--frame\r\n"
-            b"Content-Type: image/jpeg\r\n"
-            b"Content-Length: " + str(len(jpeg_bytes)).encode() + b"\r\n\r\n" +
-            jpeg_bytes +
-            b"\r\n"
-        )
+        yield (b"--frame\r\nContent-Type: image/jpeg\r\n"
+               b"Content-Length: " + str(len(out)).encode() + b"\r\n\r\n"
+               + out + b"\r\n")
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.route("/video_feed")
 def video_feed():
-    return Response(
-        generate_frames(),
-        mimetype="multipart/x-mixed-replace; boundary=frame",
-    )
+    return Response(generate_frames(),
+                    mimetype="multipart/x-mixed-replace; boundary=frame")
 
 @app.route("/")
 def index():
-    return """
-    <html><body style="margin:0;background:#000;">
-      <img src="/video_feed" style="width:100%;height:100vh;object-fit:contain;" />
-    </body></html>
-    """
+    return '<html><body style="margin:0;background:#000;"><img src="/video_feed" style="width:100%;height:100vh;object-fit:contain;"/></body></html>'
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

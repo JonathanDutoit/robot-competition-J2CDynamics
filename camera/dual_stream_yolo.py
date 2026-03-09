@@ -2,6 +2,7 @@ import io
 import time
 import threading
 from threading import Condition
+import ncnn
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -18,10 +19,17 @@ app = Flask(__name__)
 MAIN_SIZE   = (640, 480)   # streaming resolution
 LORES_SIZE  = (320, 320)   # inference resolution (must be divisible by 32)
 CONF_THRESH = 0.4
-MODEL_NAME = "duplo-merged-v3-tkqpb/1"
+PARAM_PATH  = "./ncnn_model/model.ncnn.param"
+BIN_PATH    = "./ncnn_model/model.ncnn.bin"
+INPUT_NAME  = "in0"        # check your .param file for the actual input layer name
+OUTPUT_NAME = "out0"       # check your .param file for the actual output layer name
+CLASS_NAMES = ["duplo"] 
 # ─────────────────────────────────────────────────────────────────────────────
 
-model = get_model(MODEL_NAME)
+net = ncnn.Net()
+net.opt.use_vulkan_compute = False  # set True if you have Vulkan GPU support
+net.load_param(PARAM_PATH)
+net.load_model(BIN_PATH)
 
 # Shared detection state
 latest_detections = []
@@ -63,22 +71,34 @@ def inference_thread():
     global latest_detections
     while True:
         frame = picam2.capture_array("lores") 
-        pil_img = Image.fromarray(frame) 
+        
+        # Preprocess: HWC uint8 → CHW float32, normalize 0–1
+        img = frame.astype(np.float32) / 255.0
+        img = np.transpose(img, (2, 0, 1))  # HWC → CHW
+        mat_in = ncnn.Mat(img)
 
-        results = model.infer(
-            pil_img,
-            confidence=CONF_THRESH,
-            img_size=LORES_SIZE[0]
-        )
+        ex = net.create_extractor()
+        ex.input(INPUT_NAME, mat_in)
+        _, mat_out = ex.extract(OUTPUT_NAME)
+
+        # mat_out shape is typically (num_detections, 6): [x1,y1,x2,y2,conf,cls]
+        output_np = np.array(mat_out)
+        
+        #pil_img = Image.fromarray(frame) 
+
+        #results = model.infer(
+        #    pil_img,
+        #    confidence=CONF_THRESH,
+        #    img_size=LORES_SIZE[0]
+        #)
 
         dets = []
-        for r in results:
-            for box in r.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                cls   = int(box.cls[0])
-                conf  = float(box.conf[0])
-                label = model.names[cls]
-                dets.append((x1, y1, x2, y2, label, conf))
+        for row in output_np:
+            x1, y1, x2, y2, conf, cls_id = row[:6]
+            if conf < CONF_THRESH:
+                continue
+            label = CLASS_NAMES[int(cls_id)]
+            dets.append((int(x1), int(y1), int(x2), int(y2), label, float(conf)))
 
         with det_lock:
             latest_detections = dets

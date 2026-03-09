@@ -3,3 +3,5 @@ spot-iot-credentials.txt
 # Models 
 *.onnx
 *.pt
+
+.DS_Store

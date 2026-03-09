@@ -1,7 +1,8 @@
-# Dual-stream YOLOv11n + picamera2 pipeline
-# Install with: pip install -r requirements.txt --break-system-packages
+# Dual-stream YOLO26 + picamera2 pipeline
+# Install with: pip install -r requirements.txt
 
 flask>=3.0.0
-ultralytics>=8.3.0      # includes YOLOv11; auto-downloads yolo11n.pt on first run
 Pillow>=10.0.0
 numpy>=1.26.0
+cv
+onnxruntime

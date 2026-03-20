@@ -1,16 +1,17 @@
-version: '3'
 services:
   ros2-dev:
     build:
       context: .
-      dockerfile: docker/dev.Dockerfile
-    network_mode: host
+      dockerfile: docker/Dockerfile
+      target: dev
+    network_mode: bridge
+    privileged: true
     env_file:
-      - .env
+      - ./docker/.env
     environment: 
       -  CYCLONEDDS_URI=file:///dds/cyclonedds_mac.xml
     volumes:
-      - ./ros2_ws:/ros2_ws
+      - ./ros2_ws/src:/ros2_ws/src
       - ./dds/cyclonedds_mac.xml:/dds/cyclonedds_mac.xml
     stdin_open: true
     tty: true

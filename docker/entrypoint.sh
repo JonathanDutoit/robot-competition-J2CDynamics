@@ -1,24 +1,24 @@
 #!/bin/bash
 set -e
 
-# Source the ROS2 base installation
 source /opt/ros/humble/setup.bash
 
-# ── Auto-rebuild ─────────────────────────────────────────────────────────────
-# When ros2_ws is bind-mounted the pre-built install/ from the image is
-# replaced by the host directory.  If install/ is absent (first run, fresh
-# clone, or after `rm -rf install build log`) we rebuild automatically.
+# Expand env vars in the CycloneDDS XML before CycloneDDS reads it
+if [ -n "$CYCLONEDDS_URI" ]; then
+    XML_PATH="${CYCLONEDDS_URI#file://}"
+    envsubst < "$XML_PATH" > /tmp/cyclonedds_resolved.xml
+    export CYCLONEDDS_URI="file:///tmp/cyclonedds_resolved.xml"
+fi
+
 cd "$ROS_WS"
 
-if [ ! -d "$ROS_WS/install" ]; then
+if [ ! -d "$ROS_WS/install" ] && [ -d "$ROS_WS/src" ] && [ -n "$(ls -A $ROS_WS/src)" ]; then
     echo "[entrypoint] install/ not found — running colcon build …"
     colcon build --symlink-install
 fi
 
-# Source the workspace overlay
 if [ -f "$ROS_WS/install/setup.bash" ]; then
     source "$ROS_WS/install/setup.bash"
 fi
 
-# ── Execute the container command ────────────────────────────────────────────
 exec "$@"

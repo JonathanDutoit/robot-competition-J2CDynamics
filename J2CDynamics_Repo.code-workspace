@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "Root",
+			"path": "."
+		},
+		{
+			"name": "arduino_uno_test",
+			"path": "firmware/arduino_uno_test"
+		}
+	],
+	"settings": {}
+}

@@ -2,7 +2,6 @@
   <Domain>
     <General>
       <AllowMulticast>false</AllowMulticast>
-      <DontRoute>true</DontRoute>
       <Interfaces>
         <NetworkInterface address="${ROBOT_IP}"/>
       </Interfaces>

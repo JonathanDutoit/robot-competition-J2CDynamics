@@ -2,7 +2,6 @@
   <Domain>
     <General>
       <AllowMulticast>false</AllowMulticast>
-      <DontRoute>true</DontRoute>
       <Interfaces>
         <NetworkInterface autodetermine="true"/>
       </Interfaces>

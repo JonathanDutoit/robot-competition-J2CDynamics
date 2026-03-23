@@ -5,8 +5,8 @@
 			"path": "."
 		},
 		{
-			"name": "arduino_uno_test",
-			"path": "firmware/arduino_uno_test"
+			"name": "arduino_mega2560",
+			"path": "firmware/arduino_mega2560"
 		}
 	],
 	"settings": {}

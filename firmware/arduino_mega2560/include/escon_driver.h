@@ -9,16 +9,14 @@ class EsconDriver {
                     uint8_t directionDigitalInputPin, uint8_t readyDigitalInputPin, 
                     uint8_t speedAnalogOutputPin, uint8_t currentAnalogOutputPin);
         void init();
-        bool isReady();
-        void setSpeed(int speed);
-        void enableMotion();
-        void disableMotion();
-        float getAveragedSpeed();
-        float getAveragedCurrent();
+        uint8_t isReady();
+        void setSpeed(int16_t targetRpm);
+        int16_t getAveragedSpeed();
+        int16_t getAveragedCurrent();
     private:
         uint8_t _pwmPin, _enPin, _dirPin, _readyPin, _speedPin, _currPin;
         void configurePWM();
-        int16_t rpmToDuty(int16_t rpm);
+        uint8_t rpmToDuty(int16_t rpm);
 };
 
 #endif

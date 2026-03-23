@@ -14,15 +14,12 @@ void EsconDriver::init() {
     pinMode(_pwmPin, OUTPUT);
     pinMode(_enPin, OUTPUT);
     pinMode(_dirPin, OUTPUT);
-
-    // Configure ready pin as input with pull-up resistor
-    // 0 = ready, 1 = not ready (assuming Ready is set to active HIGH in Motion Studio)
     pinMode(_readyPin, INPUT_PULLUP);
 
     configurePWM(); // Set PWM frequency for motor control
 
-    disableMotion(); // Ensure motor is stopped on init
-    digitalWrite(_dirPin, LOW); // Default direction (e.g. CCW)
+    digitalWrite(_enPin, LOW); // Ensure motor is disabled at startup
+    digitalWrite(_dirPin, MOTOR_CCW_DIRECTION); // Default direction
     analogWrite(_pwmPin, 0); // Start with 0% duty cycle (stopped)
 }
 
@@ -42,4 +39,69 @@ void EsconDriver::configurePWM() {
         TCCR3B &= ~0b111; // Clear prescaler bits
         TCCR3B |= ARDUINO_PWM_MOTOR_PRESCALER; // Set prescaler for Timer3 to achieve ~4 kHz PWM frequency
     }
+}
+
+uint8_t EsconDriver::isReady() {
+    // Ready pin is active HIGH in Motion Studio -> 0 = ready, 1 = not ready
+    // see https://support.maxongroup.com/hc/en-us/articles/360008666420-ESCON-Digital-Output-Wiring
+    return digitalRead(_readyPin) == LOW;
+}
+
+void EsconDriver::setSpeed(int16_t targetRpm) {
+    if (!isReady()) {
+        digitalWrite(_enPin, LOW);
+        analogWrite(_pwmPin, 0);
+        return;
+    } else {
+        digitalWrite(_enPin, HIGH);
+    }
+
+    // Direction Logic
+    if (targetRpm >= 0) {
+        digitalWrite(_dirPin, MOTOR_CCW_DIRECTION);
+    } else {
+        digitalWrite(_dirPin, MOTOR_CW_DIRECTION);
+        targetRpm = -targetRpm;
+    }
+
+    // Saturation
+    if (targetRpm > MOTOR_MAX_PERMISSIBLE_RPM) targetRpm = MOTOR_MAX_PERMISSIBLE_RPM;
+
+    // Convert RPM to Duty Cycle (0-255) and write to PWM pin
+    uint8_t duty = rpmToDuty(targetRpm);
+    analogWrite(_pwmPin, duty);
+}
+
+uint8_t EsconDriver::rpmToDuty(int16_t rpm) {
+    // Map RPM to duty cycle percentage
+    float dutyCyclePercent = map(rpm, ESCON_PWM_SPEED_RPM_MIN, ESCON_PWM_SPEED_RPM_MAX, 
+                                ESCON_PWM_DUTY_CYCLE_MIN, ESCON_PWM_DUTY_CYCLE_MAX);
+    // Convert percentage to 0-255 range for analogWrite
+    return static_cast<uint8_t>(map(dutyCyclePercent, 0.0f, 100.0f, 0, 255));
+}
+
+int16_t EsconDriver::getAveragedSpeed() {
+    int adcValue = analogRead(_speedPin);
+    float voltage = (adcValue / static_cast<float>(ARDUINO_ADC_MAX_VALUE)) 
+                    * ARDUINO_ADC_VOLTAGE_REF;
+    // Map voltage back to RPM
+    return static_cast<int16_t>(
+        map(voltage, 
+            ESCON_ANALOG_VOLTAGE_MIN, ESCON_ANALOG_VOLTAGE_MAX, 
+            ESCON_RPM_AT_VOLTAGE_MIN, ESCON_RPM_AT_VOLTAGE_MAX
+        )
+    );
+}
+
+int16_t EsconDriver::getAveragedCurrent() {
+    int adcValue = analogRead(_currPin);
+    float voltage = (adcValue / static_cast<float>(ARDUINO_ADC_MAX_VALUE)) 
+                    * ARDUINO_ADC_VOLTAGE_REF;
+    // Map voltage back to current
+    return static_cast<int16_t>(
+        map(voltage, 
+            ESCON_ANALOG_VOLTAGE_MIN, ESCON_ANALOG_VOLTAGE_MAX, 
+            ESCON_CURRENT_AT_VOLTAGE_MIN, ESCON_CURRENT_AT_VOLTAGE_MAX
+        )
+    );
 }

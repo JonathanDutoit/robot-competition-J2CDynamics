@@ -44,8 +44,8 @@
 #define MOTOR_MIN_DEADZONE_RPM        500.0f
 
 // --- Motor directions ---
-#define MOTOR_CW_DIRECTION    1
-#define MOTOR_CCW_DIRECTION   0
+#define MOTOR_CW_DIRECTION    0
+#define MOTOR_CCW_DIRECTION   1
 
 // --- PWM parameters ---
 #define ESCON_PWM_DUTY_CYCLE_MIN       10.0f

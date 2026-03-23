@@ -6,7 +6,7 @@
 // -----------------------
 
 // --- Left Motor ---
-#define PIN_LEFT_PWM            4
+#define PIN_LEFT_PWM            6
 #define PIN_LEFT_EN       
 #define PIN_LEFT_DIR      
 #define PIN_LEFT_READY    
@@ -14,7 +14,7 @@
 #define PIN_LEFT_CURR_ANA 
 
 // --- Right Motor ---
-#define PIN_RIGHT_PWM           13
+#define PIN_RIGHT_PWM           7
 #define PIN_RIGHT_EN      
 #define PIN_RIGHT_DIR     
 #define PIN_RIGHT_READY   
@@ -23,12 +23,16 @@
 
 
 // ------------------------------
-// --- ARDUINO ADC PROPERTIES ---
+// ---------- ARDUINO -----------
 // ------------------------------
 
+// --- ADC properties ---
 #define ARDUINO_ADC_RESOLUTION_BITS     10
 #define ARDUINO_ADC_MAX_VALUE           ((1 << ARDUINO_ADC_RESOLUTION_BITS) - 1) // 1023 for 10-bit ADC
 #define ARDUINO_ADC_VOLTAGE_REF          5.0f
+
+// --- PWM configuration ---
+#define ARDUINO_PWM_MOTOR_PRESCALER   0b010 // For ~4 kHz PWM frequency on Arduino Mega 2560 (Timer4)
 
 
 // --------------------------------
@@ -44,7 +48,6 @@
 #define MOTOR_CCW_DIRECTION   0
 
 // --- PWM parameters ---
-#define ESCON_PWM_FREQUENCY_HZ       5000.0f
 #define ESCON_PWM_DUTY_CYCLE_MIN       10.0f
 #define ESCON_PWM_DUTY_CYCLE_MAX       90.0f
 #define ESCON_PWM_SPEED_RPM_MIN         0.0f

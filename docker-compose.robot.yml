@@ -36,7 +36,12 @@ services:
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0   # adjust / remove if not USB
 
-    command: ros2 launch rplidar_ros rplidar_a1_launch.py serial_port:=/dev/ttyUSB0
+    command: >
+      bash -c "
+      ros2 launch rplidar_ros rplidar_a1_launch.py serial_port:=/dev/ttyUSB0 &
+      sleep 2 &&
+      ros2 launch slam_toolbox online_async_launch.py
+      " 
 
     group_add:
     # Owner group of /dev/ttyUSB0

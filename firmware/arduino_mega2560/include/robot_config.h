@@ -6,20 +6,20 @@
 // -----------------------
 
 // --- Left Motor ---
-#define PIN_LEFT_PWM            6
-#define PIN_LEFT_EN       
-#define PIN_LEFT_DIR      
-#define PIN_LEFT_READY    
-#define PIN_LEFT_SPEED_ANA 
-#define PIN_LEFT_CURR_ANA 
+#define PIN_LEFT_MOTOR_PWM            2
+#define PIN_LEFT_MOTOR_EN             3
+#define PIN_LEFT_MOTOR_DIR            4
+#define PIN_LEFT_MOTOR_READY          A0
+#define PIN_LEFT_MOTOR_SPEED_ANA      A1
+#define PIN_LEFT_MOTOR_CURR_ANA       A2
 
 // --- Right Motor ---
-#define PIN_RIGHT_PWM           7
-#define PIN_RIGHT_EN      
-#define PIN_RIGHT_DIR     
-#define PIN_RIGHT_READY   
-#define PIN_RIGHT_SPEED_ANA 
-#define PIN_RIGHT_CURR_ANA
+#define PIN_RIGHT_MOTOR_PWM           5
+#define PIN_RIGHT_MOTOR_EN            6
+#define PIN_RIGHT_MOTOR_DIR           7
+#define PIN_RIGHT_MOTOR_READY         A3
+#define PIN_RIGHT_MOTOR_SPEED_ANA     A4
+#define PIN_RIGHT_MOTOR_CURR_ANA      A5
 
 
 // ------------------------------
@@ -41,7 +41,7 @@
 
 // --- Motor limits ---
 #define MOTOR_MAX_PERMISSIBLE_RPM    4092.0f
-#define MOTOR_MIN_DEADZONE_RPM        500.0f
+#define MOTOR_MIN_DEADZONE_RPM          0.0f
 
 // --- Motor directions ---
 #define MOTOR_CW_DIRECTION    0
@@ -51,7 +51,7 @@
 #define ESCON_PWM_DUTY_CYCLE_MIN       10.0f
 #define ESCON_PWM_DUTY_CYCLE_MAX       90.0f
 #define ESCON_PWM_SPEED_RPM_MIN         0.0f
-#define ESCON_PWM_SPEED_RPM_MAX         MOTOR_MAX_PERMISSIBLE_RPM
+#define ESCON_PWM_SPEED_RPM_MAX        MOTOR_MAX_PERMISSIBLE_RPM
 
 // --- Analog output configuration ---
 // Arduino ADC read 0-5V, so ESCON MUST output 0-4V only

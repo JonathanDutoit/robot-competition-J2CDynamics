@@ -1,7 +1,7 @@
 #include <escon_driver.h>
 
 #include <Arduino.h>
-#include "robot_config.h"
+#include <robot_config.h>
 
 EsconDriver::EsconDriver(uint8_t pwmDigitalInputPin, uint8_t enableDigitalInputPin, 
                         uint8_t directionDigitalInputPin, uint8_t readyDigitalInputPin, 
@@ -20,7 +20,8 @@ void EsconDriver::init() {
 
     digitalWrite(_enPin, LOW); // Ensure motor is disabled at startup
     digitalWrite(_dirPin, MOTOR_CCW_DIRECTION); // Default direction
-    analogWrite(_pwmPin, 0); // Start with 0% duty cycle (stopped)
+
+    setSpeed(0); // Start with 0 speed but ensure PWM is set at 10% duty cycle to avoid ESCON error
 }
 
 void EsconDriver::configurePWM() {
@@ -32,10 +33,7 @@ void EsconDriver::configurePWM() {
     // - Timer2: Pins 9, 10 (used for tone() - avoid changing this if using tone)
     // - Timer3: Pins 2, 3, 5 (available for PWM frequency change)
     // - Timer4: Pins 6, 7, 8 (available for PWM frequency change)
-    if (_pwmPin == 6 || _pwmPin == 7 || _pwmPin == 8) {
-        TCCR4B &= ~0b111; // Clear prescaler bits
-        TCCR4B |= ARDUINO_PWM_MOTOR_PRESCALER; // Set prescaler for Timer4 to achieve ~4 kHz PWM frequency
-    } else if (_pwmPin == 2 || _pwmPin == 3 || _pwmPin == 5) {
+    if (_pwmPin == 2 || _pwmPin == 5) {
         TCCR3B &= ~0b111; // Clear prescaler bits
         TCCR3B |= ARDUINO_PWM_MOTOR_PRESCALER; // Set prescaler for Timer3 to achieve ~4 kHz PWM frequency
     }

@@ -6,8 +6,8 @@
 EsconDriver::EsconDriver(uint8_t pwmDigitalInputPin, uint8_t enableDigitalInputPin, 
                         uint8_t directionDigitalInputPin, uint8_t readyDigitalInputPin, 
                         uint8_t speedAnalogOutputPin, uint8_t currentAnalogOutputPin):
-    _pwmPin(pwmDigitalInputPin), _dirPin(directionDigitalInputPin), 
-    _enPin(enableDigitalInputPin), _readyPin(readyDigitalInputPin), 
+    _pwmPin(pwmDigitalInputPin), _enPin(enableDigitalInputPin), 
+    _dirPin(directionDigitalInputPin), _readyPin(readyDigitalInputPin), 
     _speedPin(speedAnalogOutputPin), _currPin(currentAnalogOutputPin) {}
 
 void EsconDriver::init() {
@@ -71,21 +71,17 @@ void EsconDriver::setSpeed(int16_t targetRpm) {
 }
 
 uint8_t EsconDriver::rpmToDuty(int16_t rpm) {
-    // Map RPM to duty cycle percentage
-    float dutyCyclePercent = map(rpm, ESCON_PWM_SPEED_RPM_MIN, ESCON_PWM_SPEED_RPM_MAX, 
-                                ESCON_PWM_DUTY_CYCLE_MIN, ESCON_PWM_DUTY_CYCLE_MAX);
-    // Convert percentage to 0-255 range for analogWrite
-    return static_cast<uint8_t>(map(dutyCyclePercent, 0.0f, 100.0f, 0, 255));
+    // Convert RPM to duty cycle (0-255) for analogWrite
+    return static_cast<uint8_t>(map(rpm, ESCON_PWM_SPEED_RPM_MIN, ESCON_PWM_SPEED_RPM_MAX,\
+         ESCON_PWM_DUTY_CYCLE_MIN, ESCON_PWM_DUTY_CYCLE_MAX));
 }
 
 int16_t EsconDriver::getAveragedSpeed() {
     int adcValue = analogRead(_speedPin);
-    float voltage = (adcValue / static_cast<float>(ARDUINO_ADC_MAX_VALUE)) 
-                    * ARDUINO_ADC_VOLTAGE_REF;
     // Map voltage back to RPM
     return static_cast<int16_t>(
-        map(voltage, 
-            ESCON_ANALOG_VOLTAGE_MIN, ESCON_ANALOG_VOLTAGE_MAX, 
+        map(adcValue, 
+            ESCON_ADC_MIN_VALUE, ESCON_ADC_MAX_VALUE, 
             ESCON_RPM_AT_VOLTAGE_MIN, ESCON_RPM_AT_VOLTAGE_MAX
         )
     );
@@ -93,12 +89,10 @@ int16_t EsconDriver::getAveragedSpeed() {
 
 int16_t EsconDriver::getAveragedCurrent() {
     int adcValue = analogRead(_currPin);
-    float voltage = (adcValue / static_cast<float>(ARDUINO_ADC_MAX_VALUE)) 
-                    * ARDUINO_ADC_VOLTAGE_REF;
-    // Map voltage back to current
+    // Map ADC value back to current
     return static_cast<int16_t>(
-        map(voltage, 
-            ESCON_ANALOG_VOLTAGE_MIN, ESCON_ANALOG_VOLTAGE_MAX, 
+        map(adcValue, 
+            ESCON_ADC_MIN_VALUE, ESCON_ADC_MAX_VALUE, 
             ESCON_CURRENT_AT_VOLTAGE_MIN, ESCON_CURRENT_AT_VOLTAGE_MAX
         )
     );

@@ -35,17 +35,29 @@ void loop()
     option=Serial.read();
     if(option=='t') {
       Serial.println("Beginning motor test...");
-      leftMotor.setSpeed(speed);
-
-      Serial.print("Set speed: ");
-      Serial.println(speed);
-
-      speed += -500; // Increase speed by 500 RPM every time 't' is sent
-      if (speed > MOTOR_MAX_PERMISSIBLE_RPM) {
-        speed = 0; // Reset speed to 0 after reaching max
-      }
+      Serial.println("Increase speed: 'u'");
+      Serial.println("Decrease speed: 'd'");
+      Serial.println("Stop motor: 's'");
+      Serial.println("Get motor status: 'm'");
+    } else if (option == 'u') {
+      speed += 20; // Increase speed by 20 RPM every time 'u' is sent
+    } else if (option == 'd') {
+      speed -= 20; // Decrease speed by 20 RPM every time 'd' is sent
+    } else if (option == 's') {
+      speed = 0; // Stop the motor when 's' is sent
+    } else if (option == 'm') {
+      Serial.print("Current speed: ");
+      Serial.print(leftMotor.getAveragedSpeed());
+      Serial.print(" RPM, Current: ");
+      Serial.print(leftMotor.getAveragedCurrent());
+      Serial.println(" mA");
     } else {
       Serial.println("Unknown command. Please send 't' to start the motor test.");
     }
+
+    leftMotor.setSpeed(speed);
+
+    Serial.print("Set speed: ");
+    Serial.println(speed);
   }
 }

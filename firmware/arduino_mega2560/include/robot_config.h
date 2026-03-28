@@ -29,7 +29,11 @@
 // --- ADC properties ---
 #define ARDUINO_ADC_RESOLUTION_BITS     10
 #define ARDUINO_ADC_MAX_VALUE           ((1 << ARDUINO_ADC_RESOLUTION_BITS) - 1) // 1023 for 10-bit ADC
-#define ARDUINO_ADC_VOLTAGE_REF         5.0f // in millivolts (5V reference voltage)
+#define ARDUINO_ADC_VOLTAGE_REF         5.0f // in volts (Arduino ADC reference voltage)
+
+// --- PWM properties ---
+#define ARDUINO_PWM_RESOLUTION_BITS     8
+#define ARDUINO_PWM_MAX_VALUE           ((1 << ARDUINO_PWM_RESOLUTION_BITS) - 1) // 255 for 8-bit PWM resolution
 
 // --- PWM configuration ---
 #define ARDUINO_PWM_MOTOR_PRESCALER     0b010 // For ~4 kHz PWM frequency on Arduino Mega 2560 (Timer4)
@@ -40,48 +44,26 @@
 // --------------------------------
 
 // --- Motor limits ---
-#define MOTOR_MAX_PERMISSIBLE_RPM       4092
-#define MOTOR_MIN_DEADZONE_RPM          200
+#define MOTOR_MAX_PERMISSIBLE_RPM           4092
+#define MOTOR_MAX_PERMISSIBLE_CURRENT_MA    3060 // in milliamps (3.06A from ESCON)
 
 // --- Motor directions ---
 #define MOTOR_CCW_DIRECTION             0
 #define MOTOR_CW_DIRECTION              1
 
 // --- PWM parameters ---
-#define ESCON_PWM_DUTY_CYCLE_MIN       10.0f / 100.0f * 255 // Minimum duty cycle to overcome motor deadzone (10% of 255)
-#define ESCON_PWM_DUTY_CYCLE_MAX       90.0f / 100.0f * 255 // Maximum duty cycle to avoid overdriving the motor (90% of 255)
-#define ESCON_PWM_SPEED_RPM_MIN         0.0f
-#define ESCON_PWM_SPEED_RPM_MAX        MOTOR_MAX_PERMISSIBLE_RPM
+#define ESCON_PWM_DUTY_CYCLE_MIN       10.0f / 100.0f * ARDUINO_PWM_MAX_VALUE // Minimum duty cycle to overcome motor deadzone (10% of 255)
+#define ESCON_PWM_DUTY_CYCLE_MAX       90.0f / 100.0f * ARDUINO_PWM_MAX_VALUE // Maximum duty cycle to avoid overdriving the motor (90% of 255)
 
 // --- Analog output configuration ---
 // Arduino ADC read 0-5V, so ESCON MUST output 0-4V only
-#define ESCON_ANALOG_VOLTAGE_MAX        4.0f // in millivolts (4V max output from ESCON)
-#define ESCON_ANALOG_VOLTAGE_MIN        0.0f // in millivolts (0V min output from ESCON)
-
-#define ESCON_CURRENT_AT_VOLTAGE_MAX    3060 // in milliamps (3.06A from ESCON)
-#define ESCON_CURRENT_AT_VOLTAGE_MIN    -3060 // in milliamps (-3.06A from ESCON)
-
-#define ESCON_RPM_AT_VOLTAGE_MAX        4092
-#define ESCON_RPM_AT_VOLTAGE_MIN        -4092
+#define ESCON_ANALOG_VOLTAGE_MAX        4.0f // in volts (4V max output from ESCON)
+#define ESCON_ANALOG_VOLTAGE_MIN        0.0f // in volts (0V min output from ESCON)
 
 // Maximum and minimum Arduino ADC values corresponding to ESCON's voltage outputs
-#define ESCON_ADC_MAX_VALUE   (int)(ARDUINO_ADC_MAX_VALUE * (ESCON_ANALOG_VOLTAGE_MAX / ARDUINO_ADC_VOLTAGE_REF))
-#define ESCON_ADC_MIN_VALUE   (int)(ARDUINO_ADC_MAX_VALUE * (ESCON_ANALOG_VOLTAGE_MIN / ARDUINO_ADC_VOLTAGE_REF))
-
-
-// ---------------------
-// --- COMMUNICATION ---
-// ---------------------
-
-#define SERIAL_BAUD_RATE        921600
-#define CMD_TIMEOUT_MS          200
-#define TELEMETRY_FREQ_HZ       50
-
-// -------------------------
-// --- ODOMETRY GEOMETRY ---
-// -------------------------
-
-#define WHEEL_DIAMETER_METERS   0.065f  // 65mm DUPLO wheel approx
-#define WHEEL_BASE_METERS       0.150f  // Distance between wheel centers
+#define ESCON_ADC_MAX_VALUE   (int)(ARDUINO_ADC_MAX_VALUE * \
+                                (ESCON_ANALOG_VOLTAGE_MAX / ARDUINO_ADC_VOLTAGE_REF))
+#define ESCON_ADC_MIN_VALUE   (int)(ARDUINO_ADC_MAX_VALUE * \
+                                (ESCON_ANALOG_VOLTAGE_MIN / ARDUINO_ADC_VOLTAGE_REF))
 
 #endif

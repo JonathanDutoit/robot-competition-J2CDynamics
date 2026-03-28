@@ -72,8 +72,12 @@ void EsconDriver::setSpeed(int16_t targetRpm) {
 
 uint8_t EsconDriver::rpmToDuty(int16_t rpm) {
     // Convert RPM to duty cycle (0-255) for analogWrite
-    return static_cast<uint8_t>(map(rpm, ESCON_PWM_SPEED_RPM_MIN, ESCON_PWM_SPEED_RPM_MAX,\
-         ESCON_PWM_DUTY_CYCLE_MIN, ESCON_PWM_DUTY_CYCLE_MAX));
+    return static_cast<uint8_t>(
+        map(rpm, 
+            0, MOTOR_MAX_PERMISSIBLE_RPM,
+            ESCON_PWM_DUTY_CYCLE_MIN, ESCON_PWM_DUTY_CYCLE_MAX
+        )
+    );
 }
 
 int16_t EsconDriver::getAveragedSpeed() {
@@ -82,7 +86,7 @@ int16_t EsconDriver::getAveragedSpeed() {
     return static_cast<int16_t>(
         map(adcValue, 
             ESCON_ADC_MIN_VALUE, ESCON_ADC_MAX_VALUE, 
-            ESCON_RPM_AT_VOLTAGE_MIN, ESCON_RPM_AT_VOLTAGE_MAX
+            -MOTOR_MAX_PERMISSIBLE_RPM, MOTOR_MAX_PERMISSIBLE_RPM
         )
     );
 }
@@ -93,7 +97,7 @@ int16_t EsconDriver::getAveragedCurrent() {
     return static_cast<int16_t>(
         map(adcValue, 
             ESCON_ADC_MIN_VALUE, ESCON_ADC_MAX_VALUE, 
-            ESCON_CURRENT_AT_VOLTAGE_MIN, ESCON_CURRENT_AT_VOLTAGE_MAX
+            -MOTOR_MAX_PERMISSIBLE_CURRENT_MA, MOTOR_MAX_PERMISSIBLE_CURRENT_MA
         )
     );
 }

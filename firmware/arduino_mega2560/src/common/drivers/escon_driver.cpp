@@ -1,7 +1,7 @@
-#include <escon_driver.h>
+#include <common/drivers/escon_driver.hpp>
 
 #include <Arduino.h>
-#include <robot_config.h>
+#include <common/robot_config.hpp>
 
 EsconDriver::EsconDriver(uint8_t pwmDigitalInputPin, uint8_t enableDigitalInputPin, 
                         uint8_t directionDigitalInputPin, uint8_t readyDigitalInputPin, 
@@ -80,7 +80,10 @@ uint8_t EsconDriver::rpmToDuty(int16_t rpm) {
     );
 }
 
-int16_t EsconDriver::getAveragedSpeed() {
+int16_t EsconDriver::getSpeed() {
+    if (!isReady()) {
+        return 0; // If not ready, return 0 speed
+    }
     int adcValue = analogRead(_speedPin);
     // Map voltage back to RPM
     return static_cast<int16_t>(
@@ -91,7 +94,7 @@ int16_t EsconDriver::getAveragedSpeed() {
     );
 }
 
-int16_t EsconDriver::getAveragedCurrent() {
+int16_t EsconDriver::getCurrent() {
     int adcValue = analogRead(_currPin);
     // Map ADC value back to current
     return static_cast<int16_t>(

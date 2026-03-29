@@ -5,8 +5,8 @@
  * correctly.
  */
 #include <Arduino.h>
-#include <robot_config.h>
-#include <escon_driver.h>
+#include <common/robot_config.hpp>
+#include <common/drivers/escon_driver.hpp>
 
 EsconDriver leftMotor(PIN_LEFT_MOTOR_PWM, PIN_LEFT_MOTOR_EN, PIN_LEFT_MOTOR_DIR, 
                         PIN_LEFT_MOTOR_READY, PIN_LEFT_MOTOR_SPEED_ANA, PIN_LEFT_MOTOR_CURR_ANA);
@@ -47,9 +47,9 @@ void loop()
       speed = 0; // Stop the motor when 's' is sent
     } else if (option == 'm') {
       Serial.print("Current speed: ");
-      Serial.print(leftMotor.getAveragedSpeed());
+      Serial.print(leftMotor.getSpeed());
       Serial.print(" RPM, Current: ");
-      Serial.print(leftMotor.getAveragedCurrent());
+      Serial.print(leftMotor.getCurrent());
       Serial.println(" mA");
     } else {
       Serial.println("Unknown command. Please send 't' to start the motor test.");

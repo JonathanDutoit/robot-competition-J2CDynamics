@@ -1,8 +1,5 @@
 /**
- * Test motor
- * 
- * This is a simple test sketch to verify that the ESCON motor driver is working 
- * correctly.
+ * TODO: Add description
  */
 #include <Arduino.h>
 #include <common/robot_config.hpp>
@@ -26,59 +23,102 @@ struct Measurement {
 };
 Measurement measurement;
 
-char option;
-float speed = 0;
-
 void setup()
 {
   //initialize the serial port
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // initialize Escon motor drivers
   leftMotor.init();
   rightMotor.init();
 
-  Serial.println("Waiting for 't' command to start motor test...");
+  Serial.println("Motor ready! Waiting for new commands...");
+  while (!Serial);
+
+  Serial.println("Enter a word and press Enter:");
 }
 
 void loop()
 {
-  if (Serial.available()>0){
-    //read the sent option
-    option=Serial.read();
-    if(option=='t') {
-      Serial.println("Beginning motor test...");
-      Serial.println("Increase speed: 'u'");
-      Serial.println("Decrease speed: 'd'");
-      Serial.println("Stop motor: 's'");
-      Serial.println("Get motor status: 'm'");
-    } else if (option == 'u') {
-      speed += 10; // Increase speed by 1 rad/s every time 'u' is sent
-    } else if (option == 'd') {
-      speed -= 10; // Decrease speed by 1 rad/s every time 'd' is sent
-    } else if (option == 's') {
-      speed = 0; // Stop the motor when 's' is sent
-    } else if (option == 'm') {
-      driveController.getWheelVelocities(measurement.leftWheelRadPerSec, 
-        measurement.rightWheelRadPerSec); // Get current wheel velocities
-      measurement.leftMotorCurrentA = leftMotor.getCurrent(); // Get current for left motor
-      measurement.rightMotorCurrentA = rightMotor.getCurrent(); // Get current for right motor
-      Serial.print("Current speed: ");
-      Serial.print(measurement.leftWheelRadPerSec, 2);
-      Serial.print(" rad/s, ");
-      Serial.print(measurement.rightWheelRadPerSec, 2);
-      Serial.print(" rad/s, Current: ");
-      Serial.print(measurement.leftMotorCurrentA, 2);
-      Serial.print(" A, ");
-      Serial.print(measurement.rightMotorCurrentA, 2);
-      Serial.println(" A");
-    } else {
-      Serial.println("Unknown command. Please send 't' to start the motor test.");
+  if (Serial.available()) {
+    String input = Serial.readStringUntil('\n');
+
+    Serial.print("Received: ");
+    Serial.println(input);
+
+    char command[10];
+    float leftPWM = 0, rightPWM = 0;
+    int parsedCount = 0;
+
+    bool valid = parseInput(input, command, leftPWM, rightPWM, parsedCount);
+
+    if (!valid) {
+      Serial.println("ERR: Empty command");
+      return;
     }
 
-    driveController.setWheelVelocities(speed, speed); // Set both wheels to the same speed for testing
+    // ── SPEED command ─────────────────────────────
+    if (strcmp(command, "SPEED") == 0) {
+      if (parsedCount == 3) {
+        set_speed_command();
+      } else {
+        Serial.println("ERR: Usage -> SPEED <left> <right>");
+      }
+    }
 
-    Serial.print("Set speed: ");
-    Serial.println(speed);
+    // ── STATUS command ────────────────────────────
+    else if (strcmp(command, "STATUS") == 0) {
+      status_command();
+    }
+
+    // ── Unknown command ───────────────────────────
+    else {
+      Serial.println("ERR: Unknown command");
+    }
   }
+}
+
+void set_speed_command() {
+  driveController.setWheelVelocities(leftPWM, rightPWM);
+  Serial.print("OK: L=");
+  Serial.print(leftPWM);
+  Serial.print(" R=");
+  Serial.println(rightPWM);
+}
+
+void status_command() {
+  float leftVel = 0, rightVel = 0;
+
+  driveController.getWheelVelocities(leftVel, rightVel);
+
+  float leftCur  = leftMotor.getCurrent();
+  float rightCur = rightMotor.getCurrent();
+
+  Serial.print("STATUS: ");
+  Serial.print("L_vel=");
+  Serial.print(leftVel, 2);
+  Serial.print(" rad/s ");
+
+  Serial.print("R_vel=");
+  Serial.print(rightVel, 2);
+  Serial.print(" rad/s ");
+
+  Serial.print("L_cur=");
+  Serial.print(leftCur, 2);
+  Serial.print(" A ");
+
+  Serial.print("R_cur=");
+  Serial.print(rightCur, 2);
+  Serial.println(" A");
+}
+
+bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount) {
+  input.trim();
+
+  char buffer[64];
+  input.toCharArray(buffer, sizeof(buffer));
+
+  parsedCount = sscanf(buffer, "%s %f %f", command, &leftPWM, &rightPWM);
+
+  return (parsedCount >= 1);  // At least command exists
 }

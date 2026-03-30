@@ -60,4 +60,7 @@
 #define ESCON_CURRENT_ZERO_VOLTAGE     (ESCON_MAX_OUTPUT_VOLTAGE) / 2.0f // in volts (2V offset for centering around 0 current/speed)
 #define ESCON_VELOCITY_ZERO_VOLTAGE    (ESCON_MAX_OUTPUT_VOLTAGE) / 2.0f // in volts (2V offset for centering around 0 current/speed)
 
+// --- MECHANICAL PARAMETERS ---
+#define GEAR_RATIO                     60.0f // gear ratio
+
 #endif

@@ -45,7 +45,7 @@ uint8_t EsconDriver::isReady() {
     return digitalRead(_readyPin) == LOW;
 }
 
-void EsconDriver::setSpeed(int16_t targetCmd) {
+void EsconDriver::setSpeed(int16_t targetRpm) {
     if (!isReady()) {
         digitalWrite(_enPin, LOW);
         analogWrite(_pwmPin, 0);
@@ -55,18 +55,29 @@ void EsconDriver::setSpeed(int16_t targetCmd) {
     }
 
     // Direction Logic
-    if (targetCmd >= 0) {
+    if (targetRpm >= 0) {
         digitalWrite(_dirPin, MOTOR_CCW_DIRECTION);
     } else {
         digitalWrite(_dirPin, MOTOR_CW_DIRECTION);
-        targetCmd = -targetCmd;
+        targetRpm = -targetRpm;
     }
 
     // Saturation
-    int8_t cmd = constrain(targetCmd, ESCON_PWM_DUTY_CYCLE_MIN, 
-                            ESCON_PWM_DUTY_CYCLE_MAX);
+    if (targetRpm > MOTOR_MAX_PERMISSIBLE_RPM) targetRpm = MOTOR_MAX_PERMISSIBLE_RPM;
 
-    analogWrite(_pwmPin, cmd);
+    // Convert RPM to Duty Cycle (0-255) and write to PWM pin
+    uint8_t duty = rpmToDuty(targetRpm);
+    analogWrite(_pwmPin, duty);
+}
+
+uint8_t EsconDriver::rpmToDuty(int16_t rpm) {
+    // Convert RPM to duty cycle (0-255) for analogWrite
+    return static_cast<uint8_t>(
+        map(rpm, 
+            0, MOTOR_MAX_PERMISSIBLE_RPM,
+            ESCON_PWM_DUTY_CYCLE_MIN, ESCON_PWM_DUTY_CYCLE_MAX
+        )
+    );
 }
 
 int16_t EsconDriver::getSpeed() {

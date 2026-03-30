@@ -52,8 +52,8 @@
 #define MOTOR_CW_DIRECTION              1
 
 // --- PWM parameters ---
-#define ESCON_PWM_DUTY_CYCLE_MIN       (int)(10.0f / 100.0f * ARDUINO_PWM_MAX_VALUE) // Minimum duty cycle to overcome motor deadzone (10% of 255)
-#define ESCON_PWM_DUTY_CYCLE_MAX       (int)(90.0f / 100.0f * ARDUINO_PWM_MAX_VALUE) // Maximum duty cycle to avoid overdriving the motor (90% of 255)
+#define ESCON_PWM_DUTY_CYCLE_MIN       10.0f / 100.0f * ARDUINO_PWM_MAX_VALUE // Minimum duty cycle to overcome motor deadzone (10% of 255)
+#define ESCON_PWM_DUTY_CYCLE_MAX       90.0f / 100.0f * ARDUINO_PWM_MAX_VALUE // Maximum duty cycle to avoid overdriving the motor (90% of 255)
 
 // --- Analog output configuration ---
 // Arduino ADC read 0-5V, so ESCON MUST output 0-4V only

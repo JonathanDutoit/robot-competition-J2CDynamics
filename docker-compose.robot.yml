@@ -8,39 +8,23 @@ services:
         BUILDPLATFORM: linux/arm64
     platform: linux/arm64
     
-    network_mode: host
-    privileged: true
-
     env_file:
       - ./docker/.env
+
     environment:
       - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
 
     volumes:
-      # ── Live workspace: changes on the host go straight to git ──────────
-      # across container restarts (fast incremental rebuilds on the Pi).
       - ./ros2_ws/src:/ros2_ws/src 
-
-      # ── Hardware access ──────────────────────────────────────────────────
-      - /dev:/dev
-
-      # ── RPLIDAR serial port (most common paths on Pi) ────────────────────
-      # USB-to-serial adapter (default for most RPLIDAR kits):
-      - /dev/ttyUSB0:/dev/ttyUSB0
-
-      # ── CycloneDDS config ────────────────────────────────────────────────
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
 
-    # Grant serial-port access without full --privileged if you ever tighten
-    # security (redundant while privileged: true, but self-documenting).
     devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0   # adjust / remove if not USB
+      - /dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_ABC123-if00:/dev/arduino
+      - /dev/serial/by-id/usb-SLAMTEC_RPLIDAR_A1_DEF456-if00:/dev/lidar
 
     command: >
       bash -c "
-      ros2 launch rplidar_ros rplidar_a1_launch.py serial_port:=/dev/ttyUSB0 &
-      sleep 2 &&
-      ros2 launch slam_toolbox online_async_launch.py
+
       " 
 
     group_add:

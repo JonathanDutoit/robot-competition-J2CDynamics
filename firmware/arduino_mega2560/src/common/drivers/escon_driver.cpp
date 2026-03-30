@@ -21,7 +21,7 @@ void EsconDriver::init() {
     digitalWrite(_enPin, LOW); // Ensure motor is disabled at startup
     digitalWrite(_dirPin, MOTOR_CCW_DIRECTION); // Default direction
 
-    setSpeed(0); // Start with 0 speed but ensure PWM is set at 10% duty cycle to avoid ESCON error
+    setVelocity(0); // Start with 0 speed but ensure PWM is set at 10% duty cycle to avoid ESCON error
 }
 
 void EsconDriver::configurePWM() {
@@ -45,7 +45,7 @@ uint8_t EsconDriver::isReady() {
     return digitalRead(_readyPin) == LOW;
 }
 
-void EsconDriver::setSpeed(int16_t targetRpm) {
+void EsconDriver::setVelocity(float rad_per_sec) {
     if (!isReady()) {
         digitalWrite(_enPin, LOW);
         analogWrite(_pwmPin, 0);
@@ -55,52 +55,45 @@ void EsconDriver::setSpeed(int16_t targetRpm) {
     }
 
     // Direction Logic
-    if (targetRpm >= 0) {
+    if (rad_per_sec >= 0) {
         digitalWrite(_dirPin, MOTOR_CCW_DIRECTION);
     } else {
         digitalWrite(_dirPin, MOTOR_CW_DIRECTION);
-        targetRpm = -targetRpm;
+        rad_per_sec = -rad_per_sec;
     }
 
     // Saturation
-    if (targetRpm > MOTOR_MAX_PERMISSIBLE_RPM) targetRpm = MOTOR_MAX_PERMISSIBLE_RPM;
+    if (rad_per_sec > MOTOR_MAX_VELOCITY_RAD_SEC) {
+        rad_per_sec = MOTOR_MAX_VELOCITY_RAD_SEC;
+    }
+
+    // Normalize to [0, 1]
+    rad_per_sec = rad_per_sec / MOTOR_MAX_VELOCITY_RAD_SEC;
 
     // Convert RPM to Duty Cycle (0-255) and write to PWM pin
-    uint8_t duty = rpmToDuty(targetRpm);
+    uint8_t duty = static_cast<uint8_t>(
+        rad_per_sec * (ESCON_PWM_DUTY_CYCLE_MAX - ESCON_PWM_DUTY_CYCLE_MIN) 
+        + ESCON_PWM_DUTY_CYCLE_MIN
+    );
     analogWrite(_pwmPin, duty);
 }
 
-uint8_t EsconDriver::rpmToDuty(int16_t rpm) {
-    // Convert RPM to duty cycle (0-255) for analogWrite
-    return static_cast<uint8_t>(
-        map(rpm, 
-            0, MOTOR_MAX_PERMISSIBLE_RPM,
-            ESCON_PWM_DUTY_CYCLE_MIN, ESCON_PWM_DUTY_CYCLE_MAX
-        )
-    );
-}
-
-int16_t EsconDriver::getSpeed() {
+float EsconDriver::getVelocity() {
     if (!isReady()) {
         return 0; // If not ready, return 0 speed
     }
-    int adcValue = analogRead(_speedPin);
-    // Map voltage back to RPM
-    return static_cast<int16_t>(
-        map(adcValue, 
-            ESCON_ADC_MIN_VALUE, ESCON_ADC_MAX_VALUE, 
-            -MOTOR_MAX_PERMISSIBLE_RPM, MOTOR_MAX_PERMISSIBLE_RPM
-        )
-    );
+    float adcValue = static_cast<float>(analogRead(_speedPin));
+    float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
+    voltage = voltage - ESCON_VELOCITY_ZERO_VOLTAGE; // Center around 0V (2V is 0 speed)
+    return voltage * 2 * MOTOR_MAX_VELOCITY_RAD_SEC / ESCON_MAX_OUTPUT_VOLTAGE; // in radians per second
 }
 
-int16_t EsconDriver::getCurrent() {
-    int adcValue = analogRead(_currPin);
-    // Map ADC value back to current
-    return static_cast<int16_t>(
-        map(adcValue, 
-            ESCON_ADC_MIN_VALUE, ESCON_ADC_MAX_VALUE, 
-            -MOTOR_MAX_PERMISSIBLE_CURRENT_MA, MOTOR_MAX_PERMISSIBLE_CURRENT_MA
-        )
-    );
+float EsconDriver::getCurrent() {
+    if (!isReady()) {
+        return 0; // If not ready, return 0 current
+    }
+    float adcValue = static_cast<float>(analogRead(_currPin));
+    float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
+    voltage = voltage - ESCON_CURRENT_ZERO_VOLTAGE; // Center around 0V (2V is 0 current)
+    return voltage * 2 * MOTOR_MAX_CURRENT_A / ESCON_MAX_OUTPUT_VOLTAGE; // in amps
 }

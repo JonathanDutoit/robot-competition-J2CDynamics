@@ -14,7 +14,7 @@ EsconDriver leftMotor(PIN_LEFT_MOTOR_PWM, PIN_LEFT_MOTOR_EN, PIN_LEFT_MOTOR_DIR,
 //                         PIN_RIGHT_MOTOR_READY, PIN_RIGHT_MOTOR_SPEED_ANA, PIN_RIGHT_MOTOR_CURR_ANA);
 
 char option;
-int speed = 0;
+float speed = 0;
 
 void setup()
 {
@@ -40,22 +40,22 @@ void loop()
       Serial.println("Stop motor: 's'");
       Serial.println("Get motor status: 'm'");
     } else if (option == 'u') {
-      speed += 20; // Increase speed by 20 RPM every time 'u' is sent
+      speed += 10; // Increase speed by 1 rad/s every time 'u' is sent
     } else if (option == 'd') {
-      speed -= 20; // Decrease speed by 20 RPM every time 'd' is sent
+      speed -= 10; // Decrease speed by 1 rad/s every time 'd' is sent
     } else if (option == 's') {
       speed = 0; // Stop the motor when 's' is sent
     } else if (option == 'm') {
       Serial.print("Current speed: ");
-      Serial.print(leftMotor.getSpeed());
-      Serial.print(" RPM, Current: ");
-      Serial.print(leftMotor.getCurrent());
-      Serial.println(" mA");
+      Serial.print(leftMotor.getVelocity(), 2);
+      Serial.print(" rad/s, Current: ");
+      Serial.print(leftMotor.getCurrent(), 2);
+      Serial.println(" A");
     } else {
       Serial.println("Unknown command. Please send 't' to start the motor test.");
     }
 
-    leftMotor.setSpeed(speed);
+    leftMotor.setVelocity(speed);
 
     Serial.print("Set speed: ");
     Serial.println(speed);

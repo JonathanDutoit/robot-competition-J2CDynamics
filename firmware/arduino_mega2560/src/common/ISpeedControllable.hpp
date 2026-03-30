@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-struct ISpeedController
+struct ISpeedControllable
 {
     virtual void setVelocity(float rad_per_sec) = 0;
     virtual float getVelocity() = 0;

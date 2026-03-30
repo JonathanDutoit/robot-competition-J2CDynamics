@@ -2,9 +2,9 @@
 #define MAXON_DRIVER_H
 
 #include <stdint.h>
-#include <common/ISpeedController.hpp>
+#include <common/ISpeedControllable.hpp>
 
-class EsconDriver : public ISpeedController {
+class EsconDriver : public ISpeedControllable {
     public:
         EsconDriver(uint8_t pwmDigitalInputPin, uint8_t enableDigitalInputPin, 
                     uint8_t directionDigitalInputPin, uint8_t readyDigitalInputPin, 

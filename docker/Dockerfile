@@ -18,6 +18,7 @@ WORKDIR $ROS_WS
 FROM ros2_base AS robot
 
 RUN apt update && apt install -y \
+    python3-serial \
     ros-humble-rplidar-ros \
     ros-humble-slam-toolbox \
     && rm -rf /var/lib/apt/lists/*

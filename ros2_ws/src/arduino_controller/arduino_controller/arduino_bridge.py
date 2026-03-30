@@ -11,15 +11,13 @@ class ArduinoBridge(Node):
         # Parameters (tune these!)
         self.declare_parameter('port', '/dev/arduino')
         self.declare_parameter('baudrate', 115200)
-        #self.declare_parameter('max_pwm', 255)
-        #self.declare_parameter('wheel_base', 0.3)  # distance between wheels (meters)
-        #self.declare_parameter('max_speed', 1.0)   # m/s scaling
 
-        port = self.get_parameter('port').get_parameter_value().string_value
-        baud = self.get_parameter('baudrate').get_parameter_value().integer_value
+        port = self.get_parameter('port').value
+        baud = self.get_parameter('baudrate').value
 
+        
         self.ser = serial.Serial(port, baud, timeout=1)
-
+        
         # ROS2 subscriber
         self.subscription = self.create_subscription(
             Twist,
@@ -28,25 +26,19 @@ class ArduinoBridge(Node):
             10
         )
 
-        self.get_logger().info("CmdVel to Arduino node started")
+        self.get_logger().info("Arduino Bridge node started")
+
+        self.timer = self.create_timer(0.2, self.read_serial)
+
+    def read_serial(self):
+        if self.ser.in_waiting:
+            line = self.ser.readline().decode('utf-8').strip()
+            self.get_logger().info(f"Received: {line}")
+            
 
     def cmdvel_callback(self, msg: Twist):
-        """ linear = msg.linear.x
-        angular = msg.angular.z
-
-        # Differential drive kinematics
-        wheel_base = self.get_parameter('wheel_base').value
-        left_speed = linear - (angular * wheel_base / 2.0)
-        right_speed = linear + (angular * wheel_base / 2.0)
-
-        # Normalize to PWM
-        max_speed = self.get_parameter('max_speed').value
-        max_pwm = self.get_parameter('max_pwm').value
-
-        left_pwm = int(max(-1.0, min(1.0, left_speed / max_speed)) * max_pwm)
-        right_pwm = int(max(-1.0, min(1.0, right_speed / max_speed)) * max_pwm) """
-        left_pwm = 120
-        right_pwm = 100
+        left_pwm = 6
+        right_pwm = 6
 
         # Format command
         cmd = f"SPEED {left_pwm} {right_pwm}\n"

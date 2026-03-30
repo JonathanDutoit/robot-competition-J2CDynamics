@@ -6,27 +6,20 @@ services:
       target: robot
       args:
         BUILDPLATFORM: linux/arm64
+    network_mode: host
     platform: linux/arm64
-    
     env_file:
       - ./docker/.env
-
     environment:
       - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
-
     volumes:
-      - ./ros2_ws/src:/ros2_ws/src 
+      - ./ros2_ws/src:/ros2_ws/src
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
-
-    devices:
-      - /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0:/dev/lidar
-      - /dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_95736323632351D040D1-if00:/dev/arduino
-
+      - /dev:/dev  
     command: >
       bash -c "
-        ros2 launch rplidar_ros rplidar_a1_launch.py serial_port:=/dev/lidar &
-      " 
-
+        ros2 run arduino_controller arduino_bridge
+      "
     group_add:
-    # Owner group of /dev/ttyUSB0
-      - "dialout" 
+      - "dialout"
+    privileged: true

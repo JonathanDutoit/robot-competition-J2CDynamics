@@ -5,8 +5,8 @@
 
 struct ISpeedController
 {
-    virtual void setSpeed(int16_t targetRpm) = 0;
-    virtual int16_t getSpeed() = 0;
+    virtual void setVelocity(float rad_per_sec) = 0;
+    virtual float getVelocity() = 0;
 };
 
 #endif

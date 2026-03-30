@@ -2,9 +2,8 @@
   <Domain>
     <General>
       <AllowMulticast>false</AllowMulticast>
-      <DontRoute>true</DontRoute>
       <Interfaces>
-        <NetworkInterface address="${DEV_IP}"/>
+        <NetworkInterface autodetermine="true"/>
       </Interfaces>
     </General>
 

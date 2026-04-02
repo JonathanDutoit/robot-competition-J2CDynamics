@@ -23,10 +23,14 @@ struct Measurement {
 };
 Measurement measurement;
 
+void set_speed_command(float leftPWM, float rightPWM);
+void status_command();
+bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount);
+
 void setup()
 {
   //initialize the serial port
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   // initialize Escon motor drivers
   leftMotor.init();
@@ -60,7 +64,7 @@ void loop()
     // ── SPEED command ─────────────────────────────
     if (strcmp(command, "SPEED") == 0) {
       if (parsedCount == 3) {
-        set_speed_command();
+        set_speed_command(leftPWM, rightPWM);
       } else {
         Serial.println("ERR: Usage -> SPEED <left> <right>");
       }
@@ -78,7 +82,7 @@ void loop()
   }
 }
 
-void set_speed_command() {
+void set_speed_command(float leftPWM, float rightPWM) {
   driveController.setWheelVelocities(leftPWM, rightPWM);
   Serial.print("OK: L=");
   Serial.print(leftPWM);
@@ -118,7 +122,29 @@ bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, in
   char buffer[64];
   input.toCharArray(buffer, sizeof(buffer));
 
-  parsedCount = sscanf(buffer, "%s %f %f", command, &leftPWM, &rightPWM);
+  parsedCount = 0;
 
-  return (parsedCount >= 1);  // At least command exists
+  // First token (command)
+  char* token = strtok(buffer, " \r\n");
+  if (!token) return false;
+
+  strncpy(command, token, 10);  // copy safely
+  command[9] = '\0';            // ensure null termination
+  parsedCount++;
+
+  // leftPWM
+  char* arg1 = strtok(nullptr, " \r\n");
+  if (arg1) {
+    leftPWM = atof(arg1);
+    parsedCount++;
+  }
+
+  // rightPWM
+  char* arg2 = strtok(nullptr, " \r\n");
+  if (arg2) {
+    rightPWM = atof(arg2);
+    parsedCount++;
+  }
+
+  return true;
 }

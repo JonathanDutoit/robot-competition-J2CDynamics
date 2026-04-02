@@ -10,7 +10,7 @@ void DifferentialDriveController::setWheelVelocities(
     float leftWheelRadPerSec, float rightWheelRadPerSec
 ) {
     leftController->setVelocity(GEAR_RATIO * leftWheelRadPerSec);
-    rightController->setVelocity(GEAR_RATIO * rightWheelRadPerSec);
+    rightController->setVelocity(GEAR_RATIO * (-rightWheelRadPerSec));
 }
 
 void DifferentialDriveController::getWheelVelocities(

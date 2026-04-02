@@ -6,20 +6,20 @@
 // -----------------------
 
 // --- Left Motor ---
-#define PIN_LEFT_MOTOR_PWM            2
-#define PIN_LEFT_MOTOR_EN             3
-#define PIN_LEFT_MOTOR_DIR            4
-#define PIN_LEFT_MOTOR_READY          A0
-#define PIN_LEFT_MOTOR_SPEED_ANA      A1
-#define PIN_LEFT_MOTOR_CURR_ANA       A2
+#define PIN_RIGHT_MOTOR_PWM            2
+#define PIN_RIGHT_MOTOR_EN             3
+#define PIN_RIGHT_MOTOR_DIR            4
+#define PIN_RIGHT_MOTOR_READY          A0
+#define PIN_RIGHT_MOTOR_SPEED_ANA      A1
+#define PIN_RIGHT_MOTOR_CURR_ANA       A2
 
 // --- Right Motor ---
-#define PIN_RIGHT_MOTOR_PWM           5
-#define PIN_RIGHT_MOTOR_EN            6
-#define PIN_RIGHT_MOTOR_DIR           7
-#define PIN_RIGHT_MOTOR_READY         A3
-#define PIN_RIGHT_MOTOR_SPEED_ANA     A4
-#define PIN_RIGHT_MOTOR_CURR_ANA      A5
+#define PIN_LEFT_MOTOR_PWM           5
+#define PIN_LEFT_MOTOR_EN            6
+#define PIN_LEFT_MOTOR_DIR           7
+#define PIN_LEFT_MOTOR_READY         A3
+#define PIN_LEFT_MOTOR_SPEED_ANA     A4
+#define PIN_LEFT_MOTOR_CURR_ANA      A5
 
 
 // ------------------------------

@@ -4,13 +4,14 @@
       <AllowMulticast>false</AllowMulticast>
       <Interfaces>
         <NetworkInterface address="${ROBOT_IP}"/>
+        <NetworkInterface name="lo"/>  <!-- ← add this -->
       </Interfaces>
     </General>
-
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
       <Peers>
         <Peer address="${DEV_IP}"/>
+        <Peer address="127.0.0.1"/>  <!-- ← add this -->
       </Peers>
     </Discovery>
   </Domain>

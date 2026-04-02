@@ -7,47 +7,49 @@ import math
 class ArduinoBridge(Node):
     def __init__(self):
         super().__init__('arduino_bridge')
-
-        # Parameters (tune these!)
         self.declare_parameter('port', '/dev/arduino')
-        self.declare_parameter('baudrate', 115200)
+        self.declare_parameter('baudrate', 9600)
+        self.declare_parameter('serial_rate', 0.1)  # seconds, 10Hz default
 
         port = self.get_parameter('port').value
         baud = self.get_parameter('baudrate').value
+        rate = self.get_parameter('serial_rate').value
 
-        
         self.ser = serial.Serial(port, baud, timeout=1)
-        
-        # ROS2 subscriber
+
+        # Store latest command instead of sending immediately
+        self.latest_cmd = "SPEED 0.00 0.00\n"
+        self.last_sent_cmd = None  # ← add this
+
         self.subscription = self.create_subscription(
-            Twist,
-            '/cmd_vel',
-            self.cmdvel_callback,
-            10
+            Twist, '/cmd_vel', self.cmdvel_callback, 10
         )
+
+        self.create_timer(rate, self.send_serial)   # serial write timer
+        self.create_timer(0.2, self.read_serial)    # serial read timer
 
         self.get_logger().info("Arduino Bridge node started")
 
-        self.timer = self.create_timer(0.2, self.read_serial)
+    def cmdvel_callback(self, msg: Twist):
+        linear  = msg.linear.x
+        angular = msg.angular.z
+        MAX_PWM = 100.0
+        left_pwm  = max(-MAX_PWM, min(MAX_PWM, (linear - angular) * MAX_PWM))
+        right_pwm = max(-MAX_PWM, min(MAX_PWM, (linear + angular) * MAX_PWM))
+
+        
+        self.latest_cmd = f"SPEED {left_pwm:.2f} {right_pwm:.2f}\n"
+
+    def send_serial(self):
+        if self.latest_cmd != self.last_sent_cmd:  
+            self.ser.write(self.latest_cmd.encode('utf-8'))
+            self.get_logger().info(f"Sent: {self.latest_cmd.strip()}")
+            self.last_sent_cmd = self.latest_cmd
 
     def read_serial(self):
         if self.ser.in_waiting:
             line = self.ser.readline().decode('utf-8').strip()
             self.get_logger().info(f"Received: {line}")
-            
-
-    def cmdvel_callback(self, msg: Twist):
-        left_pwm = 6
-        right_pwm = 6
-
-        # Format command
-        cmd = f"SPEED {left_pwm} {right_pwm}\n"
-
-        # Send over serial
-        self.ser.write(cmd.encode('utf-8'))
-
-        # Debug
-        self.get_logger().info(f"Sent: {cmd.strip()}")
 
 def main(args=None):
     rclpy.init(args=args)

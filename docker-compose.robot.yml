@@ -16,9 +16,11 @@ services:
       - ./ros2_ws/src:/ros2_ws/src
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev  
+    devices:
+      - /dev/input/js0:/dev/input/js0
     command: >
       bash -c "
-        ros2 run arduino_controller arduino_bridge
+        ros2 launch robot_bringup teleop.launch.py
       "
     group_add:
       - "dialout"

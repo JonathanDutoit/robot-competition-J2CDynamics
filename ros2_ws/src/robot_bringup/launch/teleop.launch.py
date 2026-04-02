@@ -15,5 +15,11 @@ def generate_launch_description():
             parameters=[
                 '/ros2_ws/src/robot_bringup/config/teleop_joy.yaml'
             ]
+        ),
+        Node(
+            package='arduino_controller',
+            executable='arduino_bridge',
+            name='arduino_bridge',
+            parameters=[{'serial_rate': 0.2}]
         )
     ])

@@ -1,4 +1,6 @@
 from setuptools import setup
+from glob import glob 
+import os
 
 package_name = 'robot_bringup'
 
@@ -10,6 +12,9 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+
+        (os.path.join('share', 'robot_bringup', 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', 'robot_bringup', 'config'), glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

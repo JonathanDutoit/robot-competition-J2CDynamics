@@ -9,9 +9,9 @@ services:
     env_file:
       - ./docker/.env
     environment: 
-      -  CYCLONEDDS_URI=file:///dds/cyclonedds_mac.xml
+      -  CYCLONEDDS_URI=file:///dds/cyclonedds_dev.xml
     volumes:
       - ./ros2_ws/src:/ros2_ws/src
-      - ./dds/cyclonedds_mac.xml:/dds/cyclonedds_mac.xml
+      - ./dds/cyclonedds_dev.xml:/dds/cyclonedds_dev.xml
     stdin_open: true
     tty: true

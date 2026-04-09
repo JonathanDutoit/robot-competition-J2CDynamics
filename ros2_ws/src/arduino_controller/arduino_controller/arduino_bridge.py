@@ -4,6 +4,10 @@ from geometry_msgs.msg import Twist
 import serial
 import math
 
+""" 
+Adapted from Samshoni GitHub project
+https://github.com/samshoni/ros2-arduino-bridge/tree/main
+"""
 class ArduinoBridge(Node):
     def __init__(self):
         super().__init__('arduino_bridge')

@@ -21,5 +21,11 @@ def generate_launch_description():
             executable='arduino_bridge',
             name='arduino_bridge',
             parameters=[{'serial_rate': 0.2}]
-        )
+        ),
+        Node(
+            package='camera_stream',
+            executable='camera_node',
+            name='camera_node',
+            output='screen'
+        ),
     ])

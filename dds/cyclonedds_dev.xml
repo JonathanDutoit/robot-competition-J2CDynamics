@@ -3,10 +3,9 @@
     <General>
       <AllowMulticast>false</AllowMulticast>
       <Interfaces>
-        <NetworkInterface autodetermine="true"/>
+        <NetworkInterface address="${DEV_IP}"/>
       </Interfaces>
     </General>
-
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
       <Peers>

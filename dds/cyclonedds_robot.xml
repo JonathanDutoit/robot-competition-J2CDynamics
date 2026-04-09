@@ -4,14 +4,16 @@
       <AllowMulticast>false</AllowMulticast>
       <Interfaces>
         <NetworkInterface address="${ROBOT_IP}"/>
-        <NetworkInterface name="lo"/>  <!-- ← add this -->
+        <!-- Allows nodes to communicate in the same host (robot) -->
+        <NetworkInterface name="lo"/>  
       </Interfaces>
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
       <Peers>
         <Peer address="${DEV_IP}"/>
-        <Peer address="127.0.0.1"/>  <!-- ← add this -->
+        <!-- Allows nodes to communicate in the same host (robot) -->
+        <Peer address="127.0.0.1"/>  
       </Peers>
     </Discovery>
   </Domain>

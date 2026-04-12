@@ -11,6 +11,7 @@ services:
     environment:
       - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
       - HOME=/tmp
+      - UDEV=1
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev  

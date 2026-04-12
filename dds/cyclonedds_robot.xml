@@ -1,19 +1,19 @@
-<CycloneDDS>
+<CycloneDDS xmlns="https://cdds.io/config">
   <Domain>
     <General>
       <AllowMulticast>false</AllowMulticast>
+      <DontRoute>true</DontRoute>
       <Interfaces>
-        <NetworkInterface address="${ROBOT_IP}"/>
-        <!-- Allows nodes to communicate in the same host (robot) -->
-        <NetworkInterface name="lo"/>  
+        <NetworkInterface address="${ROBOT_IP}" priority="10"/>
+        <NetworkInterface name="lo" priority="0" presence_required="false"/>
       </Interfaces>
     </General>
+
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
       <Peers>
         <Peer address="${DEV_IP}"/>
-        <!-- Allows nodes to communicate in the same host (robot) -->
-        <Peer address="127.0.0.1"/>  
+        <Peer address="127.0.0.1"/>
       </Peers>
     </Discovery>
   </Domain>

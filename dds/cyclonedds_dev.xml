@@ -3,7 +3,7 @@
     <General>
       <AllowMulticast>false</AllowMulticast>
       <Interfaces>
-        <NetworkInterface address="${DEV_IP}"/>
+	      <NetworkInterface autodetermine="true"/>
       </Interfaces>
     </General>
     <Discovery>

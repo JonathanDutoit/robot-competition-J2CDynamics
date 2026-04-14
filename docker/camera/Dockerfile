@@ -10,6 +10,10 @@ RUN apt update && apt install -y git python3-pip python3-jinja2 \
       libfmt-dev libdrm-dev libexif-dev libboost-program-options-dev \
       libepoxy-dev libcap-dev pybind11-dev
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gettext-base \
+    && rm -rf /var/lib/apt/lists/*
+
 # Pin pybind11 to 2.x 
 RUN pip3 install meson "pybind11>=2.12,<3.0"
 
@@ -38,6 +42,7 @@ RUN git reset --hard 6cf6e88715ac034f568603bce9a1b8f4a30c12ce \
 # 4. Python dependencies
 RUN apt update && apt install -y \
       python3-piexif python3-prctl python3-numpy python3-opencv \
+      ros-humble-rmw-cyclonedds-cpp \ 
     && pip3 install --upgrade pip \
     && pip3 install \
         "numpy<2" \

@@ -8,6 +8,8 @@ services:
     privileged: true
     stdin_open: true
     tty: true
+    env_file:
+      - ./docker/.env
     environment:
       - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
       - HOME=/tmp

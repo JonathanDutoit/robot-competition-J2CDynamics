@@ -15,7 +15,7 @@ class CameraROSNode(Node):
         self.det_pub = self.create_publisher(Detection2DArray, '/detections', 10)
 
     def publish_frame(self, frame_np):
-        msg = self.bridge.cv2_to_imgmsg(frame_np, encoding='bgr8')
+        msg = self.bridge.cv2_to_imgmsg(frame_np, encoding='rgb8')  
         msg.header.stamp = self.get_clock().now().to_msg()
         self.img_pub.publish(msg)
 

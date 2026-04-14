@@ -31,8 +31,8 @@ def inference_loop(camera: Camera, detector: Detector, ros_node):
             with det_lock:
                 latest_detections = dets
 
+            ros_node.publish_frame(frame)
             ros_node.publish_detections(dets)
-            ros_node.publish(frame)
 
         except Exception as e:
             print(f"[inference] Error: {e}")

@@ -15,9 +15,12 @@ fi
 
 # ── Load .env ─────────────────────────────────────────────────────────────────
 if [[ -f "$ENV_FILE" ]]; then
-  set -a  # auto-export all variables
-  source "$ENV_FILE"
-  set +a
+  while IFS='=' read -r key value; do
+    # skip comments, blank lines, and readonly bash vars
+    [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+    [[ "$key" =~ ^(UID|GID|USER|GROUPS|BASH.*)$ ]] && continue
+    export "$key"="$value"
+  done < "$ENV_FILE"
 fi
 
 # ── Activate conda env ────────────────────────────────────────────────────────

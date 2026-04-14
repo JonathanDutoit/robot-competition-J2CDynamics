@@ -1,7 +1,7 @@
 # annotator.py
 import cv2
 import numpy as np
-from config import JPEG_QUALITY
+from camera_stream.config import JPEG_QUALITY
 
 def draw_detections(frame: np.ndarray, dets: list) -> np.ndarray:
     for (x1, y1, x2, y2, label, conf) in dets:

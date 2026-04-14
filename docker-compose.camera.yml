@@ -18,4 +18,4 @@ services:
       - /run/udev:/run/udev:ro
     group_add:
       - "video"
-    command: ros2 run camera_stream main
+    command: ros2 run camera_stream camera_node

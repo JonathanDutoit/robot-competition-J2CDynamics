@@ -43,7 +43,12 @@ class CameraROSNode(Node):
 def init_ros() -> CameraROSNode:
     rclpy.init()
     node = CameraROSNode()
+    
     executor = MultiThreadedExecutor()
     executor.add_node(node)
+
+    def ros_spin():
+        executor.spin()
+
     threading.Thread(target=executor.spin, daemon=True).start()
     return node

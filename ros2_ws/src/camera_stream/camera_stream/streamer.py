@@ -2,7 +2,7 @@ import time
 import numpy as np
 import cv2
 from flask import Flask, Response
-from annotator import draw_detections, draw_fps, encode_jpeg
+from camera_stream.annotator import draw_detections, draw_fps, encode_jpeg
 
 app = Flask(__name__)
 

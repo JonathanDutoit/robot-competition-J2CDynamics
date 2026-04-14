@@ -1,12 +1,11 @@
-# main.py
 import time
 import rclpy
 import threading
-from config import INFER_FPS
-from camera import Camera
-from detector import Detector
-from ros_node import init_ros
-from streamer import app, init_streamer
+from camera_stream.config import INFER_FPS
+from camera_stream.camera import Camera
+from camera_stream.detector import Detector
+from camera_stream.ros_node import init_ros
+from camera_stream.streamer import app, init_streamer
 
 # ── Shared state ──────────────────────────────────────────────────────────────
 import threading

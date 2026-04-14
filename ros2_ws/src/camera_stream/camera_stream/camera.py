@@ -3,7 +3,7 @@ from threading import Condition
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
-from config import MAIN_SIZE, LORES_SIZE
+from camera_stream.config import MAIN_SIZE, LORES_SIZE
 
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):

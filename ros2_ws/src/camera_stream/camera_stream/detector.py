@@ -1,6 +1,6 @@
 import numpy as np
 import onnxruntime as ort
-from config import MODEL_PATH, LORES_SIZE, MAIN_SIZE, CONF_THRESH, CLASS_NAMES
+from camera_stream.config import MODEL_PATH, LORES_SIZE, MAIN_SIZE, CONF_THRESH, CLASS_NAMES
 
 SCALE_X = MAIN_SIZE[0] / LORES_SIZE[0]
 SCALE_Y = MAIN_SIZE[1] / LORES_SIZE[1]

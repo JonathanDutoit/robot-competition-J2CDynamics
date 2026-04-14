@@ -31,7 +31,6 @@ def generate_frames():
             continue
 
         dets = _get_detections()
-        _ros_node.publish_frame(frame)
 
         now = time.time()
         fps = 1.0 / (now - prev_time + 1e-9)

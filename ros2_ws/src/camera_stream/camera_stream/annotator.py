@@ -1,4 +1,3 @@
-# annotator.py
 import cv2
 import numpy as np
 from camera_stream.config import JPEG_QUALITY

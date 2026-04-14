@@ -29,17 +29,3 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-
-# ── Stage 3: dev ─────────────────────────────────────────────────────────────
-FROM ros2_base AS dev
-
-RUN apt update && apt install -y \
-    ros-humble-rviz2 \
-    ros-humble-rqt \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["bash"]

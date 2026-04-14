@@ -468,6 +468,7 @@ dependencies:
   - ros-humble-urdf-parser-plugin=2.6.1
   - ros-humble-urdfdom=5.1.0
   - ros-humble-urdfdom-headers=2.1.0
+  - ros-humble-vision-msgs=4.1.1
   - ros-humble-visualization-msgs=4.9.1
   - ros-humble-yaml-cpp-vendor=8.0.2
   - ros-humble-zstd-vendor=0.15.16

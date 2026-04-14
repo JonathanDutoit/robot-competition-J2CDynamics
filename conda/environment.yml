@@ -9,6 +9,7 @@ dependencies:
   - ros-humble-rmw-cyclonedds-cpp
   - ros-humble-rviz2
   - ros-humble-rqt
+  - ros-humble-vision-msgs
   # ── Build tools ───────────────────────────────────────────────────────────
   - colcon-common-extensions
   - pip

@@ -26,7 +26,7 @@ RUN apt update && apt install -y \
 COPY ros2_ws/src /ros2_ws/src
 RUN cd /ros2_ws && colcon build --symlink-install
 
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/lidar/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -9,6 +9,7 @@
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
       <Peers>
         <Peer address="${DEV_IP}"/>
         <Peer address="127.0.0.1"/>

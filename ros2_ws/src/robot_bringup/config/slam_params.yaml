@@ -6,7 +6,8 @@
 
 slam_toolbox:
   ros__parameters:
-
+    map_start_at_dock: true
+    
     # ── mode ──────────────────────────────────────────────────────────────────
     mode: localization               # do not change for localization-only use
 

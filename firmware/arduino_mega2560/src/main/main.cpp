@@ -24,7 +24,7 @@ struct Measurement {
 Measurement measurement;
 
 void set_speed_command(float leftPWM, float rightPWM);
-void status_command();
+void get_odometry();
 bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount);
 
 void setup()
@@ -70,9 +70,9 @@ void loop()
       }
     }
 
-    // ── STATUS command ────────────────────────────
-    else if (strcmp(command, "STATUS") == 0) {
-      status_command();
+    // ── ODOMETRY command ────────────────────────────
+    else if (strcmp(command, "ODOMETRY") == 0) {
+      get_odometry();
     }
 
     // ── Unknown command ───────────────────────────
@@ -90,15 +90,12 @@ void set_speed_command(float leftPWM, float rightPWM) {
   Serial.println(rightPWM);
 }
 
-void status_command() {
+void get_odometry() {
   float leftVel = 0, rightVel = 0;
 
   driveController.getWheelVelocities(leftVel, rightVel);
 
-  float leftCur  = leftMotor.getCurrent();
-  float rightCur = rightMotor.getCurrent();
-
-  Serial.print("STATUS: ");
+  Serial.print("ODOMETRY: ");
   Serial.print("L_vel=");
   Serial.print(leftVel, 2);
   Serial.print(" rad/s ");
@@ -106,14 +103,6 @@ void status_command() {
   Serial.print("R_vel=");
   Serial.print(rightVel, 2);
   Serial.print(" rad/s ");
-
-  Serial.print("L_cur=");
-  Serial.print(leftCur, 2);
-  Serial.print(" A ");
-
-  Serial.print("R_cur=");
-  Serial.print(rightCur, 2);
-  Serial.println(" A");
 }
 
 bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount) {

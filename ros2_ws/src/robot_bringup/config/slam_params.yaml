@@ -1,0 +1,60 @@
+# slam_localization_params.yaml
+# ──────────────────────────────
+# slam_toolbox localization mode – uses a pre-built map, does NOT build a new one.
+# Place this file at /config/slam_localization_params.yaml inside the Navigation container.
+# See: https://github.com/SteveMacenski/slam_toolbox
+
+slam_toolbox:
+  ros__parameters:
+
+    # ── mode ──────────────────────────────────────────────────────────────────
+    mode: localization               # do not change for localization-only use
+
+    # ── frames ────────────────────────────────────────────────────────────────
+    odom_frame:  odom
+    map_frame:   map
+    base_frame:  base_link
+    scan_topic:  /scan               # must match rplidar_node output topic
+
+    # ── map file ──────────────────────────────────────────────────────────────
+    # Overridden at launch time by navigation.launch.py via map_file_name param.
+    # Set a fallback here if desired.
+    map_file_name: /maps/map
+
+    # ── solver ────────────────────────────────────────────────────────────────
+    solver_plugin:              solver_plugins::CeresSolver
+    ceres_linear_solver:        SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner:       SCHUR_JACOBI
+    ceres_trust_strategy:       LEVENBERG_MARQUARDT
+    ceres_dogleg_type:          TRADITIONAL_DOGLEG
+    ceres_loss_function:        None
+
+    # ── scan matcher ──────────────────────────────────────────────────────────
+    use_scan_matching:          true
+    use_scan_barycenter:        true
+    minimum_travel_distance:    0.1    # m – only update pose when moved this far
+    minimum_travel_heading:     0.1    # rad
+    scan_buffer_size:           10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine:  0.1
+    link_scan_maximum_distance:        1.5
+
+    # ── performance ───────────────────────────────────────────────────────────
+    loop_search_maximum_distance:      3.0
+    do_loop_closing:                   false   # not needed in localization mode
+    loop_match_minimum_chain_size:     10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine:   0.45
+
+    # ── misc ──────────────────────────────────────────────────────────────────
+    debug_logging:              false
+    throttle_scans:             1       # process every scan (increase to skip)
+    transform_publish_period:   0.02    # s – TF publish rate (50 Hz)
+    map_update_interval:        5.0     # s – irrelevant in localization mode but required
+    resolution:                 0.05    # m/cell – must match your saved map
+    max_laser_range:            12.0    # m – set to your RPLidar model's max range
+    minimum_time_interval:      0.5     # s – min time between pose graph updates
+    transform_timeout:          0.2
+    tf_buffer_duration:         30.0
+    stack_size_to_use:          40000000

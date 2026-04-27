@@ -1,0 +1,86 @@
+services:
+  driver:
+    build:
+      context: .
+      dockerfile: docker/driver/Dockerfile
+      args:
+        BUILDPLATFORM: linux/arm64
+    network_mode: host
+    platform: linux/arm64
+    env_file:
+      - ./docker/.env
+    environment:
+      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+    volumes:
+      - ./ros2_ws/src:/ros2_ws/src
+      - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
+      - /dev:/dev  
+    devices:
+      - /dev/serial:/dev/serial
+    command: ros2 launch robot_bringup driver.launch.py
+    group_add:
+      - "dialout"
+    privileged: true
+
+  camera:
+    build:
+      context: .
+      dockerfile: docker/camera/Dockerfile
+    platform: linux/arm64
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    env_file:
+      - ./docker/.env
+    environment:
+      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+      - HOME=/tmp
+      - UDEV=1
+    volumes:
+      - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
+      - /dev:/dev  
+      - /run/udev:/run/udev:ro
+    group_add:
+      - "video"
+    command: ros2 run camera_stream camera_node
+
+  lidar: 
+    build:
+      context: .
+      dockerfile: docker/lidar/Dockerfile
+    platform: linux/arm64
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    env_file:
+      - ./docker/.env
+    environment:
+      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+    volumes:
+      - ./ros2_ws/src:/ros2_ws/src
+      - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
+      - /dev:/dev  
+    command: ros2 launch robot_bringup lidar.launch.py
+
+  navigation:
+    build:
+      context: .
+      dockerfile: docker/navigation/Dockerfile
+    platform: linux/arm64
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+    env_file:
+      - ./docker/.env
+    environment:
+      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+    volumes:
+      - ./ros2_ws/src:/ros2_ws/src
+      - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
+      - /dev:/dev
+    devices:
+      - /dev/input/js0:/dev/input/js0
+    command: ros2 launch robot_bringup navigation.launch.py

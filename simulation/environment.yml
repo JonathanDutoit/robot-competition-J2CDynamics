@@ -1,0 +1,56 @@
+name: ros2_sim
+channels:
+  - robostack-staging
+  - conda-forge
+  - defaults
+dependencies:
+  # ── ROS core ──────────────────────────────────────────────────────────────
+  - ros-humble-ros-base
+  - ros-humble-rclpy
+
+  # ── Navigation ────────────────────────────────────────────────────────────
+  - ros-humble-nav2-bringup
+  - ros-humble-nav2-bt-navigator
+  - ros-humble-nav2-controller
+  - ros-humble-nav2-planner
+  - ros-humble-nav2-behaviors
+  - ros-humble-nav2-waypoint-follower
+  - ros-humble-nav2-smoother
+  - ros-humble-nav2-velocity-smoother
+  - ros-humble-nav2-costmap-2d
+  - ros-humble-nav2-navfn-planner
+  - ros-humble-dwb-core
+  - ros-humble-dwb-critics
+  - ros-humble-dwb-plugins
+
+  # ── SLAM ──────────────────────────────────────────────────────────────────
+  - ros-humble-slam-toolbox
+
+  # ── TF & sensor msgs ──────────────────────────────────────────────────────
+  - ros-humble-tf2-ros
+  - ros-humble-tf2-geometry-msgs
+  - ros-humble-sensor-msgs
+  - ros-humble-nav-msgs
+  - ros-humble-geometry-msgs
+
+  # ── Joystick / teleop ─────────────────────────────────────────────────────
+  - ros-humble-joy
+  - ros-humble-teleop-twist-joy
+
+  # ── Visualisation ─────────────────────────────────────────────────────────
+  - ros-humble-rviz2
+  - ros-humble-rqt
+
+  # ── Build tools ───────────────────────────────────────────────────────────
+  - colcon-common-extensions
+  - pip
+  - git
+
+  # ── Needed for robostack to work properly ─────────────────────────────────
+  - compilers
+  - cmake
+  - ninja
+  - catkin_tools
+
+  # ── Python ────────────────────────────────────────────────────────────────
+  - python=3.12

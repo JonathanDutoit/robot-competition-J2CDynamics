@@ -16,7 +16,6 @@ setup(
     maintainer_email='dutoit.jonathaneric@gmail.com',
     description='Arduino controller based on samshoni (github) template',
     install_requires=['setuptools', 'pyserial'],
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'arduino_bridge = arduino_controller.arduino_bridge:main'

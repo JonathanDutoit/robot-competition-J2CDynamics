@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# !! Must be run as: source conda/setup_dev.sh  (not bash conda/setup_dev.sh)
+# !! Must be run as: source setup_dev.sh  (not bash setup_dev.sh)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/../docker/.env"
 DDS_CONFIG="$SCRIPT_DIR/../dds/cyclonedds_dev.xml"
 
 # ── Init conda shell hooks (required for conda activate to work) ──────────────
-__conda_setup="$("${CONDA_PREFIX:-$HOME/miniconda3}/bin/conda" 'shell.bash' 'hook' 2>/dev/null)"
-if [ $? -eq 0 ]; then
-  eval "$__conda_setup"
-else
-  echo "ERROR: conda not found. Is miniconda/mambaforge installed?" && return 1
+# Find conda binary
+CONDA_BIN="${CONDA_EXE:-$(which conda 2>/dev/null)}"
+if [[ -z "$CONDA_BIN" ]]; then
+    for p in "$HOME/miniconda3" "$HOME/anaconda3" "$HOME/mambaforge" "$HOME/miniforge3" "/opt/conda"; do
+        [[ -f "$p/bin/conda" ]] && CONDA_BIN="$p/bin/conda" && break
+    done
 fi
+
+if [[ -z "$CONDA_BIN" ]]; then
+    echo "ERROR: conda not found." && return 1
+fi
+
+__conda_setup="$("$CONDA_BIN" 'shell.bash' 'hook' 2>/dev/null)"
 
 # ── Load .env ─────────────────────────────────────────────────────────────────
 if [[ -f "$ENV_FILE" ]]; then

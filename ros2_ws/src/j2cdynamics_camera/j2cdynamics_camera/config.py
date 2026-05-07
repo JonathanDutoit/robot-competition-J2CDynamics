@@ -1,0 +1,7 @@
+MAIN_SIZE    = (640, 480)
+LORES_SIZE   = (320, 320)
+CONF_THRESH  = 0.3
+MODEL_PATH   = "model/best_int8.onnx"
+CLASS_NAMES  = ["duplo"]
+INFER_FPS    = 10
+JPEG_QUALITY = 60

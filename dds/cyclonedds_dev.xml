@@ -1,0 +1,16 @@
+<CycloneDDS>
+  <Domain>
+    <General>
+      <AllowMulticast>false</AllowMulticast>
+      <Interfaces>
+	      <NetworkInterface address="${DEV_IP}"/>
+      </Interfaces>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <Peers>
+        <Peer address="${ROBOT_IP}"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

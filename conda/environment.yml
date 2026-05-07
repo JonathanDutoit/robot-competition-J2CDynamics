@@ -1,0 +1,21 @@
+name: ros2_dev
+channels:
+  - robostack-staging   # ROS 2 Humble packages
+  - conda-forge
+  - defaults
+dependencies:
+  # ── ROS core ──────────────────────────────────────────────────────────────
+  - ros-humble-ros-base
+  - ros-humble-rmw-cyclonedds-cpp
+  - ros-humble-rviz2
+  - ros-humble-rqt
+  - ros-humble-vision-msgs
+  # ── Build tools ───────────────────────────────────────────────────────────
+  - colcon-common-extensions
+  - pip
+  - git
+  # ── Needed for robostack to work properly ─────────────────────────────────
+  - compilers
+  - cmake
+  - ninja
+  - catkin_tools

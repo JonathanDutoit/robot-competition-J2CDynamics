@@ -18,14 +18,15 @@ WORKDIR $ROS_WS
 FROM ros2_base AS robot
 
 RUN apt update && apt install -y \
-    python3-serial \
     ros-humble-rplidar-ros \
-    ros-humble-slam-toolbox \
-    ros-humble-joy \ 
-    ros-humble-teleop-twist-joy \
+    ros-humble-tf2-ros \
+    ros-humble-tf2-geometry-msgs \ 
     && rm -rf /var/lib/apt/lists/*
 
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY ros2_ws/src /ros2_ws/src
+RUN cd /ros2_ws && colcon build --symlink-install
+
+COPY docker/lidar/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

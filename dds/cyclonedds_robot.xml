@@ -1,17 +1,18 @@
-<CycloneDDS>
+<CycloneDDS xmlns="https://cdds.io/config">
   <Domain>
     <General>
       <AllowMulticast>false</AllowMulticast>
       <Interfaces>
-        <NetworkInterface address="${ROBOT_IP}"/>
-        <NetworkInterface name="lo"/>  <!-- ← add this -->
+        <NetworkInterface address="${ROBOT_IP}" priority="10"/>
+        <NetworkInterface name="lo" priority="0" presence_required="false"/>
       </Interfaces>
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
       <Peers>
         <Peer address="${DEV_IP}"/>
-        <Peer address="127.0.0.1"/>  <!-- ← add this -->
+        <Peer address="127.0.0.1"/>
       </Peers>
     </Discovery>
   </Domain>

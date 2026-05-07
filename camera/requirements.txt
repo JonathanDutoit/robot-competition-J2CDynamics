@@ -6,3 +6,4 @@ Pillow>=10.0.0
 numpy>=1.26.0
 cv
 onnxruntime
+cv_bridge

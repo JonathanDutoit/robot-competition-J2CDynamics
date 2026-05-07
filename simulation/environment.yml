@@ -4,6 +4,8 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - python
+  
   # ── ROS core ──────────────────────────────────────────────────────────────
   - ros-humble-ros-base
   - ros-humble-rclpy
@@ -50,7 +52,4 @@ dependencies:
   - compilers
   - cmake
   - ninja
-  - catkin_tools
-
-  # ── Python ────────────────────────────────────────────────────────────────
-  - python=3.12
+  - catkin_tools  

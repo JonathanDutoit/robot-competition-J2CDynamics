@@ -17,7 +17,7 @@ services:
       - /dev:/dev  
     devices:
       - /dev/serial:/dev/serial
-    command: ros2 launch robot_bringup driver.launch.py
+    command: ros2 launch j2cdynamics_bringup driver.launch.py
     group_add:
       - "dialout"
     privileged: true
@@ -43,7 +43,7 @@ services:
       - /run/udev:/run/udev:ro
     group_add:
       - "video"
-    command: ros2 run camera_stream camera_node
+    command: ros2 run j2cdynamics_camera camera_node
 
   lidar: 
     build:
@@ -62,7 +62,7 @@ services:
       - ./ros2_ws/src:/ros2_ws/src
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev  
-    command: ros2 launch robot_bringup lidar.launch.py
+    command: ros2 launch j2cdynamics_bringup lidar.launch.py
 
   navigation:
     build:
@@ -83,4 +83,18 @@ services:
       - /dev:/dev
     devices:
       - /dev/input/js0:/dev/input/js0
-    command: ros2 launch robot_bringup navigation.launch.py
+    command: ros2 launch j2cdynamics_bringup navigation.launch.py
+
+  simulation:
+    build: 
+      context: .
+      dockerfile: simulation/docker/Dockerfile
+    platform: linux/arm64
+    volumes:
+      - ./ros2_ws:/home/ubuntu/ros2_ws
+    ports:
+      - "6080:80"
+    shm_size: 512m
+    security_opt:
+      - seccomp=unconfined
+

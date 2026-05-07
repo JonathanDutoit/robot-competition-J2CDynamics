@@ -74,7 +74,7 @@ RUN echo "--- DIAGNOSTICS ---" && \
 # ROS package setup
 WORKDIR /app
 RUN mkdir -p /app/src
-COPY ros2_ws/src/camera_stream /app/src/camera_stream
+COPY ros2_ws/src/j2cdynamics_camera /app/src/j2cdynamics_camera
 COPY camera/model/best_int8.onnx /app/model/best_int8.onnx
 
 RUN source /opt/ros/$ROS_DISTRO/setup.bash \

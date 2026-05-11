@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<robot name="do" xmlns:xacro="http://wwww.ros.org/wiki/xacro">
+
+	<xacro:property name="cm_to_m" value="0.01"/>
+
+	<xacro:property name="base_link_length" value="${9.1 * cm_to_m}"/>
+	<xacro:property name="base_link_width" value="${11.2 * cm_to_m}"/>
+	<xacro:property name="base_link_height" value="${4.4 * cm_to_m}"/>
+	<xacro:property name="base_link_ground_clearance" value="${0.45 * cm_to_m}"/>
+
+	<xacro:property name="ball_wheel_radius" value="${0.9 * cm_to_m}"/>
+	<xacro:property name="ball_wheel_x_offset" value="${3.5 * cm_to_m}"/>
+
+	<xacro:property name="wheels_radius" value="${2.2 * cm_to_m}"/>
+	<xacro:property name="wheels_length" value="${1.5 * cm_to_m}"/>
+	<xacro:property name="wheels_x_offset" value="${2.5 * cm_to_m}"/>
+	<xacro:property name="wheels_spacing" value="${9.35 * cm_to_m}"/>
+
+	<xacro:property name="total_mass" value="0.27"/>
+
+	<xacro:include filename="materials.xacro"/>
+	<xacro:include filename="thymio_inertia.xacro"/>
+	<xacro:include filename="thymio_chassis.xacro"/>
+	<xacro:include filename="gazebo.xacro"/>
+	<xacro:include filename="proximity_sensors.xacro"/>
+
+</robot>

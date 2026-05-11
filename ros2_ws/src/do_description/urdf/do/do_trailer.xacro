@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wwww.ros.org/wiki/xacro">
+
+	<link name="trailer">
+        <visual>
+            <origin xyz="-${trailer_visual_x_offset} 0 0"  rpy="0 0 0"/>
+            <geometry>
+                <box size="${trailer_length} ${trailer_width} ${trailer_height}"/>
+            </geometry>
+            <material name="white"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 ${trailer_height / 2.0 + trailer_ground_clearance}"  rpy="0 0 0"/>
+            <geometry>
+                <box size="${trailer_length} ${trailer_width} ${trailer_height}"/>
+            </geometry>
+        </collision>
+        <xacro:box_inertia m="${total_mass * 0.8 * 0.95}" l="${trailer_length}" w="${trailer_width}" h="${trailer_height}"
+                       xyz="0 0 ${trailer_height / 2.0 + trailer_ground_clearance}"  rpy="0 0 0"/>
+    </link>
+
+    <link name="right_castor_wheel">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="${castor_wheels_radius}"/>
+            </geometry>
+            <material name="white"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="${castor_wheels_radius}"/>
+            </geometry>
+        </collision>
+        <xacro:sphere_inertia m="${total_mass * 0.8 * 0.05}" r="${castor_wheels_radius}" xyz="0 0 0" rpy="0 0 0"/>
+    </link>
+
+    <link name="left_castor_wheel">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="${castor_wheels_radius}"/>
+            </geometry>
+            <material name="white"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <sphere radius="${castor_wheels_radius}"/>
+            </geometry>
+        </collision>
+        <xacro:sphere_inertia m="${total_mass * 0.8 * 0.05}" r="${castor_wheels_radius}" xyz="0 0 0" rpy="0 0 0"/>
+    </link>
+
+    <joint name="trailer_joint" type="continuous">
+	    <parent link="base_link"/>
+	    <child link="trailer"/>
+	    <origin xyz="-${trailer_axis_x_offset} 0 ${trailer_axis_height}" rpy="0 0 0"/>
+	    <axis xyz="0 1 0"/>
+	</joint>
+
+	<joint name="right_castor_wheel_joint" type="fixed">
+	    <parent link="trailer"/>
+	    <child link="right_castor_wheel"/>
+	    <origin xyz="-${castor_wheels_x_offset} -${castor_wheels_spacing / 2.0} ${castor_wheels_radius - (trailer_height / 2.0 + trailer_ground_clearance)}" rpy="0 0 0"/>
+	</joint>
+
+    <joint name="left_castor_wheel_joint" type="fixed">
+        <parent link="trailer"/>
+        <child link="left_castor_wheel"/>
+        <origin xyz="-${castor_wheels_x_offset} ${castor_wheels_spacing / 2.0} ${castor_wheels_radius - (trailer_height / 2.0 + trailer_ground_clearance)}" rpy="0 0 0"/>
+    </joint>
+
+</robot>

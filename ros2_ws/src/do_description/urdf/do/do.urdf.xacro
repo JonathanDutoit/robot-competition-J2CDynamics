@@ -19,8 +19,8 @@
 	<xacro:property name="total_mass" value="0.27"/>
 
 	<xacro:include filename="materials.xacro"/>
-	<xacro:include filename="thymio_inertia.xacro"/>
-	<xacro:include filename="thymio_chassis.xacro"/>
+	<xacro:include filename="do_inertia.xacro"/>
+	<xacro:include filename="do_chassis.xacro"/>
 	<xacro:include filename="gazebo.xacro"/>
 	<xacro:include filename="proximity_sensors.xacro"/>
 

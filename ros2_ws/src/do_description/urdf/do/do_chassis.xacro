@@ -15,7 +15,7 @@
                 <box size="${base_link_length} ${base_link_width} ${base_link_height}"/>
             </geometry>
         </collision>
-        <xacro:box_inertia m="${total_mass * 0.7 * 0.66}" l="${base_link_length}" w="${base_link_width}" h="${base_link_height}"
+        <xacro:box_inertia m="${total_mass * 0.8 * 0.7}" l="${base_link_length}" w="${base_link_width}" h="${base_link_height}"
                        xyz="0 0 ${base_link_height / 2.0 + base_link_ground_clearance}"  rpy="0 0 0"/>
     </link>
 
@@ -33,7 +33,7 @@
                 <cylinder length="${wheels_width}" radius="${wheels_radius}"/>
             </geometry>
         </collision>
-        <xacro:cylinder_inertia m="${total_mass * 0.2 * 0.5}" r="${wheels_radius}" h="${wheels_width}"
+        <xacro:cylinder_inertia m="${total_mass * 0.1 * 0.5}" r="${wheels_radius}" h="${wheels_width}"
                             xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
     </link>
 
@@ -51,7 +51,7 @@
                 <cylinder length="${wheels_width}" radius="${wheels_radius}"/>
             </geometry> 
         </collision>
-        <xacro:cylinder_inertia m="${total_mass * 0.2 * 0.5}" r="${wheels_radius}" h="${wheels_width}"
+        <xacro:cylinder_inertia m="${total_mass * 0.1 * 0.5}" r="${wheels_radius}" h="${wheels_width}"
                             xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
     </link>
 

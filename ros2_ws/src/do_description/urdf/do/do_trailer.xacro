@@ -15,7 +15,7 @@
                 <box size="${trailer_length} ${trailer_width} ${trailer_height}"/>
             </geometry>
         </collision>
-        <xacro:box_inertia m="${total_mass * 0.7 * 0.34}" l="${trailer_length}" w="${trailer_width}" h="${trailer_height}"
+        <xacro:box_inertia m="${total_mass * 0.8 * 0.3}" l="${trailer_length}" w="${trailer_width}" h="${trailer_height}"
                        xyz="0 0 ${trailer_height / 2.0 + trailer_ground_clearance}"  rpy="0 0 0"/>
     </link>
 

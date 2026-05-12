@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wwww.ros.org/wiki/xacro">
+
+    <xacro:property name="sensor_mass" value="0.0001"/>
+    <xacro:property name="sensor_length" value="0.0025"/>
+    <xacro:property name="sensor_width" value="0.007"/>
+    <xacro:property name="sensor_height" value="0.004"/>
+    <xacro:property name="offset" value="${0.0085}"/>
+    <xacro:property name="front_offset" value="${offset + sensor_length/2.0}"/>
+    <xacro:property name="rear_offset" value="${offset - sensor_length/2.0}"/>
+
+    <xacro:macro name="proximity_sensor" params="prefix xyz rpy">
+
+        <link name="${prefix}_link">
+            <visual>    
+                <origin xyz="${-sensor_length / 2.0} 0 0"  rpy="0 0 0"/>
+                <geometry>
+                    <box size="${sensor_length} ${sensor_width} ${sensor_height}"/>
+                </geometry>
+                <material name="black"/>
+            </visual>
+            <collision>    
+                <origin xyz="${-sensor_length / 2.0} 0 0"  rpy="0 0 0"/>
+                <geometry>
+                    <box size="${sensor_length} ${sensor_width} ${sensor_height}"/>
+                </geometry>
+            </collision>
+            <xacro:box_inertia m="${sensor_mass}" l="${sensor_length}" w="${sensor_width}" h="${sensor_height}"
+                               xyz="${xyz}"  rpy="${rpy}" />
+        </link>
+
+        <joint name="${prefix}_joint" type="fixed">
+            <parent link="base_link"/>
+            <child link="${prefix}_link"/>
+            <origin xyz="${xyz}" rpy="${rpy}"/>
+        </joint>
+
+        <gazebo reference="${prefix}_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="${prefix}_link">
+            <sensor type="ray" name="${prefix}_sensor">
+                <pose>0 0 0 0 0 0</pose>
+                <ray>
+                    <scan>
+                        <horizontal>
+                            <samples>1</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.05</min_angle>
+                            <max_angle>0.05</max_angle>
+                        </horizontal>
+                        <vertical>
+                            <samples>1</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.05</min_angle>
+                            <max_angle>0.05</max_angle>
+                        </vertical>
+                    </scan>
+                    <range>
+                        <min>0.0005</min>
+                        <max>0.0975</max>
+                        <resolution>0.0001</resolution>
+                    </range>
+                </ray>
+                <plugin name="${prefix}_sensor_plugin" filename="libgazebo_ros_ray_sensor.so">
+                    <ros>
+                      <!-- Configure namespace and remap to publish to thymio_${prefix}_sensor -->
+                      <namespace>/ray</namespace>
+                      <remapping>~/out:=/thymio_${prefix}_sensor</remapping>
+                    </ros>
+                    <!-- Output as a LaserScan -->
+                    <output_type>sensor_msgs/LaserScan</output_type>
+                    <!-- Frame id for header of output, defaults to sensor's parent link name -->
+                    <frame_name>${prefix}_link</frame_name>
+                </plugin>
+                <always_on>true</always_on>
+                <update_rate>10</update_rate>
+                <visualize>true</visualize>
+            </sensor>
+        </gazebo>
+
+    </xacro:macro>
+
+    <xacro:proximity_sensor prefix="front_left_proximity" xyz="${0.0387 + front_offset} 0.0493 0.035" rpy="0 0 0.66323"/>
+    <xacro:proximity_sensor prefix="front_center_left_proximity" xyz="${0.0513 + front_offset} 0.0261 0.035" rpy="0 0 0.33161"/>
+    <xacro:proximity_sensor prefix="front_center_proximity" xyz="${0.0557 + front_offset} 0 0.035" rpy="0 0 0"/>
+    <xacro:proximity_sensor prefix="front_center_right_proximity" xyz="${0.0513 + front_offset} -0.0261 0.035" rpy="0 0 -0.33161"/>
+    <xacro:proximity_sensor prefix="front_right_proximity" xyz="${0.0387 + front_offset} -0.0493 0.035" rpy="0 0 -0.66323"/>
+    <xacro:proximity_sensor prefix="rear_right_proximity" xyz="${-0.0543 + rear_offset} -0.0305 0.035" rpy="0 0 3.14159"/>
+    <xacro:proximity_sensor prefix="rear_left_proximity" xyz="${-0.0543 + rear_offset} 0.0305 0.035" rpy="0 0 3.14159"/>
+
+</robot>

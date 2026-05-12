@@ -1,0 +1,71 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+diff_drive_controller:
+  ros__parameters:
+    # Joints
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+
+    # Kinematics
+    wheel_separation: 0.4147
+    wheel_radius: 0.0555
+
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: 1.0
+    right_wheel_radius_multiplier: 1.0 
+
+    # Odometry output
+    odom_frame_id: odom
+    base_frame_id: base_link
+    enable_odom_tf: true
+    use_stamped_vel: false
+
+    # Odometry config
+    position_feedback: true
+    open_loop: false
+
+    pose_covariance_diagonal: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    twist_covariance_diagonal: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # Safety
+    cmd_vel_timeout: 0.5 # seconds
+    publish_limited_velocity: true
+    velocity_rolling_window_size: 10
+
+    # Velocity/accel limits
+    linear.x.max_velocity: .NAN
+    linear.x.min_velocity: .NAN
+    linear.x.max_acceleration: .NAN
+    linear.x.max_deceleration: .NAN
+    linear.x.max_acceleration_reverse: .NAN
+    linear.x.max_deceleration_reverse: .NAN
+    linear.x.max_jerk: .NAN
+    linear.x.min_jerk: .NAN
+
+    angular.z.max_velocity: .NAN
+    angular.z.min_velocity: .NAN
+    angular.z.max_acceleration: .NAN
+    angular.z.max_deceleration: .NAN
+    angular.z.max_acceleration_reverse: .NAN
+    angular.z.max_deceleration_reverse: .NAN
+    angular.z.max_jerk: .NAN
+    angular.z.min_jerk: .NAN
+
+
+
+
+
+
+
+
+    
+
+    

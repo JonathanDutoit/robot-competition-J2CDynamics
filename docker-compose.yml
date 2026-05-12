@@ -89,7 +89,7 @@ services:
     build: 
       context: .
       dockerfile: simulation/docker/Dockerfile
-    platform: linux/arm64
+    platform: linux/amd64
     volumes:
       - ./ros2_ws:/home/ubuntu/ros2_ws
     ports:

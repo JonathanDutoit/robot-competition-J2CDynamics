@@ -15,7 +15,7 @@
                 <box size="${base_link_length} ${base_link_width} ${base_link_height}"/>
             </geometry>
         </collision>
-        <xacro:box_inertia m="${total_mass * 0.8 * 0.95}" l="${base_link_length}" w="${base_link_width}" h="${base_link_height}"
+        <xacro:box_inertia m="${total_mass * 0.7 * 0.66}" l="${base_link_length}" w="${base_link_width}" h="${base_link_height}"
                        xyz="0 0 ${base_link_height / 2.0 + base_link_ground_clearance}"  rpy="0 0 0"/>
     </link>
 
@@ -69,7 +69,7 @@
                 <sphere radius="${ball_wheels_radius}"/>
             </geometry>
         </collision>
-        <xacro:sphere_inertia m="${total_mass * 0.8 * 0.05}" r="${ball_wheels_radius}" xyz="0 0 0" rpy="0 0 0"/>
+        <xacro:sphere_inertia m="${total_mass * 0.5 * 0.5 * 0.1}" r="${ball_wheels_radius}" xyz="0 0 0" rpy="0 0 0"/>
     </link>
 
     <link name="left_ball_wheel">
@@ -86,7 +86,7 @@
                 <sphere radius="${ball_wheels_radius}"/>
             </geometry>
         </collision>
-        <xacro:sphere_inertia m="${total_mass * 0.8 * 0.05}" r="${ball_wheels_radius}" xyz="0 0 0" rpy="0 0 0"/>
+        <xacro:sphere_inertia m="${total_mass * 0.5 * 0.5 * 0.1}" r="${ball_wheels_radius}" xyz="0 0 0" rpy="0 0 0"/>
     </link>
 
     <joint name="right_wheel_joint" type="continuous">

@@ -33,21 +33,13 @@
 	<xacro:property name="caster_wheels_x_offset" value="${215 * mm_to_m}"/>
 	<xacro:property name="caster_wheels_spacing" value="${331.2 * mm_to_m}"/>
 
-	<xacro:property name="total_mass" value="5.0"/>
+	<xacro:property name="total_mass" value="3.1"/>
 
 	<xacro:include filename="materials.xacro"/>
 	<xacro:include filename="do_inertia.xacro"/>
 	<xacro:include filename="do_chassis.xacro"/>
 	<xacro:include filename="do_trailer.xacro"/>
-	<xacro:include filename="gazebo.xacro"/>
-	<!-- <xacro:include filename="proximity_sensors.xacro"/> -->
 	<xacro:include filename="lidar.xacro"/>
-	
-	<!-- Use ros2_control by default, otherwise go back to legacy -->
-	<xacro:if value="$(arg use_ros2_control)">
-        <xacro:include filename="ros2_control.xacro" />
-    </xacro:if>
-    <xacro:unless value="$(arg use_ros2_control)">
-        <xacro:include filename="gazeb_diff_control.xacro" />
-    </xacro:unless>    
+
+	<xacro:include filename="gazebo.xacro"/>    
 </robot>

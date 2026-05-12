@@ -1,0 +1,8 @@
+<library path="arduino_hardware_interface">
+  <class
+    name="j2cdynamics_driver/ArduinoHardwareInterface"
+    type="j2cdynamics_driver::ArduinoHardwareInterface"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>Arduino serial hardware interface for ROS2</description>
+  </class>
+</library>

@@ -35,11 +35,11 @@ Which will ask for the password above.
 ├─ firmware/
 ├─ ros2_ws/
 │  └─ src/
-│     ├─ j2cdynamics_bringup/
-│     ├─ j2cdynamics_camera/
-│     ├─ j2cdynamics_driver/
-│     ├─ j2cdynamics_slam/
-│     ├─ j2cdynamics_navigation/
+│     ├─ j2cdynamics_bringup/           # Python — launch files
+│     ├─ j2cdynamics_camera/            
+│     ├─ j2cdynamics_driver/            # C++ - hardware interface (low-level, performance-critical)
+│     ├─ j2cdynamics_slam/              # Python — slam config
+│     ├─ j2cdynamics_navigation/        # Python — nav logic
 │     ├─ j2cdynamics_description/
 │     │  ├─ meshes/
 │     │  ├─ worlds/

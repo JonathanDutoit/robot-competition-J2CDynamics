@@ -21,6 +21,7 @@ import ament_index_python.packages
 
 def generate_launch_description():
 
+    use_sim = LaunchConfiguration('use_sim', default='true')
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     pkg_share = FindPackageShare(package='turtlebot3_description').find('turtlebot3_description')
     urdf = os.path.join(pkg_share, 'urdf', 'turtlebot3_waffle.urdf')
@@ -31,7 +32,10 @@ def generate_launch_description():
     )
 
     robot_description = {
-        'robot_description': Command(['xacro ', LaunchConfiguration('model')])
+        'robot_description': Command([
+            'xacro ', LaunchConfiguration('model'),
+            ' use_sim:=', use_sim        
+        ])
     }
 
     # Robot State Publisher
@@ -127,6 +131,12 @@ def generate_launch_description():
             name='use_sim_time', 
             default_value=use_sim_time, 
             description='Use simulation (Gazebo) clock if true'),
+
+        DeclareLaunchArgument(
+            name='use_sim',
+            default_value='true',
+            description='Use simulation hardware interface if true'
+        ),
 
         robot_state_publisher_node,
         gazebo, 

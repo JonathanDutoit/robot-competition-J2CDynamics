@@ -1,13 +1,22 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://wwww.ros.org/wiki/xacro">
 
-    <gazebo reference="caster_wheel_link">
+    <gazebo reference="right_ball_wheel">
         <mu1 value="0.31" />
         <mu2 value="0.31" />
     </gazebo>
-
-    <gazebo reference="base_link">
-        <material>Gazebo/White</material>
+    <gazebo reference="left_ball_wheel">
+        <mu1 value="0.31" />
+        <mu2 value="0.31" />
+    </gazebo>
+    
+    <gazebo reference="right_caster_wheel">
+        <mu1 value="0.31" />
+        <mu2 value="0.31" />
+    </gazebo>
+    <gazebo reference="left_caster_wheel">
+        <mu1 value="0.31" />
+        <mu2 value="0.31" />
     </gazebo>
 
     <gazebo reference="right_wheel">
@@ -16,10 +25,6 @@
 
     <gazebo reference="left_wheel">
         <material>Gazebo/Black</material>
-    </gazebo>
-
-    <gazebo reference="ball_wheel">
-        <material>Gazebo/White</material>
     </gazebo>
 
     <gazebo>

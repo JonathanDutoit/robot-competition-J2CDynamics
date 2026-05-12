@@ -4,8 +4,9 @@
         <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
             <parameters>$(find j2cdynamics_bringup)/config/do_diff_drive_controller.yaml</parameters>
              <ros>
-                <remapping>/diff_drive_controller/cmd_vel:=/cmd_vel</remapping>
+                <!-- <remapping>/diff_drive_controller/cmd_vel:=/cmd_vel</remapping> -->
                 <remapping>/diff_drive_controller/odom:=/odom</remapping>
+                <remapping>/diff_drive_controller/cmd_vel_unstamped:=/cmd_vel</remapping>
             </ros>
         </plugin>
     </gazebo>

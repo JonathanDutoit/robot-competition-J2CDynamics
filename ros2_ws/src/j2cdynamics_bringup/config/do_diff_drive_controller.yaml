@@ -8,7 +8,6 @@ controller_manager:
     diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
 
-
 diff_drive_controller:
   ros__parameters:
     # Joints
@@ -27,6 +26,7 @@ diff_drive_controller:
     odom_frame_id: odom
     base_frame_id: base_link
     enable_odom_tf: true
+    use_stamped_vel: false
 
     # Odometry config
     position_feedback: true

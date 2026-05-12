@@ -12,6 +12,7 @@ from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.conditions import IfCondition
 
 import ament_index_python.packages
 
@@ -20,11 +21,15 @@ def generate_launch_description():
     use_sim          = LaunchConfiguration('use_sim')
     use_ros2_control = LaunchConfiguration('use_ros2_control')
     use_sim_time     = LaunchConfiguration('use_sim_time')
+    use_teleop       = LaunchConfiguration('use_teleop')
 
     pkg_share   = FindPackageShare(package='do_description').find('do_description')
     urdf        = os.path.join(pkg_share, 'urdf/do', 'do.urdf.xacro')
     rviz_config = os.path.join(pkg_share, 'rviz', 'rviz_config.rviz')
     world_file  = os.path.join(pkg_share, 'worlds', 'empty.world')
+
+    bringup_share = FindPackageShare('j2cdynamics_bringup').find('j2cdynamics_bringup')
+    teleop_launch = os.path.join(bringup_share, 'launch', 'teleop.launch.py')
 
     gazebo_model_path = os.path.dirname(
         ament_index_python.packages.get_package_share_directory('do_description')
@@ -84,13 +89,22 @@ def generate_launch_description():
         ]
     )
 
+    teleop = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(teleop_launch),
+        launch_arguments={
+            'use_keyboard': 'true',
+            'use_joy': 'false',
+        }.items(),
+        condition=IfCondition(use_teleop)
+    )
+
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
         output='screen',
         parameters=[{'use_sim_time': use_sim_time}],
-        arguments=['-d', LaunchConfiguration('rvizconfig')],
+        arguments=['-d', LaunchConfiguration('rvizconfig')]
     )
 
     return LaunchDescription([
@@ -122,6 +136,9 @@ def generate_launch_description():
         DeclareLaunchArgument('use_ros2_control', default_value='true',
             description='Use ros2_control if true, legacy Gazebo plugin if false'),
 
+         DeclareLaunchArgument('use_teleop',       default_value='true',
+            description='Launch keyboard teleop alongside sim'),
+
         robot_state_publisher_node,
         gazebo,
         spawn_entity,
@@ -138,6 +155,8 @@ def generate_launch_description():
                 on_exit=[diff_drive_controller_spawner]
             )
         ),
+
+        teleop
 
         # rviz_node,
     ])

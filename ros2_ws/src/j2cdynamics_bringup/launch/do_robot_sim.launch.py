@@ -26,7 +26,7 @@ def generate_launch_description():
     pkg_share   = FindPackageShare(package='do_description').find('do_description')
     urdf        = os.path.join(pkg_share, 'urdf/do', 'do.urdf.xacro')
     rviz_config = os.path.join(pkg_share, 'rviz', 'rviz_config.rviz')
-    world_file  = os.path.join(pkg_share, 'worlds', 'empty.world')
+    world_file  = os.path.join(pkg_share, 'worlds', 'world_with_objects.world')
 
     bringup_share = FindPackageShare('j2cdynamics_bringup').find('j2cdynamics_bringup')
     teleop_launch = os.path.join(bringup_share, 'launch', 'teleop.launch.py')
@@ -156,7 +156,6 @@ def generate_launch_description():
             )
         ),
 
-        teleop
-
-        # rviz_node,
+        teleop,
+        rviz_node
     ])

@@ -41,6 +41,7 @@
 	<xacro:include filename="do_trailer.xacro"/>
 	<xacro:include filename="gazebo.xacro"/>
 	<!-- <xacro:include filename="proximity_sensors.xacro"/> -->
+	<xacro:include filename="lidar.xacro"/>
 	
 	<!-- Use ros2_control by default, otherwise go back to legacy -->
 	<xacro:if value="$(arg use_ros2_control)">

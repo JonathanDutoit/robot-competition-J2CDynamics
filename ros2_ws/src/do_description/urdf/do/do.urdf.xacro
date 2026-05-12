@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <robot name="do" xmlns:xacro="http://wwww.ros.org/wiki/xacro">
 
+    <xacro:arg name="use_ros2_control" default="true"/>
+    <xacro:arg name="sim_mode" default="false"/>
+
 	<xacro:property name="mm_to_m" value="0.001"/>
 
 	<xacro:property name="base_link_length" value="${204 * mm_to_m}"/>
@@ -36,7 +39,13 @@
 	<xacro:include filename="do_inertia.xacro"/>
 	<xacro:include filename="do_chassis.xacro"/>
 	<xacro:include filename="do_trailer.xacro"/>
-	<xacro:include filename="gazebo.xacro"/>
 	<!-- <xacro:include filename="proximity_sensors.xacro"/> -->
-
+	
+	<!-- Use ros2_control by default, otherwise go back to legacy -->
+	<xacro:if value="$(arg use_ros2_control)">
+        <xacro:include filename="ros2_control.xacro" />
+    </xacro:if>
+    <xacro:unless value="$(arg use_ros2_control)">
+        <xacro:include filename="gazebo.xacro" />
+    </xacro:unless>    
 </robot>

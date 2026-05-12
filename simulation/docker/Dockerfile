@@ -1,6 +1,7 @@
 FROM tiryoh/ros2-desktop-vnc:humble
 
 RUN apt-get update && apt-get install -y \
+    libserial-dev \
     ros-humble-nav2-bringup \
     ros-humble-slam-toolbox \
     ros-humble-xacro \

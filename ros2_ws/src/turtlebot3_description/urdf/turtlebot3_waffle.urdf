@@ -286,24 +286,16 @@
   <gazebo>
     <plugin filename="libgazebo_ros2_control.so"
             name="gazebo_ros2_control">
-      <parameters>$(find j2cdynamics_bringup)/config/diff_drive_controller.yaml</parameters>
+      <parameters>$(find j2cdynamics_bringup)/config/turtlebot_diff_drive_controller.yaml</parameters>
+      <ros>
+            <remapping>/diff_drive_controller/cmd_vel:=/cmd_vel</remapping>
+            <remapping>/diff_drive_controller/odom:=/odom</remapping>
+        </ros>
     </plugin>
   </gazebo>
   <ros2_control name="GazeboSystem" type="system">
     <hardware>
-      <!-- SIMULATION: gazebo_ros2_control handles joints directly -->
-      <xacro:if value="$(arg use_sim)">
-        <plugin>gazebo_ros2_control/GazeboSystem</plugin>
-      </xacro:if>
-
-      <!-- REAL ROBOT: your Arduino serial interface -->
-      <xacro:unless value="$(arg use_sim)">
-        <plugin>j2cdynamics_driver/ArduinoHardwareInterface</plugin>
-        <param name="port">/dev/arduino</param>
-        <param name="baudrate">9600</param>
-        <param name="max_rad_s">7.0</param>
-        <param name="ramp_step">0.5</param>
-      </xacro:unless>
+      <plugin>gazebo_ros2_control/GazeboSystem</plugin>
     </hardware>
 
     <joint name="wheel_left_joint">

@@ -29,9 +29,9 @@
 	<xacro:property name="trailer_axis_x_offset" value="${78 * mm_to_m}"/>
 	<xacro:property name="trailer_axis_height" value="${100.5 * mm_to_m}"/>
 
-	<xacro:property name="castor_wheels_radius" value="${16 * mm_to_m}"/>
-	<xacro:property name="castor_wheels_x_offset" value="${215 * mm_to_m}"/>
-	<xacro:property name="castor_wheels_spacing" value="${331.2 * mm_to_m}"/>
+	<xacro:property name="caster_wheels_radius" value="${16 * mm_to_m}"/>
+	<xacro:property name="caster_wheels_x_offset" value="${215 * mm_to_m}"/>
+	<xacro:property name="caster_wheels_spacing" value="${331.2 * mm_to_m}"/>
 
 	<xacro:property name="total_mass" value="0.27"/>
 

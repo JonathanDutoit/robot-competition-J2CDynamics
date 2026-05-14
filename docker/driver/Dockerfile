@@ -18,7 +18,10 @@ WORKDIR $ROS_WS
 FROM ros2_base AS robot
 
 RUN apt update && apt install -y \
-    python3-serial \
+    libserial-dev \
+    ros-humble-ros2-control \
+    ros-humble-ros2-controllers \
+    ros-humble-xacro \
     ros-humble-tf2-ros \
     ros-humble-tf2-geometry-msgs \
     && rm -rf /var/lib/apt/lists/*
@@ -26,7 +29,7 @@ RUN apt update && apt install -y \
 COPY ros2_ws/src /ros2_ws/src
 RUN cd /ros2_ws && colcon build --symlink-install
 
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/driver/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

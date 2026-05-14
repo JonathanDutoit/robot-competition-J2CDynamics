@@ -76,7 +76,8 @@ def generate_launch_description():
     joint_state_broadcaster_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager']
+        arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager'],
+        condition=IfCondition(use_ros2_control), 
     )
 
     diff_drive_controller_spawner = Node(
@@ -86,7 +87,8 @@ def generate_launch_description():
         remappings=[
             ('/diff_drive_controller/odom', '/odom'),
             ('/diff_drive_controller/cmd_vel', '/cmd_vel'),
-        ]
+        ],
+        condition=IfCondition(use_ros2_control),
     )
 
     teleop = IncludeLaunchDescription(

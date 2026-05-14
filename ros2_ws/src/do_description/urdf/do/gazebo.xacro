@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:arg name="use_ros2_control" default="true"/>
 
     <gazebo reference="right_ball_wheel">
         <mu1 value="0.31" />

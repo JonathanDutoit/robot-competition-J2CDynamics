@@ -1,7 +1,7 @@
 #include <common/drivers/escon_driver.hpp>
 
 #include <Arduino.h>
-#include <common/robot_config.hpp>
+#include <robot_config.hpp>
 
 EsconDriver::EsconDriver(uint8_t pwmDigitalInputPin, uint8_t enableDigitalInputPin, 
                         uint8_t directionDigitalInputPin, uint8_t readyDigitalInputPin, 

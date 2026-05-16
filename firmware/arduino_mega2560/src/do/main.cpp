@@ -2,9 +2,9 @@
  * TODO: Add description
  */
 #include <Arduino.h>
-#include <common/robot_config.hpp>
+#include <robot_config.hpp>
 #include <common/drivers/escon_driver.hpp>
-#include <main/differential_drive_controller.hpp>
+#include <common/controllers/differential_drive_controller.hpp>
 
 EsconDriver leftMotor(PIN_LEFT_MOTOR_PWM, PIN_LEFT_MOTOR_EN, PIN_LEFT_MOTOR_DIR, 
                         PIN_LEFT_MOTOR_READY, PIN_LEFT_MOTOR_SPEED_ANA, 

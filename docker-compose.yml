@@ -12,7 +12,6 @@ services:
     environment:
       - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
     volumes:
-      - ./ros2_ws/src:/ros2_ws/src
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev  
     devices:
@@ -78,12 +77,11 @@ services:
     environment:
       - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
     volumes:
-      - ./ros2_ws/src:/ros2_ws/src
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev
     devices:
       - /dev/input/js0:/dev/input/js0
-    command: ros2 launch j2cdynamics_bringup navigation.launch.py
+    command: ros2 launch j2cdynamics_bringup teleop.launch.py
 
   simulation:
     build: 

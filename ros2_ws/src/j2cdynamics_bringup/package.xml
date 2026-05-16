@@ -7,15 +7,6 @@
   <maintainer email="dutoit.jonathaneric@gmail.com">jed</maintainer>
   <license>TODO: License declaration</license>
 
-  <!-- Runtime dependencies for driver.launch.py -->
-  <exec_depend>j2cdynamics_driver</exec_depend>
-  <exec_depend>do_description</exec_depend>
-  <exec_depend>robot_state_publisher</exec_depend>
-  <exec_depend>controller_manager</exec_depend>
-  <exec_depend>diff_drive_controller</exec_depend>
-  <exec_depend>joint_state_broadcaster</exec_depend>
-  <exec_depend>xacro</exec_depend>
-
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

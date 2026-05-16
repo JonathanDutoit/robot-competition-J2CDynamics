@@ -1,5 +1,5 @@
-#include <main/differential_drive_controller.hpp>
-#include <common/robot_config.hpp>
+#include <common/controllers/differential_drive_controller.hpp>
+#include <robot_config.hpp>
 
 DifferentialDriveController::DifferentialDriveController(
     ISpeedControllable* leftController, 

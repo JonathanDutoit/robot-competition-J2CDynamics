@@ -11,10 +11,15 @@ fi
 
 cd "$ROS_WS"
 
+cd "$ROS_WS"
+echo "[entrypoint] Building workspace..."
+colcon build --symlink-install
 
 if [ -f "$ROS_WS/install/setup.bash" ]; then
   source "$ROS_WS/install/setup.bash"
+  echo "[entrypoint] Workspace sourced"
 fi
+
 
 # ── Device symlinks (failsafe) ────────────────────────────────────────────────
 ARDUINO_BY_ID="/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_95736323632351D040D1-if00"

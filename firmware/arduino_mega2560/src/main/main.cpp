@@ -35,20 +35,12 @@ void setup()
   // initialize Escon motor drivers
   leftMotor.init();
   rightMotor.init();
-
-  Serial.println("Motor ready! Waiting for new commands...");
-  while (!Serial);
-
-  Serial.println("Enter a word and press Enter:");
 }
 
 void loop()
 {
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
-
-    Serial.print("Received: ");
-    Serial.println(input);
 
     char command[10];
     float leftPWM = 0, rightPWM = 0;
@@ -57,7 +49,6 @@ void loop()
     bool valid = parseInput(input, command, leftPWM, rightPWM, parsedCount);
 
     if (!valid) {
-      Serial.println("ERR: Empty command");
       return;
     }
 
@@ -65,29 +56,17 @@ void loop()
     if (strcmp(command, "SPEED") == 0) {
       if (parsedCount == 3) {
         set_speed_command(leftPWM, rightPWM);
-      } else {
-        Serial.println("ERR: Usage -> SPEED <left> <right>");
-      }
     }
 
     // ── ODOMETRY command ────────────────────────────
-    else if (strcmp(command, "ODOMETRY") == 0) {
+    } else if (strcmp(command, "ODOMETRY") == 0) {
       get_odometry();
-    }
-
-    // ── Unknown command ───────────────────────────
-    else {
-      Serial.println("ERR: Unknown command");
     }
   }
 }
 
 void set_speed_command(float leftPWM, float rightPWM) {
   driveController.setWheelVelocities(leftPWM, rightPWM);
-  Serial.print("OK: L=");
-  Serial.print(leftPWM);
-  Serial.print(" R=");
-  Serial.println(rightPWM);
 }
 
 void get_odometry() {
@@ -102,7 +81,7 @@ void get_odometry() {
 
   Serial.print("R_vel=");
   Serial.print(rightVel, 2);
-  Serial.print(" rad/s ");
+  Serial.println(" rad/s ");
 }
 
 bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount) {

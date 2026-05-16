@@ -48,6 +48,12 @@ def generate_launch_description():
             description='Enable keyboard teleop'
         ),
 
+        DeclareLaunchArgument(
+            'use_joy', 
+            default_value='true',
+            description='Enable joystick'
+        ),
+
         joy_node,
         teleop_joy_node,
         teleop_keyboard_node

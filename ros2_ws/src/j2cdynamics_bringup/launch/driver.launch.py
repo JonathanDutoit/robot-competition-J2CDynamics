@@ -1,5 +1,4 @@
 import os
-
 from launch import LaunchDescription
 from launch.actions import TimerAction
 from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
@@ -38,6 +37,10 @@ def generate_launch_description():
         executable='ros2_control_node',
         parameters=[robot_description, controller_params],
         output='screen',
+        remappings=[
+            ('/diff_drive_controller/cmd_vel_unstamped', '/cmd_vel'),
+            ('/diff_drive_controller/odom', '/odom'),
+        ],
     )
 
     joint_state_broadcaster_spawner = Node(
@@ -54,9 +57,19 @@ def generate_launch_description():
         output='screen',
     )
 
+    delayed_joint_state_spawner = TimerAction(
+        period=3.0,
+        actions=[joint_state_broadcaster_spawner],
+    )
+
+    delayed_diff_drive_spawner = TimerAction(
+        period=4.0,
+        actions=[diff_drive_controller_spawner],
+    )
+
     return LaunchDescription([
         robot_state_publisher_node,
         controller_manager_node,
-        TimerAction(period=2.0, actions=[joint_state_broadcaster_spawner]),
-        TimerAction(period=3.0, actions=[diff_drive_controller_spawner]),
+        delayed_joint_state_spawner,
+        delayed_diff_drive_spawner,
     ])

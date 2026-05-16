@@ -11,6 +11,10 @@ fi
 
 cd "$ROS_WS"
 
+cd "$ROS_WS"
+echo "[entrypoint] Building workspace..."
+colcon build --symlink-install
+
 
 if [ -f "$ROS_WS/install/setup.bash" ]; then
   source "$ROS_WS/install/setup.bash"

@@ -7,6 +7,8 @@ RUN apt update && apt install -y \
     python3-colcon-common-extensions \
     python3-pip \
     git \
+    cmake \ 
+    libserial-dev \
     ros-humble-rmw-cyclonedds-cpp \ 
     iproute2 \
     gettext \        
@@ -18,7 +20,8 @@ WORKDIR $ROS_WS
 FROM ros2_base AS robot
 
 RUN apt update && apt install -y \
-    libserial-dev \
+    ros-humble-ament-cmake \
+    ros-humble-joint-state-publisher \
     ros-humble-ros2-control \
     ros-humble-ros2-controllers \
     ros-humble-xacro \
@@ -26,8 +29,9 @@ RUN apt update && apt install -y \
     ros-humble-tf2-geometry-msgs \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ros2_ws/src /ros2_ws/src
-RUN cd /ros2_ws && colcon build --symlink-install
+COPY ros2_ws/src/j2cdynamics_bringup /ros2_ws/src/j2cdynamics_bringup
+COPY ros2_ws/src/j2cdynamics_driver /ros2_ws/src/j2cdynamics_driver
+COPY ros2_ws/src/do_description /ros2_ws/src/do_description
 
 COPY docker/driver/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

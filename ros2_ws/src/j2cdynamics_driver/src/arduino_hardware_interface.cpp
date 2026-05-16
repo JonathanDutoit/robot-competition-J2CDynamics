@@ -54,7 +54,11 @@ ArduinoHardwareInterface::on_configure(const rclcpp_lifecycle::State &)
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  RCLCPP_INFO(logger_, "Serial port %s opened", port_.c_str());
+  RCLCPP_INFO(logger_, "Waiting for Arduino to boot...");
+  std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+  serial_.FlushIOBuffers(); 
+  RCLCPP_INFO(logger_, "Arduino ready");
+
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -175,10 +179,11 @@ bool ArduinoHardwareInterface::send_command(const std::string & cmd)
 bool ArduinoHardwareInterface::request_odometry(double & left_vel, double & right_vel)
 {
   try {
+    serial_.FlushInputBuffer();
     serial_.Write("ODOMETRY\n");
-
     std::string line;
-    // Timeout 100 ms — matches your odom_rate
+
+    // Timeout 500 ms — matches your odom_rate
     serial_.ReadLine(line, '\n', 100);
 
     // Parse: "ODOMETRY: L_vel=1.23 rad/s R_vel=4.56 rad/s"

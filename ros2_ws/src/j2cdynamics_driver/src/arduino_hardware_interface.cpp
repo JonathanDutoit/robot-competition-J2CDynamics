@@ -44,7 +44,7 @@ ArduinoHardwareInterface::on_configure(const rclcpp_lifecycle::State &)
 {
   try {
     serial_.Open(port_);
-    serial_.SetBaudRate(LibSerial::BaudRate::BAUD_9600);   // match your Arduino
+    serial_.SetBaudRate(LibSerial::BaudRate::BAUD_115200);   // match your Arduino
     serial_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
     serial_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
     serial_.SetParity(LibSerial::Parity::PARITY_NONE);

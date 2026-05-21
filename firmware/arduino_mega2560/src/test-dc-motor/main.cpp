@@ -59,7 +59,7 @@ void setup(void)
   int i;
   for(i=4;i<=7;i++)
     pinMode(i, OUTPUT);
-  Serial.begin(9600);      //Set Baud Rate
+  Serial.begin(115200);      //Set Baud Rate
   Serial.println("Run keyboard control");
   digitalWrite(E1,LOW);
   digitalWrite(E2,LOW);

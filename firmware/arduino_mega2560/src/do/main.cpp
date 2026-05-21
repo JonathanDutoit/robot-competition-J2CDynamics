@@ -30,7 +30,7 @@ bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, in
 void setup()
 {
   //initialize the serial port
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // initialize Escon motor drivers
   leftMotor.init();

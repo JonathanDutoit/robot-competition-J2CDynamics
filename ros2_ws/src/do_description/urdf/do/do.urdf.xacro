@@ -33,13 +33,19 @@
 	<xacro:property name="caster_wheels_x_offset" value="${215 * mm_to_m}"/>
 	<xacro:property name="caster_wheels_spacing" value="${331.2 * mm_to_m}"/>
 
+	<xacro:property name="lidar_radius" value="${35 * mm_to_m}"/>
+	<xacro:property name="lidar_height" value="${20 * mm_to_m}"/>
+	<xacro:property name="lidar_x_offset" value="${85 * mm_to_m}"/>
+	<xacro:property name="lidar_z_offset" value="${252 * mm_to_m}"/>
+	<xacro:property name="lidar_mass" value="${0.170}"/>
+
 	<xacro:property name="total_mass" value="3.1"/>
 
 	<xacro:include filename="materials.xacro"/>
 	<xacro:include filename="do_inertia.xacro"/>
 	<xacro:include filename="do_chassis.xacro"/>
 	<xacro:include filename="do_trailer.xacro"/>
-	<!-- <xacro:include filename="lidar.xacro"/> -->
+	<xacro:include filename="lidar.xacro"/>
 
 	<xacro:include filename="gazebo.xacro"/>    
 </robot>

@@ -1,21 +1,21 @@
 #include <common/controllers/differential_drive_controller.hpp>
-#include <robot_config.hpp>
+#include <common_config.hpp>
 
 DifferentialDriveController::DifferentialDriveController(
     ISpeedControllable* leftController, 
     ISpeedControllable* rightController
-) : leftController(leftController), rightController(rightController) {}
+): leftController(leftController), rightController(rightController) {}
 
-void DifferentialDriveController::setWheelVelocities(
-    float leftWheelRadPerSec, float rightWheelRadPerSec
+void DifferentialDriveController::setVelocities(
+    float leftRadPerSec, float rightRadPerSec
 ) {
-    leftController->setVelocity(GEAR_RATIO * leftWheelRadPerSec);
-    rightController->setVelocity(GEAR_RATIO * (-rightWheelRadPerSec));
+    leftController->setVelocity(leftRadPerSec);
+    rightController->setVelocity(-rightRadPerSec);
 }
 
-void DifferentialDriveController::getWheelVelocities(
-    float& leftWheelRadPerSec, float& rightWheelRadPerSec
+void DifferentialDriveController::getVelocities(
+    float& leftRadPerSec, float& rightRadPerSec
 ) {
-    leftWheelRadPerSec = leftController->getVelocity() / GEAR_RATIO;
-    rightWheelRadPerSec = -rightController->getVelocity() / GEAR_RATIO;
+    leftRadPerSec = leftController->getVelocity();
+    rightRadPerSec = -rightController->getVelocity();
 }

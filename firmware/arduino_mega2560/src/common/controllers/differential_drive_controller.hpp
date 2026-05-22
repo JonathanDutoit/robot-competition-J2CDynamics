@@ -7,8 +7,8 @@ class DifferentialDriveController {
     public:
         DifferentialDriveController(ISpeedControllable* leftController, 
                                     ISpeedControllable* rightController);
-        void setWheelVelocities(float leftWheelRadPerSec, float rightWheelRadPerSec);
-        void getWheelVelocities(float& leftWheelRadPerSec, float& rightWheelRadPerSec);
+        void setVelocities(float leftRadPerSec, float rightRadPerSec);
+        void getVelocities(float& leftRadPerSec, float& rightRadPerSec);
     private:
         ISpeedControllable* leftController;
         ISpeedControllable* rightController;

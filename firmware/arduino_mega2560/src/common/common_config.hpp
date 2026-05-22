@@ -70,7 +70,6 @@
 // --- POWER PARAMETERS ---
 // ------------------------
 
-#define MAX_BATTERY_VOLTAGE_V              12.6f // in volts
-#define NOMINAL_BATTERY_VOLTAGE_V          11.1f // in volts
+#define NOMINAL_BATTERY_VOLTAGE_V      11.1f // in volts
 
 #endif

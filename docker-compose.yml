@@ -81,7 +81,7 @@ services:
       - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps   
     devices:
       - /dev/input/js0:/dev/input/js0
-    command: ros2 launch j2cdynamics_bringup do_robot.launch.py use_teleop:=true mode:=mapping
+    command: ros2 launch j2cdynamics_bringup do_robot.launch.py use_teleop:=true mode:=localization  map:=/maps/testarena/map
 
   simulation:
     build: 

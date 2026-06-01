@@ -3,7 +3,6 @@
  */
 #include <Arduino.h>
 #include <common_config.hpp>
-#include <do2/do2_config.hpp>
 #include <common/drivers/escon_driver.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
 

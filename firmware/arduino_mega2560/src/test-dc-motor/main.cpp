@@ -1,8 +1,8 @@
 #include <Arduino.h>
+#include <do2/robot_config.hpp>
+#include <do2/drivers/dri0018_driver_channel.hpp>
 #include <common_config.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
-#include <do2/do2_config.hpp>
-#include <do2/drivers/dri0018_driver_channel.hpp>
 
 DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR, 
 							   PIN_LEFT_SWEEPER_CURR_SENSE);

@@ -1,8 +1,8 @@
 #include <do2/drivers/dri0018_driver_channel.hpp>
 
 #include <Arduino.h>
+#include <do2/robot_config.hpp>
 #include <common_config.hpp>
-#include <do2/do2_config.hpp>
 
 DRI0018DriverChannel::DRI0018DriverChannel(uint8_t pwmDigitalInputPin, 
                                            uint8_t directionDigitalInputPin,

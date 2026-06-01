@@ -1,6 +1,8 @@
 #ifndef COMMON_CONFIG_H
 #define COMMON_CONFIG_H
 
+#include <robot_config.hpp>
+
 // -----------------------
 // --- HARDWARE PINOUT ---
 // -----------------------
@@ -47,9 +49,6 @@
 // --------------------------------
 // --- MAXON & ESCON PARAMETERS ---
 // --------------------------------
-
-// --- MECHANICAL PARAMETERS ---
-#define MAXON_GEAR_RATIO                60.0f // gear ratio
 
 // --- Motor limits ---
 #define MAXON_MAX_RPM                   4092 / MAXON_GEAR_RATIO // in RPM

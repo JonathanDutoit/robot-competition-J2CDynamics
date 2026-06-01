@@ -1,7 +1,12 @@
-#ifndef DO2_CONFIG_H
-#define DO2_CONFIG_H
+#ifndef ROBOT_CONFIG_H
+#define ROBOT_CONFIG_H
 
-#include <common/common_config.hpp>
+// ---------------------------
+// --- MAXON CONFIGURATION ---
+// ---------------------------
+
+// --- Mechanical properties ---
+#define MAXON_GEAR_RATIO            18.0f
 
 // -----------------------
 // --- HARDWARE PINOUT ---

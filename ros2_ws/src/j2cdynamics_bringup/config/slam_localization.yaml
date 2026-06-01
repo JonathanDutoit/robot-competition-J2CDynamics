@@ -1,16 +1,18 @@
 slam_toolbox:
   ros__parameters:
+    # ── mode ────────────────────────────────────────────────────────────────
     mode: localization
+
     # map_file_name is supplied by the launch file (the `map` argument)
     map_start_at_dock: true        # or: map_start_pose: [x, y, yaw]
 
-    # frames
+    # ── frames ──────────────────────────────────────────────────────────────
     odom_frame:  odom
     map_frame:   map
     base_frame:  base_link
     scan_topic:  /scan
 
-    # solver (same as mapping)
+    # ── solver ──────────────────────────────────────────────────────────────
     solver_plugin:        solver_plugins::CeresSolver
     ceres_linear_solver:  SPARSE_NORMAL_CHOLESKY
     ceres_preconditioner: SCHUR_JACOBI
@@ -18,7 +20,7 @@ slam_toolbox:
     ceres_dogleg_type:    TRADITIONAL_DOGLEG
     ceres_loss_function:  None
 
-    # scan matcher
+    # ── scan matcher ────────────────────────────────────────────────────────
     use_scan_matching:    true
     use_scan_barycenter:  true
     minimum_travel_distance: 0.1
@@ -28,10 +30,10 @@ slam_toolbox:
     link_match_minimum_response_fine:  0.1
     link_scan_maximum_distance:        1.5
 
-    # loop closure off — not adding nodes in localization mode
-    do_loop_closing: false
+    # ── loop closure ────────────────────────────────────────────────────────
+    do_loop_closing: false  # not adding nodes in localization mode
 
-    # misc
+    # ── misc ────────────────────────────────────────────────────────────────
     debug_logging: false
     throttle_scans: 1
     transform_publish_period: 0.02

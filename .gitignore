@@ -10,3 +10,6 @@ spot-iot-credentials.txt
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
+
+# env file
+.docker/.env

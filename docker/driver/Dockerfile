@@ -27,11 +27,8 @@ RUN apt update && apt install -y \
     ros-humble-xacro \
     ros-humble-tf2-ros \
     ros-humble-tf2-geometry-msgs \
+    ros-humble-twist-mux \ 
     && rm -rf /var/lib/apt/lists/*
-
-COPY ros2_ws/src/j2cdynamics_bringup /ros2_ws/src/j2cdynamics_bringup
-COPY ros2_ws/src/j2cdynamics_driver /ros2_ws/src/j2cdynamics_driver
-COPY ros2_ws/src/do_description /ros2_ws/src/do_description
 
 COPY docker/driver/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

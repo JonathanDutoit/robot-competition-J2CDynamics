@@ -14,6 +14,9 @@ services:
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev  
+      - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
+      - ./ros2_ws/src/j2cdynamics_driver:/ros2_ws/src/j2cdynamics_driver
+      - ./ros2_ws/src/do_description:/ros2_ws/src/do_description
     devices:
       - /dev/serial:/dev/serial
     command: ros2 launch j2cdynamics_bringup driver.launch.py

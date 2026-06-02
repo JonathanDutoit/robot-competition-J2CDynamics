@@ -1,7 +1,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction, SetRemap
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -37,17 +37,22 @@ def generate_launch_description():
         ],
     )
 
-    nav2 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(nav2_bringup_dir, 'launch', 'navigation_launch.py')
-        ),
-        launch_arguments={
-            'use_sim_time': 'false',
-            'params_file': os.path.join(j2cdynamics_bringup_dir, 'config', 'nav2_params.yaml'),
-        }.items(),
+    nav2 = GroupAction(
         condition=IfCondition(
             PythonExpression(["'", mode, "' == 'localization'"])
-        )
+        ),
+        actions=[
+            SetRemap('/cmd_vel', '/nav_vel'),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(nav2_bringup_dir, 'launch', 'navigation_launch.py')
+                ),
+                launch_arguments={
+                    'use_sim_time': 'false',
+                    'params_file': os.path.join(j2cdynamics_bringup_dir, 'config', 'nav2_params.yaml'),
+                }.items(),
+            ),
+        ],
     )
 
     return LaunchDescription([

@@ -1,5 +1,5 @@
-#ifndef MAXON_DRIVER_H
-#define MAXON_DRIVER_H
+#ifndef ESCON_DRIVER_H
+#define ESCON_DRIVER_H
 
 #include <stdint.h>
 #include <common/ISpeedControllable.hpp>
@@ -11,11 +11,11 @@ class EsconDriver : public ISpeedControllable {
                     uint8_t speedAnalogOutputPin, uint8_t currentAnalogOutputPin);
         void init();
         void setVelocity(float rad_per_sec) override;
-        float getVelocity() override;
-        float getCurrent();
+        float getVelocity() const override;
+        float getCurrent() const;
     private:
         uint8_t _pwmPin, _enPin, _dirPin, _readyPin, _speedPin, _currPin;
-        uint8_t isReady();
+        uint8_t isReady() const;
         void configurePWM();
 };
 

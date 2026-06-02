@@ -1,7 +1,7 @@
 #include <common/drivers/escon_driver.hpp>
 
 #include <Arduino.h>
-#include <robot_config.hpp>
+#include <common_config.hpp>
 
 EsconDriver::EsconDriver(uint8_t pwmDigitalInputPin, uint8_t enableDigitalInputPin, 
                         uint8_t directionDigitalInputPin, uint8_t readyDigitalInputPin, 
@@ -39,7 +39,7 @@ void EsconDriver::configurePWM() {
     }
 }
 
-uint8_t EsconDriver::isReady() {
+uint8_t EsconDriver::isReady() const {
     // Ready pin is active HIGH in Motion Studio -> 0 = ready, 1 = not ready
     // see https://support.maxongroup.com/hc/en-us/articles/360008666420-ESCON-Digital-Output-Wiring
     return digitalRead(_readyPin) == LOW;
@@ -63,12 +63,12 @@ void EsconDriver::setVelocity(float rad_per_sec) {
     }
 
     // Saturation
-    if (rad_per_sec > MOTOR_MAX_VELOCITY_RAD_SEC) {
-        rad_per_sec = MOTOR_MAX_VELOCITY_RAD_SEC;
+    if (rad_per_sec > MAXON_MAX_VELOCITY_RAD_SEC) {
+        rad_per_sec = MAXON_MAX_VELOCITY_RAD_SEC;
     }
 
     // Normalize to [0, 1]
-    rad_per_sec = rad_per_sec / MOTOR_MAX_VELOCITY_RAD_SEC;
+    rad_per_sec = rad_per_sec / MAXON_MAX_VELOCITY_RAD_SEC;
 
     // Convert RPM to Duty Cycle (0-255) and write to PWM pin
     uint8_t duty = static_cast<uint8_t>(
@@ -78,22 +78,22 @@ void EsconDriver::setVelocity(float rad_per_sec) {
     analogWrite(_pwmPin, duty);
 }
 
-float EsconDriver::getVelocity() {
+float EsconDriver::getVelocity() const {
     if (!isReady()) {
         return 0; // If not ready, return 0 speed
     }
     float adcValue = static_cast<float>(analogRead(_speedPin));
     float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
     voltage = voltage - ESCON_VELOCITY_ZERO_VOLTAGE; // Center around 0V (2V is 0 speed)
-    return voltage * 2 * MOTOR_MAX_VELOCITY_RAD_SEC / ESCON_MAX_OUTPUT_VOLTAGE; // in radians per second
+    return voltage * 2 * MAXON_MAX_VELOCITY_RAD_SEC / ESCON_MAX_OUTPUT_VOLTAGE; // in radians per second
 }
 
-float EsconDriver::getCurrent() {
+float EsconDriver::getCurrent() const {
     if (!isReady()) {
         return 0; // If not ready, return 0 current
     }
     float adcValue = static_cast<float>(analogRead(_currPin));
     float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
     voltage = voltage - ESCON_CURRENT_ZERO_VOLTAGE; // Center around 0V (2V is 0 current)
-    return voltage * 2 * MOTOR_MAX_CURRENT_A / ESCON_MAX_OUTPUT_VOLTAGE; // in amps
+    return voltage * 2 * MAXON_MAX_CURRENT_A / ESCON_MAX_OUTPUT_VOLTAGE; // in amps
 }

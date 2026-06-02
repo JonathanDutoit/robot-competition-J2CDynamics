@@ -2,16 +2,16 @@
  * TODO: Add description
  */
 #include <Arduino.h>
-#include <robot_config.hpp>
+#include <common_config.hpp>
 #include <common/drivers/escon_driver.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
 
-EsconDriver leftMotor(PIN_LEFT_MOTOR_PWM, PIN_LEFT_MOTOR_EN, PIN_LEFT_MOTOR_DIR, 
-                        PIN_LEFT_MOTOR_READY, PIN_LEFT_MOTOR_SPEED_ANA, 
-                        PIN_LEFT_MOTOR_CURR_ANA);
-EsconDriver rightMotor(PIN_RIGHT_MOTOR_PWM, PIN_RIGHT_MOTOR_EN, PIN_RIGHT_MOTOR_DIR, 
-                        PIN_RIGHT_MOTOR_READY, PIN_RIGHT_MOTOR_SPEED_ANA, 
-                        PIN_RIGHT_MOTOR_CURR_ANA);
+EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
+                        PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
+                        PIN_LEFT_MAXON_CURR_ANA);
+EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_DIR, 
+                        PIN_RIGHT_MAXON_READY, PIN_RIGHT_MAXON_SPEED_ANA, 
+                        PIN_RIGHT_MAXON_CURR_ANA);
 
 DifferentialDriveController driveController(&leftMotor, &rightMotor); // Example wheel diameter and gear ratio
 
@@ -66,13 +66,13 @@ void loop()
 }
 
 void set_speed_command(float leftPWM, float rightPWM) {
-  driveController.setWheelVelocities(leftPWM, rightPWM);
+  driveController.setVelocities(leftPWM, rightPWM);
 }
 
 void get_odometry() {
   float leftVel = 0, rightVel = 0;
 
-  driveController.getWheelVelocities(leftVel, rightVel);
+  driveController.getVelocities(leftVel, rightVel);
 
   Serial.print("ODOMETRY: ");
   Serial.print("L_vel=");

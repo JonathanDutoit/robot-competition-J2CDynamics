@@ -13,3 +13,6 @@ ros2_ws/log/
 
 # env file
 .docker/.env
+
+
+__pycache__/

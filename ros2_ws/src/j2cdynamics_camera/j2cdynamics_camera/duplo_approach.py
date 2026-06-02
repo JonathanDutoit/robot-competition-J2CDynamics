@@ -21,19 +21,20 @@ from j2cdynamics_camera.config import MODEL_PATH, LORES_SIZE, MAIN_SIZE, CONF_TH
 
 
 # ── Parameters ──────────────────────────────────────────────────────────────────
-IMAGE_WIDTH    = LORES_SIZE[0]        
-IMAGE_HEIGHT   = LORES_SIZE[1]        
+IMAGE_WIDTH    = MAIN_SIZE[0]        
+IMAGE_HEIGHT   = MAIN_SIZE[1]        
 TARGET_CLASS   = "duplo"
 MIN_CONFIDENCE = CONF_THRESH        # ignore weak detections; tune on hardware
 
 # Steering (rotation)
-KP_ANG         = 1.5        # rad/s per unit of normalized error
+KP_ANG         = 0.6       # rad/s per unit of normalized error
 MAX_ANGULAR    = 0.8        # rad/s — well under the 0.94 rad/s kinematic ceiling
 ALIGN_TOL      = 0.10       # normalized; |err| below this = "aligned"
 
 # Forward drive (over the duplo)
 MAX_LINEAR     = 0.195       # m/s — slow approach so we don't bowl past it
 MIN_LINEAR     = 0.05       # m/s — keep nudging even when aligned + close
+FWD_TOL = 0.5
 
 # Box-bottom row at which we consider the duplo "right at the trailer" and stop
 # pushing forward (it'll get scooped by the trailer as we drive past).
@@ -75,6 +76,7 @@ class DuploApproach(Node):
                         by / IMAGE_HEIGHT,
                     )
 
+                    #self.get_logger().info(f'cx={cx:.1f} err_x={best[0]:+.2f}')
         if best is not None:
             self.target = best
             self.last_seen = self.get_clock().now()
@@ -101,7 +103,7 @@ class DuploApproach(Node):
         # When the box bottom reaches CLOSE_ROW_FRAC, the duplo is at our feet —
         # the trailer will scoop it as we continue past, so we just stop pushing.
         if by_norm < CLOSE_ROW_FRAC:
-            alignment = max(0.0, 1.0 - abs(err_x) / ALIGN_TOL)  # 1 aligned, 0 off-axis
+            alignment = max(0.0, 1.0 - abs(err_x) / FWD_TOL)  # 1 aligned, 0 off-axis
             twist.linear.x = max(MIN_LINEAR, MAX_LINEAR * alignment)
         # else: leave linear.x = 0; the angular keeps tracking if it drifts
 

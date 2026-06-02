@@ -8,10 +8,14 @@ if [ -n "$CYCLONEDDS_URI" ]; then
     export CYCLONEDDS_URI="file:///tmp/cyclonedds_resolved.xml"
 fi
 
-if [ -f /app/install/setup.bash ]; then
-    source /app/install/setup.bash
+cd "$ROS_WS"
+echo "[entrypoint] Building workspace..."
+colcon build --symlink-install
+
+if [ -f "$ROS_WS/install/setup.bash" ]; then
+    source "$ROS_WS/install/setup.bash"
 else
-    echo "[entrypoint] WARNING: /app/install/setup.bash not found, skipping"
+    echo "[entrypoint] WARNING: /$ROS_WS/install/setup.bash not found, skipping"
 fi
 
 exec "$@"

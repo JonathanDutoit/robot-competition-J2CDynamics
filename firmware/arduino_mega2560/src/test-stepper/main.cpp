@@ -11,9 +11,9 @@ AccelStepper myStepper(AccelStepper::DRIVER, stepPin, dirPin);           // work
 void setup() {
   // set the maximum speed, acceleration factor,
   // and the target position
-  myStepper.setMaxSpeed(1000.0);
-  myStepper.setAcceleration(50.0);
-  myStepper.moveTo(200);
+  myStepper.setMaxSpeed(500.0); // Based on required speed
+  myStepper.setAcceleration(250.0); // Based on required accel
+  myStepper.moveTo(200); // Move 1 turn (200 steps for 1.8 degree stepper) in one direction
 }
 
 void loop() {

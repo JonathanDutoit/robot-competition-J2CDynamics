@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'camera_node = j2cdynamics_camera.main:main',
+            'duplo_approach = j2cdynamics_camera.duplo_approach:main',
         ],
     },
 )

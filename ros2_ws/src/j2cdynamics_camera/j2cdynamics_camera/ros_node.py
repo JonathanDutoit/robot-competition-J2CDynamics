@@ -15,16 +15,19 @@ class CameraROSNode(Node):
         self.det_pub = self.create_publisher(Detection2DArray, '/detections', 10)
 
     def publish_frame(self, frame_np):
-        msg = self.bridge.cv2_to_imgmsg(frame_np, encoding='rgb8')  
+        msg = self.bridge.cv2_to_imgmsg(frame_np, encoding='bgr8')  
         msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'camera_optical_frame'
         self.img_pub.publish(msg)
 
     def publish_detections(self, dets):
         msg = Detection2DArray()
         msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'camera_optical_frame'
 
         for (x1, y1, x2, y2, label, conf) in dets:
             det = Detection2D()
+            det.header = msg.header                 
             det.bbox.center.position.x = float((x1 + x2) / 2)
             det.bbox.center.position.y = float((y1 + y2) / 2)
             det.bbox.size_x = float(x2 - x1)
@@ -46,9 +49,6 @@ def init_ros() -> CameraROSNode:
     
     executor = MultiThreadedExecutor()
     executor.add_node(node)
-
-    def ros_spin():
-        executor.spin()
-
+    
     threading.Thread(target=executor.spin, daemon=True).start()
     return node

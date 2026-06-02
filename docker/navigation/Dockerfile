@@ -31,7 +31,6 @@ RUN rm -rf /var/lib/apt/lists/*
 
 
 FROM dependencies AS builder
-COPY ros2_ws/src/j2cdynamics_bringup /ros2_ws/src/j2cdynamics_bringup
 
 COPY docker/navigation/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

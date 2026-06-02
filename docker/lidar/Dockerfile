@@ -20,7 +20,8 @@ FROM ros2_base AS robot
 RUN apt update && apt install -y \
     ros-humble-rplidar-ros \
     ros-humble-tf2-ros \
-    ros-humble-tf2-geometry-msgs \ 
+    ros-humble-tf2-geometry-msgs \
+    ros-humble-laser-filters \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ros2_ws/src/j2cdynamics_bringup /ros2_ws/src/j2cdynamics_bringup

@@ -16,6 +16,7 @@ services:
       - /dev:/dev  
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_driver:/ros2_ws/src/j2cdynamics_driver
+      - ./ros2_ws/src/j2cdynamics_diagnostics:/ros2_ws/src/j2cdynamics_diagnostics
       - ./ros2_ws/src/do_description:/ros2_ws/src/do_description
     devices:
       - /dev/serial:/dev/serial
@@ -103,9 +104,6 @@ services:
       - /dev:/dev
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps
-    depends_on:
-      - driver
-      - lidar   
     devices:
       - /dev/input/js0:/dev/input/js0
     depends_on:

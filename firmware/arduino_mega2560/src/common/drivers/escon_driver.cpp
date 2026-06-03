@@ -85,7 +85,12 @@ float EsconDriver::getVelocity() const {
     float adcValue = static_cast<float>(analogRead(_speedPin));
     float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
     voltage = voltage - ESCON_VELOCITY_ZERO_VOLTAGE; // Center around 0V (2V is 0 speed)
-    return voltage * 2 * MAXON_MAX_VELOCITY_RAD_SEC / ESCON_MAX_OUTPUT_VOLTAGE; // in radians per second
+    float vel = voltage * 2 * MAXON_MAX_VELOCITY_RAD_SEC / ESCON_MAX_OUTPUT_VOLTAGE; // in radians per second
+
+    // ADC/offset noise floor: ~0.0175 rad/s per count; kill a few counts of jitter
+    constexpr float VEL_DEADBAND = 0.12f;   // rad/s, ~7 counts
+    if (fabs(vel) < VEL_DEADBAND) vel = 0.0f;
+    return vel;
 }
 
 float EsconDriver::getCurrent() const {

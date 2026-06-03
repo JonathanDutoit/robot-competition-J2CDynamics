@@ -26,9 +26,18 @@ from collections import defaultdict
 
 import numpy as np
 
-import cv2
-from flask import Flask, Response, jsonify, request
-import psutil
+try:
+    import cv2
+except ImportError:
+    raise SystemExit("Missing cv2. Install conda 'opencv' (see environment.yml)")
+try:
+    from flask import Flask, Response, jsonify, request
+except ImportError:
+    raise SystemExit("Missing flask. conda install -c conda-forge flask")
+try:
+    import psutil
+except ImportError:
+    raise SystemExit("Missing psutil. conda install -c conda-forge psutil")
 
 import rclpy
 from rclpy.node import Node
@@ -39,7 +48,7 @@ from rclpy.qos import (QoSProfile, ReliabilityPolicy, DurabilityPolicy,
 from std_msgs.msg import String, Bool
 from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped
 from sensor_msgs.msg import LaserScan, Image, CompressedImage
-from nav_msgs.msg import Odometry, OccupancyGrid, Path
+from nav_msgs.msg import Odometry, OccupancyGrid
 
 import tf2_ros
 
@@ -61,12 +70,6 @@ CMD_OUT_TOPIC    = "/cmd_vel_muxed"      # twist_mux output
 ESTOP_TOPIC      = "/e_stop"
 DETECTIONS_TOPIC = "/detections"
 COLLISION_POLY   = "/collision_approach"
-# detections arrive in LORES pixel space; set to your detector's frame size
-# so boxes scale correctly onto whatever resolution the camera topic streams.
-DETECTION_REF_W  = 640      # <-- LORES_SIZE[0]
-DETECTION_REF_H  = 480      # <-- LORES_SIZE[1]
-GLOBAL_PLAN_TOPIC = "/plan"              # Nav2 global path
-LOCAL_PLAN_TOPIC  = "/local_plan"        # controller local trajectory
 INITIALPOSE_TOPIC = "/initialpose"       # SLAM Toolbox re-localization
 GOAL_TOPIC        = "/goal_pose"         # Nav2 bt_navigator goal
 MAP_FRAME        = "map"
@@ -102,8 +105,6 @@ WATCH = [
     ("/duplo_vel",    Twist,         _RELIABLE),
     ("/teleop_vel",   Twist,         _RELIABLE),
     ("/robot_stats",  String,        _RELIABLE),
-    (GLOBAL_PLAN_TOPIC, Path,        _RELIABLE),
-    (LOCAL_PLAN_TOPIC,  Path,        _RELIABLE),
 ]
 if _HAVE_VISION:
     WATCH.append((DETECTIONS_TOPIC, Detection2DArray, _RELIABLE))
@@ -132,8 +133,6 @@ class Monitor(Node):
         self._last_rate_t = time.monotonic()
 
         self.scan = None
-        self.gplan = None
-        self.lplan = None
         self.map = None
         self.gcost = None
         self.lcost = None
@@ -143,7 +142,6 @@ class Monitor(Node):
         self.robot_stats = None
         self.det_n = 0
         self.det_t = 0.0
-        self.det_msg = None
         self.tf_ok = False
         self.nodes = []
         self.topics = []
@@ -179,11 +177,6 @@ class Monitor(Node):
                         self.gcost = msg
                     elif name == LOCAL_COSTMAP:
                         self.lcost = msg
-                elif mtype is Path:
-                    if name == GLOBAL_PLAN_TOPIC:
-                        self.gplan = msg
-                    elif name == LOCAL_PLAN_TOPIC:
-                        self.lplan = msg
                 elif mtype is Odometry:
                     self.odom = msg
                 elif mtype is Twist and name == CMD_OUT_TOPIC:
@@ -198,7 +191,6 @@ class Monitor(Node):
                 elif _HAVE_VISION and mtype is Detection2DArray:
                     self.det_n = len(msg.detections)
                     self.det_t = now
-                    self.det_msg = msg
         return cb
 
     # ---- interactive tools ----
@@ -233,65 +225,34 @@ class Monitor(Node):
     def _camera_cb(self, msg):
         with self.lock:
             self._counts[CAMERA_TOPIC] += 1
-            det = self.det_msg
-            det_fresh = (time.monotonic() - self.det_t) < 1.5 if self.det_t else False
-        img = self._decode_image(msg)
-        if img is None:
-            return
-        if det is not None and det_fresh:
-            self._draw_detections(img, det)
-        ok, out = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        if ok:
+        jpeg = self._encode_image(msg)
+        if jpeg is not None:
             with self.lock:
-                self.camera_jpeg = out.tobytes()
+                self.camera_jpeg = jpeg
 
-    def _draw_detections(self, img, det):
-        # detections are in DETECTION_REF_W/H pixel space; scale to this frame
-        h, w = img.shape[:2]
-        sx, sy = w / float(DETECTION_REF_W), h / float(DETECTION_REF_H)
-        for d in det.detections:
-            cx = d.bbox.center.position.x * sx
-            cy = d.bbox.center.position.y * sy
-            bw = d.bbox.size_x * sx
-            bh = d.bbox.size_y * sy
-            x1, y1 = int(cx - bw / 2), int(cy - bh / 2)
-            x2, y2 = int(cx + bw / 2), int(cy + bh / 2)
-            label, score = "?", 0.0
-            if d.results:
-                label = d.results[0].hypothesis.class_id
-                score = d.results[0].hypothesis.score
-            cv2.rectangle(img, (x1, y1), (x2, y2), (40, 200, 40), 2)
-            txt = f"{label} {score:.2f}"
-            cv2.rectangle(img, (x1, y1 - 16), (x1 + 8 * len(txt), y1), (40, 200, 40), -1)
-            cv2.putText(img, txt, (x1 + 2, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.45, (0, 0, 0), 1, cv2.LINE_AA)
-
-    def _decode_image(self, msg):
+    def _encode_image(self, msg):
         try:
             if isinstance(msg, CompressedImage):
-                arr = np.frombuffer(bytes(msg.data), dtype=np.uint8)
-                return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                return bytes(msg.data)
             h, w, enc, step = msg.height, msg.width, msg.encoding, msg.step
             buf = np.frombuffer(bytes(msg.data), dtype=np.uint8)
             if enc in ("rgb8", "bgr8"):
                 img = buf.reshape(h, step)[:, : w * 3].reshape(h, w, 3)
                 if enc == "rgb8":
                     img = img[:, :, ::-1]
-                img = np.ascontiguousarray(img)
             elif enc in ("rgba8", "bgra8"):
                 img = buf.reshape(h, step)[:, : w * 4].reshape(h, w, 4)
                 img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR if enc == "rgba8"
                                    else cv2.COLOR_BGRA2BGR)
             elif enc == "mono8":
                 img = buf.reshape(h, step)[:, :w]
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
             elif enc in ("16UC1", "mono16"):
                 d = buf.view(np.uint16).reshape(h, step // 2)[:, :w]
                 img = cv2.convertScaleAbs(d, alpha=255.0 / max(1, int(d.max())))
-                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
             else:
                 return None
-            return img
+            ok, out = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            return out.tobytes() if ok else None
         except Exception as e:
             self.get_logger().warn(f"image decode failed: {e}")
             return None
@@ -408,6 +369,7 @@ class Monitor(Node):
     def status(self):
         with self.lock:
             rates = dict(self.rates)
+            vm = psutil.virtual_memory()
             mg = None
             if self.map is not None:
                 info = self.map.info
@@ -422,6 +384,14 @@ class Monitor(Node):
                 "nodes": self.nodes,
                 "topics": self.topics,
                 "robot": self.robot_stats,
+                "host": {
+                    "host": "dashboard",
+                    "cpu_percent": psutil.cpu_percent(interval=None),
+                    "per_cpu": psutil.cpu_percent(interval=None, percpu=True),
+                    "mem_percent": vm.percent,
+                    "mem_used_mb": round(vm.used / 1e6),
+                    "mem_total_mb": round(vm.total / 1e6),
+                },
             }
 
     def latest_camera(self):
@@ -432,7 +402,6 @@ class Monitor(Node):
         with self.lock:
             grid, scan = self.map, self.scan
             gcost, lcost = self.gcost, self.lcost
-            gplan, lplan = self.gplan, self.lplan
         if grid is None:
             return self._render_scan_only(scan)
 
@@ -460,11 +429,6 @@ class Monitor(Node):
             self._blend_costmap(img, ox, oy, res, scale, gcost, (255, 150, 30), 0.30)
         if lcost is not None:
             self._blend_costmap(img, ox, oy, res, scale, lcost, (30, 120, 255), 0.40)
-
-        if gplan is not None:
-            self._draw_path(img, gplan, to_px, (255, 180, 40), 2)   # global plan, blue-ish
-        if lplan is not None:
-            self._draw_path(img, lplan, to_px, (70, 70, 255), 2)    # local plan, red
 
         if scan is not None:
             self._draw_scan(img, scan, to_px)
@@ -522,17 +486,6 @@ class Monitor(Node):
         except Exception:
             pass
 
-    def _draw_path(self, img, path, to_px, color, thick):
-        try:
-            pts = []
-            for ps in path.poses:
-                pts.append(to_px(ps.pose.position.x, ps.pose.position.y))
-            if len(pts) >= 2:
-                cv2.polylines(img, [np.array(pts, dtype=np.int32)], False,
-                              color, thick, cv2.LINE_AA)
-        except Exception:
-            pass
-
     def _draw_scan(self, img, scan, to_px):
         try:
             tf = self.tf_buffer.lookup_transform(MAP_FRAME, scan.header.frame_id,
@@ -574,9 +527,8 @@ class Monitor(Node):
 
     @staticmethod
     def _legend(img):
-        items = [("scan", (80, 220, 80)), ("costmap", (30, 120, 255)),
-                 ("plan", (255, 180, 40)), ("local", (70, 70, 255)),
-                 ("robot", (40, 80, 255))]
+        items = [("scan", (80, 220, 80)), ("local", (30, 120, 255)),
+                 ("global", (255, 150, 30)), ("robot", (40, 80, 255))]
         x = 10
         for label, color in items:
             cv2.circle(img, (x + 4, 14), 4, color, -1)
@@ -652,8 +604,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .dot{width:9px;height:9px;border-radius:50%;background:var(--idle);flex:none}
   .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.idle{background:var(--idle)}
   #conn{background:var(--bad)} #conn.live{background:var(--ok)}
-  .wrap{display:flex;flex-direction:column;gap:12px;padding:12px}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
   .col{display:flex;flex-direction:column;gap:12px;min-width:0}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .panel>h2{margin:0;padding:8px 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;
@@ -700,15 +651,23 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <header><span class="dot" id="conn"></span><b>ROBOT DASHBOARD</b>
   <span class="mut" id="counts"></span></header>
 <div class="wrap">
-  <div class="row">
+  <div class="col">
     <div class="panel"><h2>Key signals</h2><div id="signals"></div></div>
     <div class="panel"><h2>Resources</h2><div id="res"></div></div>
+    <div class="panel">
+      <details><summary>Nodes (<span id="nnodes">0</span>)</summary>
+        <div class="drawer" id="nodes"></div></details>
+      <details><summary>Topics (<span id="ntopics">0</span>)</summary>
+        <div class="filt"><input type="text" id="tfilter" placeholder="filter...">
+          <label class="mut"><input type="checkbox" id="showinfra"> infra</label></div>
+        <div class="drawer" id="topics"></div></details>
+    </div>
   </div>
-  <div class="row">
+  <div class="col">
     <div class="panel"><h2>Camera</h2><img class="stream" src="/camera.mjpg" alt="camera"
          onerror="this.style.opacity=.3"></div>
     <div class="panel">
-      <h2>Map / costmaps / scan / plan
+      <h2>Map / costmaps / scan / pose
         <span style="flex:1"></span>
         <button class="tool" id="btnpose">2D pose</button>
         <button class="tool" id="btngoal">2D goal</button>
@@ -719,14 +678,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       <div class="mut" id="maptip"></div>
     </div>
-  </div>
-  <div class="panel">
-    <details><summary>Nodes (<span id="nnodes">0</span>)</summary>
-      <div class="drawer" id="nodes"></div></details>
-    <details><summary>Topics (<span id="ntopics">0</span>)</summary>
-      <div class="filt"><input type="text" id="tfilter" placeholder="filter...">
-        <label class="mut"><input type="checkbox" id="showinfra"> infra</label></div>
-      <div class="drawer" id="topics"></div></details>
   </div>
 </div>
 <script>
@@ -827,7 +778,7 @@ async function tick(){
     mapGeom = s.map_geom;
     document.getElementById('signals').innerHTML = s.signals.map(g=>
       '<div class="grp"><div class="gh">'+g.name+'</div>'+g.rows.map(sigRow).join('')+'</div>').join('');
-    document.getElementById('res').innerHTML = resBlock('ROBOT', s.robot);
+    document.getElementById('res').innerHTML = resBlock('ROBOT', s.robot)+resBlock('HOST', s.host);
     document.getElementById('nnodes').textContent = s.nodes.length;
     document.getElementById('ntopics').textContent = s.topics.length;
     document.getElementById('counts').textContent = s.nodes.length+' nodes  '+s.topics.length+' topics';

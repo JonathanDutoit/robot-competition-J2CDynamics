@@ -1,6 +1,6 @@
 name: ros2_dev
 channels:
-  - robostack-staging   # ROS 2 Humble packages
+  - robostack-staging
   - conda-forge
   - defaults
 dependencies:
@@ -19,3 +19,7 @@ dependencies:
   - cmake
   - ninja
   - catkin_tools
+  # ── Dashboard deps ──────────────────────────────────────────────────────────
+  - opencv
+  - flask
+  - psutil

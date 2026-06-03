@@ -14,6 +14,9 @@ RUN apt update && apt install -y \
     gettext \        
     && rm -rf /var/lib/apt/lists/*
 
+RUN pip3 install --no-cache-dir psutil \ 
+    && rm -rf /var/lib/apt/lists/*
+    
 WORKDIR $ROS_WS
 
 # ── Stage 2: robot ───────────────────────────────────────────────────────────

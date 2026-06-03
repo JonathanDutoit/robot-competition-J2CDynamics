@@ -77,10 +77,18 @@ def generate_launch_description():
         ],
     )
 
+    diagnostics = Node(
+        package='j2cdynamics_diagnostics', 
+        executable='robot_stats_publisher',
+        name='robot_stats_publisher', 
+        output='screen'
+    )
+
     return LaunchDescription([
         robot_state_publisher_node,
         controller_manager_node,
         delayed_joint_state_spawner,
         delayed_diff_drive_spawner,
-        twist_mux
+        twist_mux, 
+        diagnostics
     ])

@@ -23,6 +23,14 @@ services:
     group_add:
       - "dialout"
     privileged: true
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/scan$'"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   camera:
     build:
@@ -46,7 +54,6 @@ services:
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_camera:/ros2_ws/src/j2cdynamics_camera
       - ./camera/model/best_int8.onnx:/ros2_ws/model/best_int8.onnx
-      
     group_add:
       - "video"
     command: ros2 launch j2cdynamics_bringup camera.launch.py
@@ -68,6 +75,15 @@ services:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev  
     command: ros2 launch j2cdynamics_bringup lidar.launch.py
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/scan$'"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   navigation:
     build:
@@ -89,6 +105,11 @@ services:
       - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps   
     devices:
       - /dev/input/js0:/dev/input/js0
+    depends_on:
+      lidar:
+        condition: service_healthy
+      driver:
+        condition: service_healthy
     command: ros2 launch j2cdynamics_bringup do_robot.launch.py use_teleop:=true mode:=localization  map:=/maps/arena/map
 
   simulation:

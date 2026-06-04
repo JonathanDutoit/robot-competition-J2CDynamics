@@ -36,6 +36,25 @@ class Detector:
             x2 = int(np.clip(x2 * SCALE_X, 0, MAIN_SIZE[0]))
             y2 = int(np.clip(y2 * SCALE_Y, 0, MAIN_SIZE[1]))
 
+            h = y2 - y1
+            w = x2 - x1
+
+            area = w * h
+            img_area = MAIN_SIZE[0] * MAIN_SIZE[1]
+
+            # reject huge boxes (bug)
+            if area > 0.9 * img_area:
+                continue
+
+            # reject tiny noise
+            if area < 0.001 * img_area:
+                continue
+
+            # reject extreme aspect ratios
+            if w / h > 5 or h / w > 5:
+                continue
+                
+
             if x2 > x1 and y2 > y1:
                 dets.append((x1, y1, x2, y2, CLASS_NAMES[int(cls)], float(conf)))
 

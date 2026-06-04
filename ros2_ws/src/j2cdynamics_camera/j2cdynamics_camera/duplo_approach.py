@@ -1,33 +1,35 @@
 import rclpy
+import json
 from rclpy.node import Node
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 
-from j2cdynamics_camera.config import LORES_SIZE, CONF_THRESH, CLASS_NAMES
+from j2cdynamics_camera.config import MAIN_SIZE, LORES_SIZE, CONF_THRESH, CLASS_NAMES
 from j2cdynamics_camera.collection_fsm import DuploCollectionMachine
 
 
 # ── Parameters ────────────────────────────────────────────────────────────────
-IMAGE_WIDTH    = LORES_SIZE[0]
-IMAGE_HEIGHT   = LORES_SIZE[1]
+IMAGE_WIDTH    = MAIN_SIZE[0]
+IMAGE_HEIGHT   = MAIN_SIZE[1]
 
 TARGET_CLASS   = CLASS_NAMES[0]
 MIN_CONFIDENCE = CONF_THRESH
 
-KP_ANG         = 0.3
+KP_ANG         = 0.2
 MAX_ANGULAR    = 0.4
-ALIGN_TOL      = 0.10
+ALIGN_TOL      = 0.1
 
 MAX_LINEAR     = 0.195
-COLLECT_SPEED  = MAX_LINEAR * 0.8
-CLOSE_ROW_FRAC = 0.95
+COLLECT_SPEED  = MAX_LINEAR 
+CLOSE_ROW_FRAC = 0.9
 
 MAX_LIN_ACC    = 0.5   
 MAX_ANG_ACC    = 1.5   
 
 LOST_TIMEOUT        = 0.5    # s; hold the last target through brief dropouts
-COLLECT_DURATION    = 0.8    # s; open-loop push duration
+COLLECT_DURATION    = 5.0    # s; open-loop scoop duration
+COLLECT_LOST_TIME   = 0.2    # must be continuously lost before collecting
 CONTROL_HZ          = 10.0
 
 
@@ -45,6 +47,8 @@ class DuploApproach(Node):
 
         self.pub = self.create_publisher(Twist, 'duplo_vel', 10)
 
+        self.state_pub = self.create_publisher(String, 'duplo_state', 10)
+
         self.dt = 1.0 / CONTROL_HZ
         self.timer = self.create_timer(self.dt, self.on_timer)
 
@@ -55,9 +59,12 @@ class DuploApproach(Node):
         self.best_target = None
         self.last_seen_time = None
         self.duplo_visible = False
+        self.err_x_filt = 0.0
 
         # Collect state memory
         self.collect_start_time = None
+        self.last_close_time = None
+        self.lost_start_time = None   # NEW: continuous loss tracking
 
         # Accel-limited output state
         self.cur_vx = 0.0
@@ -129,31 +136,52 @@ class DuploApproach(Node):
         state = self.machine.current_state
         now = self.get_clock().now()
         
-        # Search -> Align 
+        # Search -> Approach
         if state == self.machine.search:
             if self.duplo_visible:
-                self._fire('search_to_align')
-
-        # Align -> Approach
-        elif state == self.machine.align:
-            if not self.duplo_visible:
-                self._fire('lost') # align -> search              
-            elif self.best_target is not None and abs(self.best_target[0]) < ALIGN_TOL:
-                self._fire('align_to_approach')
-    
+                self._fire('search_to_approach')
+            
         # Approach -> Collected
         elif state == self.machine.approach:
+
+            # Track proximity when visible
+            if self.duplo_visible and self.best_target is not None:
+                if self.best_target[1] > CLOSE_ROW_FRAC:
+                    self.last_close_time = now
+
+            # Track continuous loss (NEW robustness layer)
             if not self.duplo_visible:
-                self._fire('lost')  # approach -> search
-            elif self.best_target is not None and self.best_target[1] > CLOSE_ROW_FRAC:
+                if self.lost_start_time is None:
+                    self.lost_start_time = now
+            else:
+                self.lost_start_time = None
+
+            # Robust transition condition
+            recently_close = (
+                self.last_close_time is not None and
+                (now - self.last_close_time).nanoseconds * 1e-9 < 0.5
+            )
+
+            lost_long_enough = (
+                self.lost_start_time is not None and
+                (now - self.lost_start_time).nanoseconds * 1e-9 > COLLECT_LOST_TIME
+            )
+
+            if recently_close and lost_long_enough:
+                self.last_close_time = None
+                self.lost_start_time = None
                 self._fire('approach_to_collect')
                 self.collect_start_time = now
 
+            elif not self.duplo_visible and not recently_close:
+                self._fire('lost')  # Approach to search
+
         # Collect -> Search
         elif state == self.machine.collect:
-            # open-loop scoop: ignore "lost" (we're driving over it), just time out
+            # open-loop scoop: ignore "lost", just time out
             if self.collect_start_time is None:
                 self.collect_start_time = now
+
             dt = (now - self.collect_start_time).nanoseconds * 1e-9
             if dt > COLLECT_DURATION:
                 self.collect_start_time = None
@@ -162,26 +190,37 @@ class DuploApproach(Node):
     # Controller
     def publish_control(self):
         state = self.machine.current_state
- 
-        # SEARCH: ramp down to zero, then go SILENT so twist_mux times out the
-        # duplo lane and Nav2's patrol resumes. Publishing zeros here would pin
-        # the high-priority lane and freeze the robot instead.
-        if state == self.machine.search:
-            if abs(self.cur_vx) > 1e-3 or abs(self.cur_wz) > 1e-3:
-                self._publish(0.0, 0.0)
-            return
- 
         des_vx = 0.0
         des_wz = 0.0
- 
-        if state == self.machine.align and self.best_target is not None:
-            des_wz = -KP_ANG * self.best_target[0]
-        elif state == self.machine.approach and self.best_target is not None:
-            des_wz = -KP_ANG * self.best_target[0]
-            des_vx = MAX_LINEAR
+
+        # Search
+        if state == self.machine.search:
+            pass
+
+        # Approach
+        if state == self.machine.approach and self.best_target is not None:
+            err_x, by = self.best_target
+
+            ALPHA = 0.4   # 0..1; lower = smoother (more lag)
+            self.err_x_filt = (1 - ALPHA) * self.err_x_filt + ALPHA * err_x
+            des_wz = -KP_ANG * self.err_x_filt
+
+            # gate forward motion on actual alignment (boolean, not abs(err_x))
+            tol = ALIGN_TOL * (2.0 - min(1.0, by / CLOSE_ROW_FRAC))   # ~2x looser far, ALIGN_TOL near
+            if abs(self.err_x_filt) < tol:
+                des_vx = MAX_LINEAR
+            else:
+                des_vx = 0.0                 # turn in place until centered
+
+            # bottom override: duplo at the trailer -> commit to the scoop
+            if by > CLOSE_ROW_FRAC:
+                des_vx = COLLECT_SPEED
+                des_wz = -(KP_ANG * 0.6) * err_x
+
+        # COLLECT
         elif state == self.machine.collect:
-            des_vx = COLLECT_SPEED          # open-loop push; no target needed
- 
+            des_vx = COLLECT_SPEED
+
         self._publish(des_vx, des_wz)
 
     def _ramp(self, cur, target, max_acc):

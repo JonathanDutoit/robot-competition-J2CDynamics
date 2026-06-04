@@ -27,7 +27,7 @@ services:
     healthcheck:
       test: [
         "CMD-SHELL",
-        ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/scan$'"
+        ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/odom$'"
         ]
       interval: 5s
       timeout: 5s
@@ -57,6 +57,9 @@ services:
       - ./camera/model/best_int8.onnx:/ros2_ws/model/best_int8.onnx
     group_add:
       - "video"
+    depends_on:
+      driver:
+        condition: service_healthy
     command: ros2 launch j2cdynamics_bringup camera.launch.py
 
   lidar: 

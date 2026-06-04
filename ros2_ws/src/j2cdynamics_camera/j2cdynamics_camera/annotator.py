@@ -5,6 +5,12 @@ from j2cdynamics_camera.config import JPEG_QUALITY
 def draw_detections(frame: np.ndarray, dets: list) -> np.ndarray:
     for (x1, y1, x2, y2, label, conf) in dets:
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        
+        cx = int((x1 + x2) / 2)
+        cy = int((y1 + y2) / 2)
+
+        cv2.circle(frame, (cx, cy), 3, (0, 0, 255), -1)
+
         cv2.putText(frame, f"{label} {conf:.2f}",
                     (x1 + 2, max(y1 - 6, 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5,

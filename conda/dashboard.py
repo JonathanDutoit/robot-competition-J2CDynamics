@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 ROS 2 robot dashboard — run on your laptop inside the sourced ros2_dev env.
 
@@ -51,6 +50,8 @@ from sensor_msgs.msg import LaserScan, Image, CompressedImage
 from nav_msgs.msg import Odometry, OccupancyGrid, Path
 
 import tf2_ros
+from lifecycle_msgs.srv import ChangeState
+from lifecycle_msgs.msg import Transition
 
 try:
     from vision_msgs.msg import Detection2DArray
@@ -178,6 +179,10 @@ class Monitor(Node):
         self.create_timer(2.0, self._ensure_camera_sub)
         self.get_logger().info("dashboard_monitor started")
 
+        self._collision_enabled = True
+        self._cs_client = self.create_client(
+            ChangeState, '/collision_monitor/change_state')
+
     def _make_cb(self, name, mtype):
         def cb(msg):
             now = time.monotonic()
@@ -257,6 +262,9 @@ class Monitor(Node):
         img = self._decode_image(msg)
         if img is None:
             return
+        
+        img = img.copy() # ensure writable
+        
         if det is not None and det_fresh:
             self._draw_detections(img, det)
         ok, out = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -423,6 +431,31 @@ class Monitor(Node):
             {"name": "velocity pipeline", "rows": vel},
             {"name": "perception / safety", "rows": per},
         ]
+
+    def set_collision_enabled(self, enable: bool) -> bool:
+        if not self._cs_client.service_is_ready():
+            return False
+        req = ChangeState.Request()
+        req.transition.id = (
+            Transition.TRANSITION_ACTIVATE if enable
+            else Transition.TRANSITION_DEACTIVATE
+        )
+        done = threading.Event()
+        result_box = [False]
+
+        def _cb(fut):
+            try:
+                result_box[0] = fut.result().success
+            except Exception:
+                pass
+            done.set()
+
+        self._cs_client.call_async(req).add_done_callback(_cb)
+        done.wait(timeout=3.0)
+        if result_box[0]:
+            with self.lock:
+                self._collision_enabled = enable
+        return result_box[0]
 
     def status(self):
         with self.lock:

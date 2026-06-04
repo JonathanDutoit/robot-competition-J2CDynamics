@@ -3,7 +3,7 @@ import json
 from rclpy.node import Node
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import Twist
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 from j2cdynamics_camera.config import MAIN_SIZE, LORES_SIZE, CONF_THRESH, CLASS_NAMES
 from j2cdynamics_camera.collection_fsm import DuploCollectionMachine
@@ -46,6 +46,9 @@ class DuploApproach(Node):
         )
 
         self.pub = self.create_publisher(Twist, 'duplo_vel', 10)
+
+        self.enabled = True
+        self.create_subscription(Bool, '/enable_duplo_collection', 10)
 
         self.state_pub = self.create_publisher(String, 'duplo_state', 10)
 
@@ -107,6 +110,8 @@ class DuploApproach(Node):
 
     # Main loop
     def on_timer(self):
+        if not self.enabled:
+            return
         self.update_perception()
         self.update_fsm()
         self.publish_control()
@@ -195,7 +200,9 @@ class DuploApproach(Node):
 
         # Search
         if state == self.machine.search:
-            pass
+            if abs(self.cur_vx) > 1e-3 or abs(self.cur_wz) > 1e-3:
+                self._publish(0.0, 0.0)
+            return
 
         # Approach
         if state == self.machine.approach and self.best_target is not None:

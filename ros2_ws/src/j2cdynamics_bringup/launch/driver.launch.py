@@ -73,7 +73,7 @@ def generate_launch_description():
         name='twist_mux',
         parameters=[os.path.join(bringup_dir, 'config', 'twist_mux.yaml')],
         remappings=[
-            ('cmd_vel_out', '/cmd_vel'),
+            ('cmd_vel_out', '/cmd_vel_out'),
         ],
     )
 

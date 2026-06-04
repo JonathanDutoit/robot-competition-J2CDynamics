@@ -1,10 +1,10 @@
 twist_mux:
   ros__parameters:
     topics:
-      # Maybe still need to add ramp_vel? 
-      duplo:      {topic: duplo_vel, timeout: 0.5, priority: 100}
-      navigation: {topic: nav_vel,   timeout: 0.5, priority: 10}
-      joystick:   {topic: teleop_vel,   timeout: 0.5, priority: 200}
+      joystick:   {topic: teleop_vel, timeout: 0.5, priority: 200}
+      ramp:       {topic: ramp_vel,   timeout: 0.5, priority: 150}
+      duplo:      {topic: duplo_vel,  timeout: 0.5, priority: 100}
+      navigation: {topic: nav_vel,    timeout: 0.5, priority: 10}
 
     # Lock topics to exclusively hold control (optional)
     locks:

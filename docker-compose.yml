@@ -20,10 +20,11 @@ services:
       - ./ros2_ws/src/do_description:/ros2_ws/src/do_description
     devices:
       - /dev/serial:/dev/serial
-    command: ros2 launch j2cdynamics_bringup driver.launch.py
     group_add:
       - "dialout"
     privileged: true
+    command: ros2 launch j2cdynamics_bringup driver.launch.py
+    
     healthcheck:
       test: [
         "CMD-SHELL",
@@ -115,6 +116,36 @@ services:
       driver:
         condition: service_healthy
     command: ros2 launch j2cdynamics_bringup do_robot.launch.py use_teleop:=true mode:=localization  map:=/maps/arena/map
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          ". /opt/ros/humble/setup.sh && \
+          ros2 service call /lifecycle_manager_navigation/is_active std_srvs/srv/Trigger {} | grep -q 'success=True'"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  
+  mission:
+    build:
+      context: .
+      dockerfile: docker/navigation/Dockerfile
+    platform: linux/arm64
+    network_mode: host
+    privileged: true
+    env_file:
+      - ./docker/.env
+    environment:
+      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+    volumes:
+      - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
+      - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
+      - ./ros2_ws/src/j2cdynamics_mission:/ros2_ws/src/j2cdynamics_mission
+    depends_on:
+      navigation:
+        condition: service_healthy
+    command: ros2 launch j2cdynamics_bringup mission.launch.py 
 
   simulation:
     build: 

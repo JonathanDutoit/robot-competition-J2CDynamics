@@ -29,7 +29,6 @@ RUN apt install -y ros-humble-tf2-ros ros-humble-tf2-geometry-msgs
 # Clean up at the end
 RUN rm -rf /var/lib/apt/lists/*
 
-
 FROM dependencies AS builder
 
 COPY docker/navigation/entrypoint.sh /entrypoint.sh

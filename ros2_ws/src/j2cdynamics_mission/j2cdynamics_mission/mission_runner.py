@@ -18,17 +18,17 @@ DUPLO_DURING_PATROL = False   # Activate for duplo detection during patrol
 #  Format: (x_metres, y_metres, yaw_radians) in the map frame
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE = (0.0, 0.0, 0.0)       # TODO: home / start pose
+BASE_POSE = (0.0, -5.14, -1.57)       # TODO: home / start pose
 
 # The ramp approach heading is the high-variance item — tune this yaw carefully.
-RAMP_APPROACH = (3.0, 1.0, 0.0)   # TODO: squared-up pose at the ramp base
-RAMP_TOP      = (4.2, 1.0, 0.0)   # TODO: pose at the top before descending
+RAMP_APPROACH = (1.55, -9.0, 0.0)   
+RAMP_TOP      = (1.55, -10.5, 0.0)   # TODO: pose at the top before descending
 
 MAIN_PATROL = [                    # TODO: waypoints covering the lower arena
-    (1.0, 0.0,  0.00),
-    (1.5, 1.0,  1.57),
-    (0.5, 1.0,  3.14),
-    (0.0, 0.5, -1.57),
+    (6.65, -5.25,  3.3),
+    (5.29, -6.13,  1.57),
+    (2.16, -6.54,  1.57),
+    (5.12, -7.22, -1.57),
 ]
 
 UPPER_PATROL = [                   # TODO: waypoints covering the upper platform
@@ -173,9 +173,6 @@ class MissionRunner(BasicNavigator):
 
     # ── mission ───────────────────────────────────────────────────────────────
     def run(self) -> None:
-        # Block until Nav2 and SLAM Toolbox are fully active.
-        # Make sure you have set /initialpose in RViz before calling ros2 run.
-        self.waitUntilNav2Active(localizer='slam_toolbox')
         self.get_logger().info('Nav2 active — mission start')
 
         # ── Phase 1: lower-arena patrol ───────────────────────────────────────

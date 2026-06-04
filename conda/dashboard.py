@@ -26,9 +26,18 @@ from collections import defaultdict
 
 import numpy as np
 
-import cv2
-from flask import Flask, Response, jsonify, request
-import psutil
+try:
+    import cv2
+except ImportError:
+    raise SystemExit("Missing cv2. Install conda 'opencv' (see environment.yml)")
+try:
+    from flask import Flask, Response, jsonify, request
+except ImportError:
+    raise SystemExit("Missing flask. conda install -c conda-forge flask")
+try:
+    import psutil
+except ImportError:
+    raise SystemExit("Missing psutil. conda install -c conda-forge psutil")
 
 import rclpy
 from rclpy.node import Node
@@ -69,6 +78,7 @@ GLOBAL_PLAN_TOPIC = "/plan"              # Nav2 global path
 LOCAL_PLAN_TOPIC  = "/local_plan"        # controller local trajectory
 INITIALPOSE_TOPIC = "/initialpose"       # SLAM Toolbox re-localization
 GOAL_TOPIC        = "/goal_pose"         # Nav2 bt_navigator goal
+DUPLO_STATE_TOPIC = "/duplo_state"       # duplo_approach FSM state (JSON String)
 MAP_FRAME        = "map"
 ROBOT_FRAME      = "base_link"
 # velocity lanes in priority order (highest first) for "active source"
@@ -102,6 +112,7 @@ WATCH = [
     ("/duplo_vel",    Twist,         _RELIABLE),
     ("/teleop_vel",   Twist,         _RELIABLE),
     ("/robot_stats",  String,        _RELIABLE),
+    (DUPLO_STATE_TOPIC, String,      _RELIABLE),
     (GLOBAL_PLAN_TOPIC, Path,        _RELIABLE),
     (LOCAL_PLAN_TOPIC,  Path,        _RELIABLE),
 ]
@@ -144,6 +155,8 @@ class Monitor(Node):
         self.det_n = 0
         self.det_t = 0.0
         self.det_msg = None
+        self.duplo = None
+        self.duplo_t = 0.0
         self.tf_ok = False
         self.nodes = []
         self.topics = []
@@ -193,6 +206,12 @@ class Monitor(Node):
                 elif mtype is String and name == "/robot_stats":
                     try:
                         self.robot_stats = json.loads(msg.data)
+                    except Exception:
+                        pass
+                elif mtype is String and name == DUPLO_STATE_TOPIC:
+                    try:
+                        self.duplo = json.loads(msg.data)
+                        self.duplo_t = now
                     except Exception:
                         pass
                 elif _HAVE_VISION and mtype is Detection2DArray:
@@ -416,9 +435,13 @@ class Monitor(Node):
                       "res": info.resolution, "W": info.width, "H": info.height,
                       "scale": sc, "w_px": int(info.width * sc),
                       "h_px": int(info.height * sc)}
+            duplo = None
+            if self.duplo is not None and (time.monotonic() - self.duplo_t) < 1.5:
+                duplo = self.duplo
             return {
                 "signals": self._signals(rates),
                 "map_geom": mg,
+                "duplo": duplo,
                 "nodes": self.nodes,
                 "topics": self.topics,
                 "robot": self.robot_stats,
@@ -696,6 +719,23 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   #mapwrap.armed #mapimg{cursor:crosshair}
   #mapov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   #maptip{padding:4px 12px;min-height:20px}
+  .fsm{display:flex;align-items:center;padding:12px 12px 4px}
+  .fsm .st{flex:1;text-align:center;padding:7px 4px;border:1px solid var(--line);
+           border-radius:6px;color:var(--mut);background:#0a0d12;font-size:10px;
+           letter-spacing:1px;text-transform:uppercase}
+  .fsm .st.on{border-color:var(--acc);color:var(--acc);background:#0d1b2e}
+  .fsm .st.on.collect{border-color:var(--ok);color:var(--ok);background:#0d1f12}
+  .fsm .arr{color:var(--idle);padding:0 6px;flex:none}
+  .bars{padding:4px 12px 12px}
+  .bar{margin:9px 0}
+  .bar .bl{display:flex;justify-content:space-between;color:var(--mut);font-size:11px;margin-bottom:4px}
+  .track{position:relative;height:14px;background:#0a0d12;border:1px solid var(--line);border-radius:7px}
+  .track .tol{position:absolute;top:0;bottom:0;background:rgba(63,185,80,.18)}
+  .track .thr{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ok)}
+  .track .ctr{position:absolute;top:-2px;bottom:-2px;width:1px;left:50%;background:var(--line)}
+  .track .mk{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;
+             background:var(--acc);transform:translate(-50%,-50%);border:1px solid #0a0d12}
+  .track .mk.bad{background:var(--bad)}
 </style></head><body>
 <header><span class="dot" id="conn"></span><b>ROBOT DASHBOARD</b>
   <span class="mut" id="counts"></span></header>
@@ -719,6 +759,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       <div class="mut" id="maptip"></div>
     </div>
+  </div>
+  <div class="panel">
+    <h2>Duplo collection FSM</h2>
+    <div id="duplo"></div>
   </div>
   <div class="panel">
     <details><summary>Nodes (<span id="nnodes">0</span>)</summary>
@@ -820,6 +864,52 @@ function renderTopics(){
   document.getElementById('topics').innerHTML=
     '<table><tr><th>topic</th><th>type</th><th class="num">p/s</th><th class="num">Hz</th></tr>'+rows+'</table>';
 }
+function renderDuplo(d){
+  const el = document.getElementById('duplo');
+  if(!d){ el.innerHTML = '<div class="bars"><div class="mut">duplo_approach not running</div></div>'; return; }
+  const clamp = v => Math.max(0, Math.min(100, v));
+  const states = ['search','align','approach','collect'];
+  let chain = '<div class="fsm">';
+  states.forEach((s,i)=>{
+    chain += '<div class="st'+(d.state===s?' on '+s:'')+'">'+s+'</div>';
+    if(i<states.length-1) chain += '<span class="arr">\u2192</span>';
+  });
+  chain += '</div>';
+
+  let bars = '<div class="bars">';
+  // err_x: range [-1,1], 0 centered, green tolerance zone +/- align_tol
+  const tol = d.align_tol ?? 0.10;
+  if(d.err_x!=null){
+    const pos = clamp((d.err_x+1)/2*100);
+    const tolL = (1-tol)/2*100, tolW = tol*100;
+    const inTol = Math.abs(d.err_x) < tol;
+    bars += '<div class="bar"><div class="bl"><span>err_x &middot; centering (tol \u00B1'+tol.toFixed(2)+')</span><span>'+d.err_x.toFixed(3)+'</span></div>'
+      +'<div class="track"><div class="ctr"></div><div class="tol" style="left:'+tolL+'%;width:'+tolW+'%"></div>'
+      +'<div class="mk'+(inTol?'':' bad')+'" style="left:'+pos+'%"></div></div></div>';
+  } else {
+    bars += '<div class="bar"><div class="bl"><span>err_x &middot; centering</span><span class="mut">no target</span></div>'
+      +'<div class="track"><div class="ctr"></div></div></div>';
+  }
+  // by_norm: range [0,1], green threshold line at close_frac
+  const cf = d.close_frac ?? 0.95;
+  if(d.by!=null){
+    const pos = clamp(d.by*100);
+    const close = d.by > cf;
+    bars += '<div class="bar"><div class="bl"><span>by_norm &middot; proximity (close &gt;'+cf.toFixed(2)+')</span><span>'+d.by.toFixed(3)+'</span></div>'
+      +'<div class="track"><div class="thr" style="left:'+(cf*100)+'%"></div>'
+      +'<div class="mk" style="left:'+pos+'%;background:'+(close?'var(--ok)':'var(--acc)')+'"></div></div></div>';
+  } else {
+    bars += '<div class="bar"><div class="bl"><span>by_norm &middot; proximity</span><span class="mut">no target</span></div>'
+      +'<div class="track"><div class="thr" style="left:'+(cf*100)+'%"></div></div></div>';
+  }
+  bars += '<div class="sig"><span class="dot '+(d.visible?'ok':'idle')+'"></span>'
+        +'<span class="lbl">duplo visible</span>'
+        +'<span class="val">'+(d.visible?'yes':'no')
+        + (d.vx!=null ? '  &middot;  vx '+d.vx.toFixed(2)+'  wz '+d.wz.toFixed(2) : '')
+        +'</span></div>';
+  bars += '</div>';
+  el.innerHTML = chain + bars;
+}
 async function tick(){
   try{
     let s = await (await fetch('/api/status')).json();
@@ -828,6 +918,7 @@ async function tick(){
     document.getElementById('signals').innerHTML = s.signals.map(g=>
       '<div class="grp"><div class="gh">'+g.name+'</div>'+g.rows.map(sigRow).join('')+'</div>').join('');
     document.getElementById('res').innerHTML = resBlock('ROBOT', s.robot);
+    renderDuplo(s.duplo);
     document.getElementById('nnodes').textContent = s.nodes.length;
     document.getElementById('ntopics').textContent = s.topics.length;
     document.getElementById('counts').textContent = s.nodes.length+' nodes  '+s.topics.length+' topics';

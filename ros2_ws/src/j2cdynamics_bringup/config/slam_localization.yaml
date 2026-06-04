@@ -25,7 +25,7 @@ slam_toolbox:
     use_scan_barycenter:  true
     minimum_travel_distance: 0.1
     minimum_travel_heading:  0.1
-    scan_buffer_size: 10
+    scan_buffer_size: 30
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine:  0.13
     link_scan_maximum_distance:        1.5
@@ -43,4 +43,4 @@ slam_toolbox:
     transform_timeout: 0.2
     tf_buffer_duration: 30.0
     stack_size_to_use: 40000000
-    correlation_search_space_dimension: 0.5  # let it search a bit wider to recover from a bad prior
+    correlation_search_space_dimension: 5.0  # let it search a bit wider to recover from a bad prior

@@ -51,7 +51,8 @@ RUN apt update && apt install -y \
         pyprctl \
         flask \
         onnxruntime \
-        picamera2==0.3.21
+        picamera2==0.3.21 \
+        python-statemachine
 
 # 5. Environment setup & Manual Link Fix
 # We use hardcoded 3.10 paths since ROS Humble is Ubuntu 22.04 (Python 3.10)

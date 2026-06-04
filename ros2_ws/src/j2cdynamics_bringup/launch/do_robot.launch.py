@@ -17,6 +17,7 @@ def generate_launch_description():
 
     bringup_share = get_package_share_directory('j2cdynamics_bringup')
     teleop_launch = os.path.join(bringup_share, 'launch', 'teleop.launch.py')
+    localization_launch = os.path.join(bringup_share, 'launch', 'localization.launch.py')
     navigation_launch = os.path.join(bringup_share, 'launch', 'navigation.launch.py')
 
     teleop = IncludeLaunchDescription(
@@ -26,6 +27,14 @@ def generate_launch_description():
             'use_joy': 'true',
         }.items(),
         condition=IfCondition(use_teleop)
+    )
+
+    localization = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(localization_launch),
+        launch_arguments={
+            'mode': mode,
+            'map': map_file,
+        }.items(),
     )
 
     navigation = IncludeLaunchDescription(
@@ -41,12 +50,13 @@ def generate_launch_description():
             description='Launch joystick teleop alongside robot'),
 
         DeclareLaunchArgument('mode', default_value='mapping',
-            description="'mapping' (SLAM only) or 'localization' (SLAM-loc + Nav2)"),
-            
+            description="'mapping' (SLAM only) or 'localization' (AMCL + Nav2)"),
+
         DeclareLaunchArgument('map', default_value='',
             description='Path to saved map (no extension). Required in localization mode.'),
 
-        teleop, 
+        teleop,
+        localization,
         navigation
     ])
 

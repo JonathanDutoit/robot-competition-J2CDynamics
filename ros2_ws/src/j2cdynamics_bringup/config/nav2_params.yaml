@@ -11,36 +11,56 @@ bt_navigator:
     odom_topic: /odom
     bt_loop_duration: 10
     default_server_timeout: 20
-    #default_nav_to_pose_bt_xml: "/opt/anaconda3/envs/ros2_sim/share/nav2_bt_navigator/behavior_trees/navigate_w_replanning_time.xml"
-    #default_nav_through_poses_bt_xml: "/opt/anaconda3/envs/ros2_sim/share/nav2_bt_navigator/behavior_trees/navigate_w_replanning_time.xml"
+    # Absolute path is injected at launch by RewrittenYaml in navigation.launch.py
+    # (points to j2cdynamics_bringup/behavior_trees/navigate_to_pose_no_recovery.xml).z
+    default_nav_to_pose_bt_xml: "OVERRIDDEN_AT_LAUNCH"
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
       - nav2_compute_path_through_poses_action_bt_node
+      - nav2_smooth_path_action_bt_node
       - nav2_follow_path_action_bt_node
       - nav2_spin_action_bt_node
       - nav2_wait_action_bt_node
+      - nav2_assisted_teleop_action_bt_node
       - nav2_back_up_action_bt_node
+      - nav2_drive_on_heading_bt_node
       - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
       - nav2_goal_reached_condition_bt_node
       - nav2_goal_updated_condition_bt_node
+      - nav2_globally_updated_goal_condition_bt_node
       - nav2_is_path_valid_condition_bt_node
-      - nav2_navigate_to_pose_action_bt_node
-      - nav2_navigate_through_poses_action_bt_node
-      - nav2_recovery_node_bt_node
-      - nav2_pipeline_sequence_bt_node
-      - nav2_round_robin_node_bt_node
-      - nav2_transform_available_condition_bt_node
+      - nav2_initial_pose_received_condition_bt_node
+      - nav2_reinitialize_global_localization_service_bt_node
       - nav2_rate_controller_bt_node
       - nav2_distance_controller_bt_node
       - nav2_speed_controller_bt_node
       - nav2_truncate_path_action_bt_node
+      - nav2_truncate_path_local_action_bt_node
       - nav2_goal_updater_node_bt_node
+      - nav2_recovery_node_bt_node
+      - nav2_pipeline_sequence_bt_node
+      - nav2_round_robin_node_bt_node
+      - nav2_transform_available_condition_bt_node
+      - nav2_time_expired_condition_bt_node
+      - nav2_path_expiring_timer_condition
+      - nav2_distance_traveled_condition_bt_node
       - nav2_single_trigger_bt_node
       - nav2_goal_updated_controller_bt_node
+      - nav2_is_battery_low_condition_bt_node
+      - nav2_navigate_through_poses_action_bt_node
+      - nav2_navigate_to_pose_action_bt_node
       - nav2_remove_passed_goals_action_bt_node
       - nav2_planner_selector_bt_node
       - nav2_controller_selector_bt_node
       - nav2_goal_checker_selector_bt_node
+      - nav2_controller_cancel_bt_node
+      - nav2_path_longer_on_approach_bt_node
+      - nav2_wait_cancel_bt_node
+      - nav2_spin_cancel_bt_node
+      - nav2_back_up_cancel_bt_node
+      - nav2_assisted_teleop_cancel_bt_node
+      - nav2_drive_on_heading_cancel_bt_node
 
 bt_navigator_navigate_through_poses_rclcpp_node:
   ros__parameters:
@@ -59,7 +79,7 @@ controller_server:
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
     failure_tolerance: 0.3
-    progress_checker_plugins: ["progress_checker"]
+    progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
 
@@ -71,8 +91,8 @@ controller_server:
     general_goal_checker:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.15        # m  — TODO: tighten once odometry is calibrated
-      yaw_goal_tolerance: 0.15       # rad
+      xy_goal_tolerance: 0.10 
+      yaw_goal_tolerance: 0.05 
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
@@ -125,7 +145,7 @@ controller_server:
       PathDist.scale:      32.0
       GoalDist.scale:      24.0
       RotateToGoal.scale:  32.0
-      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.slowing_factor: 2.0
       RotateToGoal.lookahead_time: -1.0
 
 # ── Smoother server ───────────────────────────────────────────────────────────
@@ -159,23 +179,14 @@ behavior_server:
     local_footprint_topic: local_costmap/published_footprint
     global_footprint_topic: global_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins:
-      - spin
-      - backup
-      - drive_on_heading
-      - assisted_teleop
-      - wait
-    spin:
-      plugin: "nav2_behaviors/Spin"
-    backup:
-      plugin: "nav2_behaviors/BackUp"
-    drive_on_heading:
-      plugin: "nav2_behaviors/DriveOnHeading"
-    wait:
-      plugin: "nav2_behaviors/Wait"
-    assisted_teleop:
-      plugin: "nav2_behaviors/AssistedTeleop"
-    # Kinematic limits reused for recovery behaviours
+    # Recovery behaviours stripped. The no-recovery BT
+    # (navigate_to_pose_no_recovery.xml) never calls Spin/BackUp/Wait/
+    # DriveOnHeading, so no behaviour plugins are loaded and the robot can never
+    # spin or wait autonomously — the symptom both prior teams removed. The
+    # behavior_server is also dropped from the lifecycle manager below, so this
+    # node is launched but stays dormant.
+    behavior_plugins: []
+    # Kinematic limits (unused now; kept for reference)
     # TODO: match these to your robot's actual limits
     local_frame:  odom
     global_frame: map
@@ -236,6 +247,11 @@ local_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         inflation_radius: 0.25   # m - 23 robot radius + 2cm margin that sums to 50cm
+      filters: ["keepout_filter"]
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: "/costmap_filter_info"
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
@@ -256,9 +272,6 @@ local_costmap:
           raytrace_min_range:  0.0
           obstacle_max_range:  5.0
           obstacle_min_range:  0.0
-      static_layer:
-        plugin: "nav2_costmap_2d::StaticLayer"
-        map_subscribe_transient_local: true
       always_send_full_costmap: true
  
 # ── Global costmap ────────────────────────────────────────────────────────────
@@ -298,11 +311,21 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
         inflation_radius: 0.25   # m - 23 robot radius + 2cm margin that sums to 50cm
+      # Keepout zones — danger areas painted black into map_keepout.pgm. Fed by
+      # filter_mask_server + costmap_filter_info_server (launched in localization
+      # mode). With the default all-free mask this adds zero cost.
+      filters: ["keepout_filter"]
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: "/costmap_filter_info"
       always_send_full_costmap: true
 
-# ── Map server & AMCL (not used — slam_toolbox handles localisation) ──────────
-# map_server and amcl are intentionally omitted.
-# slam_toolbox in localization mode publishes the map → odom TF directly.
+# ── Localization & keepout servers ────────────────────────────────────────────
+# AMCL + map_server now run as their own launch nodes (see amcl.yaml and
+# navigation.launch.py). The keepout filter servers (filter_mask_server +
+# costmap_filter_info_server) are also launched there; the KeepoutFilter above
+# subscribes to the /costmap_filter_info they publish.
 
 # ── Lifecycle manager ─────────────────────────────────────────────────────────
 lifecycle_manager:
@@ -313,7 +336,6 @@ lifecycle_manager:
       - controller_server
       - smoother_server
       - planner_server
-      - behavior_server
       - bt_navigator
       - waypoint_follower
       - velocity_smoother

@@ -52,6 +52,7 @@ from nav_msgs.msg import Odometry, OccupancyGrid, Path
 import tf2_ros
 from lifecycle_msgs.srv import ChangeState
 from lifecycle_msgs.msg import Transition
+from std_srvs.srv import Empty
 
 try:
     from vision_msgs.msg import Detection2DArray
@@ -77,7 +78,9 @@ DETECTION_REF_W  = 640      # <-- LORES_SIZE[0]
 DETECTION_REF_H  = 480      # <-- LORES_SIZE[1]
 GLOBAL_PLAN_TOPIC = "/plan"              # Nav2 global path
 LOCAL_PLAN_TOPIC  = "/local_plan"        # controller local trajectory
-INITIALPOSE_TOPIC = "/initialpose"       # SLAM Toolbox re-localization
+INITIALPOSE_TOPIC = "/initialpose"       # AMCL re-localization seed (2D Pose Estimate)
+AMCL_POSE_TOPIC   = "/amcl_pose"         # AMCL estimated pose + covariance
+RELOCALIZE_SRV    = "/reinitialize_global_localization"  # AMCL kidnap recovery (Empty)
 GOAL_TOPIC        = "/goal_pose"         # Nav2 bt_navigator goal
 DUPLO_STATE_TOPIC = "/duplo_state"       # duplo_approach FSM state (JSON String)
 MAP_FRAME        = "map"
@@ -156,6 +159,8 @@ class Monitor(Node):
         self.det_n = 0
         self.det_t = 0.0
         self.det_msg = None
+        self.amcl_t = 0.0       # last /amcl_pose time (monotonic)
+        self.amcl_sigma = None  # position std-dev (m) from AMCL covariance
         self.duplo = None
         self.duplo_t = 0.0
         self.tf_ok = False
@@ -170,6 +175,10 @@ class Monitor(Node):
         for name, mtype, qos in WATCH:
             self.create_subscription(mtype, name, self._make_cb(name, mtype), qos)
 
+        # AMCL estimated pose (localization confidence)
+        self.create_subscription(
+            PoseWithCovarianceStamped, AMCL_POSE_TOPIC, self._amcl_cb, _RELIABLE)
+
         # interactive tool publishers
         self.pub_initpose = self.create_publisher(
             PoseWithCovarianceStamped, INITIALPOSE_TOPIC, 10)
@@ -182,6 +191,16 @@ class Monitor(Node):
         self._collision_enabled = True
         self._cs_client = self.create_client(
             ChangeState, '/collision_monitor/change_state')
+
+        # AMCL global re-localization (kidnapped-robot recovery)
+        self._reloc_client = self.create_client(Empty, RELOCALIZE_SRV)
+
+    def _amcl_cb(self, msg):
+        # position std-dev from the covariance diagonal (x, y); lower = more confident
+        cov = msg.pose.covariance
+        with self.lock:
+            self.amcl_t = time.monotonic()
+            self.amcl_sigma = math.sqrt(max(0.0, cov[0]) + max(0.0, cov[7]))
 
     def _make_cb(self, name, mtype):
         def cb(msg):
@@ -388,10 +407,21 @@ class Monitor(Node):
             tw = self.odom.twist.twist
             odom_v = f"{tw.linear.x:+.2f} m/s  {tw.angular.z:+.2f} rad/s"
         map_v = f"{self.map.info.width}x{self.map.info.height}" if self.map else None
+
+        amcl_recent = (time.monotonic() - self.amcl_t) < 2.0 if self.amcl_t else False
+        if amcl_recent and self.amcl_sigma is not None:
+            amcl_state = "ok" if self.amcl_sigma < 0.25 else "bad"
+            amcl_val = (f"σ {self.amcl_sigma:.2f} m"
+                        + ("" if self.amcl_sigma < 0.25 else " (converging)"))
+        else:
+            amcl_state = "bad"
+            amcl_val = "no amcl pose"
+
         loc = [
             row("odometry", "ok" if hz(ODOM_TOPIC) else "bad", odom_v, hz(ODOM_TOPIC)),
             row("laser scan", "ok" if hz(SCAN_TOPIC) else "bad", None, hz(SCAN_TOPIC)),
             row("map", "ok" if self.map else "bad", map_v),
+            row("amcl localized", amcl_state, amcl_val),
             row("tf map->base", "ok" if self.tf_ok else "bad",
                 "locked" if self.tf_ok else "no transform"),
         ]
@@ -456,6 +486,28 @@ class Monitor(Node):
             with self.lock:
                 self._collision_enabled = enable
         return result_box[0]
+
+    def reinitialize_global_localization(self) -> bool:
+        """Disperse AMCL particles across the whole map (kidnapped-robot recovery).
+        After calling, drive/rotate the robot so scan matching can re-converge."""
+        if not self._reloc_client.service_is_ready():
+            return False
+        done = threading.Event()
+        ok_box = [False]
+
+        def _cb(fut):
+            try:
+                fut.result()        # Empty response
+                ok_box[0] = True
+            except Exception:
+                pass
+            done.set()
+
+        self._reloc_client.call_async(Empty.Request()).add_done_callback(_cb)
+        done.wait(timeout=3.0)
+        if ok_box[0]:
+            self.get_logger().warn("AMCL global re-localization triggered")
+        return ok_box[0]
 
     def status(self):
         with self.lock:
@@ -677,6 +729,12 @@ def api_set_goal():
     return jsonify({"ok": True})
 
 
+@app.route("/api/relocalize", methods=["POST"])
+def api_relocalize():
+    ok = monitor.reinitialize_global_localization()
+    return jsonify({"ok": ok})
+
+
 @app.route("/camera.mjpg")
 def camera():
     return Response(mjpeg(monitor.latest_camera, CAMERA_FPS),
@@ -785,6 +843,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
         <span style="flex:1"></span>
         <button class="tool" id="btnpose">2D pose</button>
         <button class="tool" id="btngoal">2D goal</button>
+        <button class="tool" id="btnreloc" title="Disperse AMCL particles for kidnapped-robot recovery">Re-loc</button>
       </h2>
       <div id="mapwrap">
         <img class="stream" id="mapimg" src="/map.mjpg" alt="map" draggable="false">
@@ -826,6 +885,17 @@ function setMode(m){
 }
 btnpose.onclick = () => setMode('pose');
 btngoal.onclick = () => setMode('goal');
+
+const btnreloc = document.getElementById('btnreloc');
+btnreloc.onclick = () => {
+  maptip.textContent = 'requesting AMCL global re-localization...';
+  fetch('/api/relocalize', {method:'POST'})
+    .then(r => r.json())
+    .then(j => maptip.textContent = j.ok
+        ? 'AMCL particles dispersed — drive/rotate slowly to re-converge'
+        : 'relocalize failed (is AMCL running?)')
+    .catch(() => maptip.textContent = 'relocalize request failed');
+};
 
 function evFrame(ev){
   const r = mapimg.getBoundingClientRect();

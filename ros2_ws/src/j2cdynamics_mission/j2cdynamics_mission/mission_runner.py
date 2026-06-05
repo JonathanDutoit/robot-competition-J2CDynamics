@@ -19,7 +19,7 @@ DUPLO_DURING_PATROL = False   # Activate for duplo detection during patrol
 # ──────────────────────────────────────────────────────────────────────────────
 
 BASE_POSE  = (0.35, 0.3, -1.57)      
-START_POSE = (1.25, 0.4, 0.05)        
+START_POSE = (1.25, 0.4, 0.02)        
 
 # The ramp approach heading is the high-variance item — tune this yaw carefully.
 RAMP_APPROACH = (8.20, 4.30, 0.0)   

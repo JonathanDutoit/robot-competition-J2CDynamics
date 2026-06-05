@@ -165,7 +165,7 @@ ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & pe
         consecutive_failures_);
       return hardware_interface::return_type::ERROR;
     }
-    RCLCPP_WARN_THROTTLE(logger_, *get_clock(), 1000,
+    RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
       "Odometry read failed (%d in a row) — reusing last value",
       consecutive_failures_);
     // hw_vel_left_ / hw_vel_right_ deliberately left untouched
@@ -216,7 +216,7 @@ ArduinoHardwareInterface::write(const rclcpp::Time &, const rclcpp::Duration &)
       RCLCPP_ERROR(logger_, "Repeated SPEED write failures — reporting fault");
       return hardware_interface::return_type::ERROR;
     }
-    RCLCPP_WARN_THROTTLE(logger_, *get_clock(), 1000,
+    RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
       "Failed to send SPEED command (%d in a row)", consecutive_failures_);
   }
 

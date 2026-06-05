@@ -18,18 +18,18 @@ DUPLO_DURING_PATROL = False   # Activate for duplo detection during patrol
 #  Format: (x_metres, y_metres, yaw_radians) in the map frame
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE  = (0.0, -5.14, -1.57)      # TODO: home / dock the robot returns to
-START_POSE = (3.8, -3.3, 3.13)        # robot's PHYSICAL pose at power-on (matches amcl.yaml)
+BASE_POSE  = (0.35, 0.3, -1.57)      
+START_POSE = (1.25, 0.4, 0.05)        
 
 # The ramp approach heading is the high-variance item — tune this yaw carefully.
-RAMP_APPROACH = (1.55, -9.0, 0.0)   
-RAMP_TOP      = (1.55, -10.5, 0.0)   # TODO: pose at the top before descending
+RAMP_APPROACH = (8.20, 4.30, 0.0)   
+RAMP_TOP      = (8.20, -6, 0.0)   
 
-MAIN_PATROL = [                    # TODO: waypoints covering the lower arena
-    (6.65, -5.25,  3.3),
-    (5.29, -6.13,  1.57),
-    (2.16, -6.54,  1.57),
-    (5.12, -7.22, -1.57),
+MAIN_PATROL = [                    
+    (4, 1.06,  0.0),
+    (7, 2.3,  1.57),
+    (4.75, 3.66,  3.33),
+    (0.35, 0.3, -1.57),
 ]
 
 UPPER_PATROL = [                   # TODO: waypoints covering the upper platform

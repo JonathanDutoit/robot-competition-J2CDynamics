@@ -95,6 +95,11 @@ class DuploApproach(Node):
     # Enable duplo collection callback
     def enable_duplo_collection(self, msg: Bool):
         self.enabled = msg.data
+        
+
+    # Enable duplo collection callback
+    def enable_duplo_collection(self, msg: Bool):
+        self.enabled = msg.data
 
     # Detection selection 
     def find_best_duplo(self, msg):

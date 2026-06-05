@@ -22,6 +22,11 @@
   <BehaviorTree ID="MainTree">
     <RecoveryNode number_of_retries="6" name="NavigateRecovery">
       <PipelineSequence name="NavigateWithReplanning">
+        <!-- Pick the goal checker per goal. Mission runner publishes the id on
+             /goal_checker_selector; default = general (position-only patrol). -->
+        <GoalCheckerSelector selected_goal_checker="{selected_goal_checker}"
+                             default_goal_checker="general_goal_checker"
+                             topic_name="goal_checker_selector"/>
         <RateController hz="1.0">
           <RecoveryNode number_of_retries="1" name="ComputePathToPose">
             <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
@@ -30,7 +35,8 @@
           </RecoveryNode>
         </RateController>
         <RecoveryNode number_of_retries="1" name="FollowPath">
-          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <FollowPath path="{path}" controller_id="FollowPath"
+                      goal_checker_id="{selected_goal_checker}"/>
           <ClearEntireCostmap name="ClearLocalCostmap-Context"
                               service_name="local_costmap/clear_entirely_local_costmap"/>
         </RecoveryNode>

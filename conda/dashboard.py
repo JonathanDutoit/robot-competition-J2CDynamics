@@ -88,7 +88,7 @@ ROBOT_FRAME      = "base_link"
 # velocity lanes in priority order (highest first) for "active source"
 VEL_LANES        = [("/teleop_vel", "teleop"), ("/duplo_vel", "duplo"), ("/nav_vel", "nav")]
 
-MAP_VIEW_FPS     = 5
+MAP_VIEW_FPS     = 12
 CAMERA_FPS       = 15
 MAP_VIEW_MAXPX   = 700
 COSTMAP_THRESH   = 50    # show costmap cells at/above this cost
@@ -565,9 +565,9 @@ class Monitor(Node):
             return int((wx - ox) / res * scale), int((H - 1 - (wy - oy) / res) * scale)
 
         if gcost is not None:
-            self._blend_costmap(img, ox, oy, res, scale, gcost, (255, 150, 30), 0.30)
+            self._blend_costmap(img, to_px, gcost, (255, 150, 30), 0.30)
         if lcost is not None:
-            self._blend_costmap(img, ox, oy, res, scale, lcost, (30, 120, 255), 0.40)
+            self._blend_costmap(img, to_px, lcost, (40, 140, 255), 0.45)
 
         if gplan is not None:
             self._draw_path(img, gplan, to_px, (255, 180, 40), 2)   # global plan, blue-ish
@@ -582,51 +582,72 @@ class Monitor(Node):
             rx, ry = tf.transform.translation.x, tf.transform.translation.y
             yaw = quat_to_yaw(tf.transform.rotation)
             px, py = to_px(rx, ry)
-            cv2.circle(img, (px, py), 7, (40, 80, 255), -1)
-            cv2.line(img, (px, py),
-                     (int(px + 22 * math.cos(yaw)), int(py - 22 * math.sin(yaw))),
-                     (40, 80, 255), 2)
+
+            def rp(dist, off):
+                a = yaw + off
+                return [int(px + dist * math.cos(a)), int(py - dist * math.sin(a))]
+
+            nose = [int(px + 16 * math.cos(yaw)), int(py - 16 * math.sin(yaw))]
+            tri = np.array([nose, rp(12, 2.55), rp(12, -2.55)], dtype=np.int32)
+            cv2.circle(img, (px, py), 10, (30, 30, 30), -1, cv2.LINE_AA)       # drop shadow
+            cv2.fillConvexPoly(img, tri, (60, 90, 255), cv2.LINE_AA)           # body (red-orange)
+            cv2.polylines(img, [tri], True, (255, 255, 255), 1, cv2.LINE_AA)   # white outline
+            cv2.circle(img, (px, py), 2, (255, 255, 255), -1, cv2.LINE_AA)     # center dot
         except Exception:
             pass
 
         self._legend(img)
         return self._jpeg(img)
 
-    def _blend_costmap(self, canvas, ox_m, oy_m, res_m, scale, cm, color, alpha):
+    def _blend_costmap(self, canvas, to_px, cm, color, alpha):
+        """Blend an OccupancyGrid costmap onto the map canvas, placed via its OWN
+        header frame. The local costmap is published in the 'odom' frame, so it must
+        be transformed through map->odom (translation AND rotation) — treating its
+        origin as map-frame coordinates was the 'local costmap inaccurate' bug.
+        warpAffine handles the rotation/flip in one shot."""
         try:
             Hc, Wc = cm.info.height, cm.info.width
             res_c = cm.info.resolution
-            ox_c, oy_c = cm.info.origin.position.x, cm.info.origin.position.y
+            ox_c = cm.info.origin.position.x
+            oy_c = cm.info.origin.position.y
+
             data = np.array(cm.data, dtype=np.int8).reshape(Hc, Wc)
             mask = data >= COSTMAP_THRESH
             if not mask.any():
                 return
+
+            frame = (cm.header.frame_id or MAP_FRAME).lstrip("/")
+            if frame == MAP_FRAME:
+                tx = ty = 0.0
+                cyaw, syaw = 1.0, 0.0
+            else:
+                tf = self.tf_buffer.lookup_transform(
+                    MAP_FRAME, frame, rclpy.time.Time())
+                tx = tf.transform.translation.x
+                ty = tf.transform.translation.y
+                yaw = quat_to_yaw(tf.transform.rotation)
+                cyaw, syaw = math.cos(yaw), math.sin(yaw)
+
+            def corner(col, row):
+                # cell corner in the costmap frame, rotated+shifted into map frame
+                xc, yc = ox_c + col * res_c, oy_c + row * res_c
+                xm = cyaw * xc - syaw * yc + tx
+                ym = syaw * xc + cyaw * yc + ty
+                return to_px(xm, ym)
+
+            src = np.float32([[0, 0], [Wc, 0], [0, Hc]])
+            dst = np.float32([corner(0, 0), corner(Wc, 0), corner(0, Hc)])
+            M = cv2.getAffineTransform(src, dst)
+
             ov = np.zeros((Hc, Wc, 3), dtype=np.uint8)
             ov[mask] = color
-            ov = np.flipud(ov)
-            m = np.flipud(mask).astype(np.uint8)
-
-            s_cell = (res_c / res_m) * scale
-            nw, nh = max(1, int(Wc * s_cell)), max(1, int(Hc * s_cell))
-            ov = cv2.resize(ov, (nw, nh), interpolation=cv2.INTER_NEAREST)
-            m = cv2.resize(m, (nw, nh), interpolation=cv2.INTER_NEAREST).astype(bool)
-
-            x0 = int((ox_c - ox_m) / res_m * scale)
-            top_world_y = oy_c + Hc * res_c
-            H_canvas = canvas.shape[0]
-            y0 = int(H_canvas - (top_world_y - oy_m) / res_m * scale)
+            mk = mask.astype(np.uint8) * 255
 
             Hh, Ww = canvas.shape[:2]
-            xs, ys = max(0, x0), max(0, y0)
-            xe, ye = min(Ww, x0 + nw), min(Hh, y0 + nh)
-            if xe <= xs or ye <= ys:
-                return
-            sx, sy = xs - x0, ys - y0
-            sub_ov = ov[sy:sy + (ye - ys), sx:sx + (xe - xs)]
-            sub_m = m[sy:sy + (ye - ys), sx:sx + (xe - xs)]
-            region = canvas[ys:ye, xs:xe]
-            region[sub_m] = ((1 - alpha) * region[sub_m]
-                             + alpha * sub_ov[sub_m]).astype(np.uint8)
+            ov = cv2.warpAffine(ov, M, (Ww, Hh), flags=cv2.INTER_NEAREST)
+            mk = cv2.warpAffine(mk, M, (Ww, Hh), flags=cv2.INTER_NEAREST).astype(bool)
+
+            canvas[mk] = ((1 - alpha) * canvas[mk] + alpha * ov[mk]).astype(np.uint8)
         except Exception:
             pass
 
@@ -657,7 +678,7 @@ class Monitor(Node):
         mx, my = c * lx - s * ly + tx, s * lx + c * ly + ty
         for wx, wy in zip(mx, my):
             px, py = to_px(wx, wy)
-            cv2.circle(img, (px, py), 1, (80, 220, 80), -1)
+            cv2.circle(img, (px, py), 2, (255, 255, 0), -1, cv2.LINE_AA)   # bright cyan
 
     def _render_scan_only(self, scan):
         size = 500
@@ -675,16 +696,16 @@ class Monitor(Node):
         ppm = (size * 0.45) / rmax
         for r, a in zip(ranges[good], angles[good]):
             cv2.circle(img, (int(cx + r * ppm * math.cos(a)),
-                             int(cy - r * ppm * math.sin(a))), 1, (80, 220, 80), -1)
+                             int(cy - r * ppm * math.sin(a))), 2, (255, 255, 0), -1, cv2.LINE_AA)
         cv2.putText(img, "scan (no map / TF)", (12, 22),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
         return self._jpeg(img)
 
     @staticmethod
     def _legend(img):
-        items = [("scan", (80, 220, 80)), ("costmap", (30, 120, 255)),
+        items = [("scan", (255, 255, 0)), ("costmap", (40, 140, 255)),
                  ("plan", (255, 180, 40)), ("local", (70, 70, 255)),
-                 ("robot", (40, 80, 255))]
+                 ("robot", (60, 90, 255))]
         x = 10
         for label, color in items:
             cv2.circle(img, (x + 4, 14), 4, color, -1)
@@ -1031,7 +1052,7 @@ async function tick(){
 }
 document.getElementById('tfilter').addEventListener('input', renderTopics);
 document.getElementById('showinfra').addEventListener('change', renderTopics);
-tick(); setInterval(tick, 1500);
+tick(); setInterval(tick, 700);
 </script></body></html>"""
 
 

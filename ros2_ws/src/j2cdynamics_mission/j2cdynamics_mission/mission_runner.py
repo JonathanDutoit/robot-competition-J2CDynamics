@@ -18,7 +18,8 @@ DUPLO_DURING_PATROL = False   # Activate for duplo detection during patrol
 #  Format: (x_metres, y_metres, yaw_radians) in the map frame
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE = (0.0, -5.14, -1.57)       # TODO: home / start pose
+BASE_POSE  = (0.0, -5.14, -1.57)      # TODO: home / dock the robot returns to
+START_POSE = (3.8, -3.3, 3.13)        # robot's PHYSICAL pose at power-on (matches amcl.yaml)
 
 # The ramp approach heading is the high-variance item — tune this yaw carefully.
 RAMP_APPROACH = (1.55, -9.0, 0.0)   
@@ -173,6 +174,11 @@ class MissionRunner(BasicNavigator):
 
     # ── mission ───────────────────────────────────────────────────────────────
     def run(self) -> None:
+        # Seed AMCL with the dock pose (so autonomous runs don't need an RViz
+        # 2D Pose Estimate), then block until AMCL + Nav2 are actually active.
+        # localizer='amcl' (NOT 'slam_toolbox') — that mismatch hangs the wait.
+        self.setInitialPose(make_pose(*START_POSE))
+        self.waitUntilNav2Active(localizer='amcl')
         self.get_logger().info('Nav2 active — mission start')
 
         # ── Phase 1: lower-arena patrol ───────────────────────────────────────

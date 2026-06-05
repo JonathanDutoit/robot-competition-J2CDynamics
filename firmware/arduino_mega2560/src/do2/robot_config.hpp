@@ -15,12 +15,17 @@
 // --- Right Sweeper Motor ---
 #define PIN_RIGHT_SWEEPER_PWM            9
 #define PIN_RIGHT_SWEEPER_DIR            8
-#define PIN_RIGHT_SWEEPER_CURR_SENSE     44
+#define PIN_RIGHT_SWEEPER_CURR_SENSE     24
 
 // --- Left Sweeper Motor ---
 #define PIN_LEFT_SWEEPER_PWM           10
 #define PIN_LEFT_SWEEPER_DIR           11
-#define PIN_LEFT_SWEEPER_CURR_SENSE    45
+#define PIN_LEFT_SWEEPER_CURR_SENSE    25
+
+// --- Stepper Motor ---
+#define PIN_STEPPER_DIR                 30
+#define PIN_STEPPER_STEP                32
+#define PIN_STEPPER_ENABLE              34
 
 // --------------------------------
 // --- DC MOTOR PARAMETERS ---

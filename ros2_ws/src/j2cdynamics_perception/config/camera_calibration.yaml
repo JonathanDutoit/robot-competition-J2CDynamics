@@ -4,10 +4,10 @@
 # INTRINSICS — for the 640x480 stream the detector reports bboxes in. Replace the
 # values below with YOUR calibration from scripts/calibrate_camera.py. The ones
 # here are only a rough IMX219 prior (≈62° HFOV) so the node runs before calibration.
-camera_matrix: [530.0,   0.0, 320.0,
-                  0.0, 530.0, 240.0,
-                  0.0,   0.0,   1.0]
-dist_coeffs:   [0.0, 0.0, 0.0, 0.0, 0.0]
+camera_matrix: [2489.41, 0.0, 517.82,
+                 0.0, 2483.84, 399.88,
+                 0.0, 0.0, 1.0]
+dist_coeffs: [-0.10354, 5.79753, -0.00487, -0.02593, -66.06766]
 
 # EXTRINSICS — where the camera sits on base_link. Measure with a ruler + a phone
 # level, OR refine with solvePnP (calibrate_camera.py --extrinsics). Accuracy here

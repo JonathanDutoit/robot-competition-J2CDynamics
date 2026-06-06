@@ -77,6 +77,7 @@ services:
     environment:
       - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
     volumes:
+      - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev  
     command: ros2 launch j2cdynamics_bringup lidar.launch.py

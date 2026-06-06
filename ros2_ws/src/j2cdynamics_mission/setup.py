@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mission_runner = j2cdynamics_mission.mission_runner:main',
+            'explore_zone = j2cdynamics_mission.explore_zone:main',
         ],
     },
 )

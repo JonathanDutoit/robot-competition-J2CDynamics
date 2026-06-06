@@ -18,8 +18,8 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 
 # --- Tunable speeds ---
-LINEAR_SPEED  = 1.0   # m/s
-ANGULAR_SPEED = 0.5   # rad/s
+LINEAR_SPEED  = 0.195 # m/s
+ANGULAR_SPEED = 0.25  # rad/s
 
 BANNER = """
 ╔══════════════════════════════════╗

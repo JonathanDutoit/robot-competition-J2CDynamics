@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:arg name="use_ros2_control" default="true"/>
+
+    <gazebo reference="right_ball_wheel">
+        <mu1 value="0.01" />
+        <mu2 value="0.01" />
+    </gazebo>
+    <gazebo reference="left_ball_wheel">
+        <mu1 value="0.01" />
+        <mu2 value="0.01" />
+    </gazebo>
+    
+    <gazebo reference="right_caster_wheel">
+        <mu1 value="0.01" />
+        <mu2 value="0.01" />
+    </gazebo>
+    <gazebo reference="left_caster_wheel">
+        <mu1 value="0.01" />
+        <mu2 value="0.01" />
+    </gazebo>
+
+    <gazebo reference="right_wheel">
+        <material>Gazebo/Black</material>
+    </gazebo>
+
+    <gazebo reference="left_wheel">
+        <material>Gazebo/Black</material>
+    </gazebo>
+
+    <!-- Use ros2_control by default, otherwise go back to legacy -->
+    <xacro:if value="$(arg use_ros2_control)">
+        <xacro:include filename="gazebo_ros2_control.xacro" />
+    </xacro:if>
+    <xacro:unless value="$(arg use_ros2_control)">
+        <xacro:include filename="gazebo_diff_control.xacro" />
+    </xacro:unless>
+</robot>

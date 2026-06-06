@@ -8,7 +8,8 @@ import time
 import rclpy
 from geometry_msgs.msg import PoseStamped, Twist
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
-from std_msgs.msg import Bool
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
+from std_msgs.msg import Bool, String
 
 DUPLO_DURING_PATROL = False   # Activate for duplo detection during patrol
 
@@ -18,17 +19,18 @@ DUPLO_DURING_PATROL = False   # Activate for duplo detection during patrol
 #  Format: (x_metres, y_metres, yaw_radians) in the map frame
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE = (0.0, -5.14, -1.57)       # TODO: home / start pose
+BASE_POSE  = (0.35, 0.3, -1.57)      
+START_POSE = (1.25, 0.4, 0.02)        
 
 # The ramp approach heading is the high-variance item — tune this yaw carefully.
-RAMP_APPROACH = (1.55, -9.0, 0.0)   
-RAMP_TOP      = (1.55, -10.5, 0.0)   # TODO: pose at the top before descending
+RAMP_APPROACH = (8.20, 4.30, 0.0)   
+RAMP_TOP      = (8.20, -6, 0.0)   
 
-MAIN_PATROL = [                    # TODO: waypoints covering the lower arena
-    (6.65, -5.25,  3.3),
-    (5.29, -6.13,  1.57),
-    (2.16, -6.54,  1.57),
-    (5.12, -7.22, -1.57),
+MAIN_PATROL = [                    
+    (4, 1.06,  0.0),
+    (7, 2.3,  1.57),
+    (4.75, 3.66,  3.33),
+    (0.35, 0.3, -1.57),
 ]
 
 UPPER_PATROL = [                   # TODO: waypoints covering the upper platform
@@ -79,12 +81,32 @@ class MissionRunner(BasicNavigator):
         self._ramp_pub  = self.create_publisher(Twist, RAMP_VEL_TOPIC, 10)
         self._duplo_pub = self.create_publisher(Bool, '/enable_duplo_collection', 10)
 
+        # Goal-checker selection. TRANSIENT_LOCAL so the BT's GoalCheckerSelector
+        # (which subscribes latched) reliably sees the latest choice even if it
+        # subscribed after we published.
+        gc_qos = QoSProfile(depth=1, history=HistoryPolicy.KEEP_LAST,
+                            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                            reliability=ReliabilityPolicy.RELIABLE)
+        self._gc_pub = self.create_publisher(String, 'goal_checker_selector', gc_qos)
+
+    def _select_goal_checker(self, name: str) -> None:
+        """Tell the BT which goal checker to use for the NEXT goal."""
+        self._gc_pub.publish(String(data=name))
+        time.sleep(0.1)   # let the latched selection propagate before the goal starts
+
     # ── single-goal navigation ─────────────────────────────────────────────────
-    def go_to(self, pose_tuple: tuple, timeout_s: float = 120.0) -> bool:
+    def go_to(self, pose_tuple: tuple, timeout_s: float = 120.0,
+              precise: bool = False) -> bool:
         """
         Navigate to (x, y, yaw). Blocks until Nav2 reports SUCCEEDED or
         timeout_s is exceeded. Returns True on success.
+
+        precise=False (default): position-only goal (patrol) — stops on arrival,
+                                 no in-place heading rotation.
+        precise=True:            enforce the goal heading (ramp approach).
         """
+        self._select_goal_checker(
+            'precise_goal_checker' if precise else 'general_goal_checker')
         self.goToPose(make_pose(*pose_tuple))
         t0 = time.time()
 
@@ -113,6 +135,10 @@ class MissionRunner(BasicNavigator):
         deadline = time.time() + duration_s
         n = len(waypoints)
         idx = 0
+
+        # Position-only for the whole patrol (resets any 'precise' left latched
+        # from a prior ramp goal). Selected once — the choice is latched.
+        self._select_goal_checker('general_goal_checker')
 
         self.get_logger().info(
             f'PATROL  {n} waypoints  {duration_s:.0f}s budget')
@@ -173,6 +199,11 @@ class MissionRunner(BasicNavigator):
 
     # ── mission ───────────────────────────────────────────────────────────────
     def run(self) -> None:
+        # Seed AMCL with the dock pose (so autonomous runs don't need an RViz
+        # 2D Pose Estimate), then block until AMCL + Nav2 are actually active.
+        # localizer='amcl' (NOT 'slam_toolbox') — that mismatch hangs the wait.
+        self.setInitialPose(make_pose(*START_POSE))
+        self.waitUntilNav2Active(localizer='amcl')
         self.get_logger().info('Nav2 active — mission start')
 
         # ── Phase 1: lower-arena patrol ───────────────────────────────────────
@@ -185,8 +216,9 @@ class MissionRunner(BasicNavigator):
 
         # ── Phase 3: ramp approach + open-loop climb ──────────────────────────
         # Nav2 navigates to the base of the ramp; then open-loop takes over.
-        # The yaw of RAMP_APPROACH is what determines the 2cm alignment margin.
-        self.go_to(RAMP_APPROACH)
+        # The yaw of RAMP_APPROACH is what determines the 2cm alignment margin,
+        # so enforce the heading here (precise goal checker).
+        self.go_to(RAMP_APPROACH, precise=True)
         self.drive_ramp(+RAMP_CLIMB_SPEED, RAMP_CLIMB_TIME)
 
         # ── Phase 4: upper-platform patrol ────────────────────────────────────
@@ -195,7 +227,7 @@ class MissionRunner(BasicNavigator):
 
         # ── Phase 5: re-square at ramp top, then open-loop descend ────────────
         self._set_duplo(False)
-        self.go_to(RAMP_TOP)
+        self.go_to(RAMP_TOP, precise=True)   # re-square before the open-loop descent
         self.drive_ramp(-RAMP_DESCEND_SPEED, RAMP_DESCEND_TIME)
 
         # ── Phase 6: home ─────────────────────────────────────────────────────

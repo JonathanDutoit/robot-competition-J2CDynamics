@@ -1,0 +1,49 @@
+<!--
+  Navigate-to-pose with replanning, but WITHOUT motion recovery.
+
+  The default Nav2 tree falls back to Spin / BackUp / Wait when navigation
+  stalls. On this robot that produced the "robot spins / waits / undefined
+  behaviour" symptom, and both prior competition teams reported a significant
+  improvement after stripping those out.
+
+  What this tree keeps:
+    - global replanning at 1 Hz (RateController + ComputePathToPose)
+    - path following (FollowPath)
+    - costmap CLEARING as the only recovery (no robot motion)
+
+  What this tree removes:
+    - Spin, BackUp, Wait  (all the unwanted autonomous motion)
+
+  On failure the tree simply returns FAILURE to bt_navigator, so the mission
+  runner's go_to() gets a non-SUCCEEDED result and moves on, rather than the
+  robot thrashing in place.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <!-- Pick the goal checker per goal. Mission runner publishes the id on
+             /goal_checker_selector; default = general (position-only patrol). -->
+        <GoalCheckerSelector selected_goal_checker="{selected_goal_checker}"
+                             default_goal_checker="general_goal_checker"
+                             topic_name="goal_checker_selector"/>
+        <RateController hz="1.0">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Context"
+                                service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"
+                      goal_checker_id="{selected_goal_checker}"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context"
+                              service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <!-- Top-level recovery: clear the global costmap only (no motion) -->
+      <ClearEntireCostmap name="ClearGlobalCostmap-Subtree"
+                          service_name="global_costmap/clear_entirely_global_costmap"/>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

@@ -1,6 +1,8 @@
 from setuptools import setup
+from glob import glob
+import os
 
-package_name = 'j2cdynamics_mission'
+package_name = 'j2cdynamics_perception'
 
 setup(
     name=package_name,
@@ -10,17 +12,18 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='jed',
     maintainer_email='dutoit.jonathaneric@gmail.com',
-    description='Competition mission runner for the J2C-Dynamics robot.',
+    description='Ground-plane projection + clustered duplo map.',
     license='MIT',
     entry_points={
         'console_scripts': [
-            'mission_runner = j2cdynamics_mission.mission_runner:main',
-            'explore_zone = j2cdynamics_mission.explore_zone:main',
+            'ground_projection = j2cdynamics_perception.ground_projection:main',
+            'duplo_map = j2cdynamics_perception.duplo_map:main',
         ],
     },
 )

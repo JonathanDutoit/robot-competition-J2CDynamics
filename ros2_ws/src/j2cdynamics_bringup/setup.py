@@ -15,6 +15,7 @@ setup(
 
         (os.path.join('share', 'j2cdynamics_bringup', 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', 'j2cdynamics_bringup', 'config'), glob('config/*.yaml')),
+        (os.path.join('share', 'j2cdynamics_bringup', 'behavior_trees'), glob('behavior_trees/*.xml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""
+ground_projection — turn image-space duplo detections into metric (x, y) points
+in the map frame, by projecting the bbox's ground-contact pixel onto the ground
+plane (pinhole model + known camera mount), then transforming through tf.
+
+Pipeline:
+    /detections (Detection2DArray, 640x480 px)
+        → bottom-centre pixel of each bbox  (the duplo touches the ground there)
+        → undistort + back-project to a ray in the camera frame
+        → intersect the ground plane (z = 0 in base_link)  → (x, y) in base_link
+        → tf base_link → map                                → (x, y) in map
+        → /duplo_points (PoseArray, map frame)  [+ RViz markers]
+
+This is what lets the mission NAVIGATE to a duplo (robust, localized) instead of
+only image-servoing onto one. Validated by a prior team on the same Pi Cam v2.1.
+
+Both intrinsics and the camera mount come from config/camera_calibration.yaml
+(see calibrate_camera.py). Until you calibrate, rough IMX219 defaults are used.
+"""
+import math
+
+import numpy as np
+import yaml
+
+try:
+    import cv2
+except ImportError:
+    raise SystemExit("ground_projection needs OpenCV (cv2)")
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+
+from vision_msgs.msg import Detection2DArray
+from geometry_msgs.msg import PoseArray, Pose, PointStamped
+from visualization_msgs.msg import Marker, MarkerArray
+
+import tf2_ros
+from tf2_geometry_msgs import do_transform_point
+
+
+# ── Pure projection (no ROS — unit-testable) ──────────────────────────────────
+class GroundProjector:
+    """Pixel (u, v) → (x, y) on the ground in base_link.
+
+    Camera optical centre sits at height `height` above the ground, pitched down
+    by `pitch` rad from horizontal, offset `x_offset` forward / `y_offset` left of
+    base_link. Assumes the projected point lies on the ground plane (z = 0).
+    """
+
+    def __init__(self, K, dist, height, pitch, x_offset=0.0, y_offset=0.0):
+        self.K = np.asarray(K, np.float64).reshape(3, 3)
+        self.dist = np.asarray(dist, np.float64).reshape(-1)
+        # optical frame (x-right, y-down, z-fwd) → base frame (x-fwd, y-left, z-up)
+        R0 = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], dtype=float)
+        c, s = math.cos(pitch), math.sin(pitch)
+        Ry = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]], dtype=float)  # tilt down about base-y
+        self.R = Ry @ R0
+        self.t = np.array([float(x_offset), float(y_offset), float(height)], dtype=float)
+
+    def project(self, u, v):
+        # undistort the pixel → normalised camera-frame ray [x_n, y_n, 1]
+        pt = cv2.undistortPoints(
+            np.array([[[float(u), float(v)]]], dtype=np.float32), self.K, self.dist)[0, 0]
+        ray = self.R @ np.array([pt[0], pt[1], 1.0])
+        if ray[2] >= -1e-6:                       # ray must point toward the ground
+            return None
+        s = -self.t[2] / ray[2]                   # intersect z = 0
+        p = self.t + s * ray
+        return float(p[0]), float(p[1])
+
+
+# ── ROS node ──────────────────────────────────────────────────────────────────
+class GroundProjectionNode(Node):
+    def __init__(self):
+        super().__init__('ground_projection')
+        self.declare_parameter('calibration_file', '')
+        self.declare_parameter('min_score', 0.30)
+        self.declare_parameter('max_range', 3.0)     # m; drop far projections (perspective error grows)
+        self.declare_parameter('base_frame', 'base_link')
+        self.declare_parameter('map_frame', 'map')
+
+        self.min_score = float(self.get_parameter('min_score').value)
+        self.max_range = float(self.get_parameter('max_range').value)
+        self.base_frame = self.get_parameter('base_frame').value
+        self.map_frame = self.get_parameter('map_frame').value
+
+        cal = self._load_calibration(self.get_parameter('calibration_file').value)
+        self.proj = GroundProjector(
+            cal['camera_matrix'], cal['dist_coeffs'], cal['height'], cal['pitch'],
+            cal.get('x_offset', 0.0), cal.get('y_offset', 0.0))
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+        self.pub_points = self.create_publisher(PoseArray, 'duplo_points', 10)
+        self.pub_markers = self.create_publisher(MarkerArray, 'duplo_points_markers', 10)
+        self.create_subscription(Detection2DArray, '/detections',
+                                 self.on_detections, qos_profile_sensor_data)
+        self.get_logger().info('ground_projection started -> /duplo_points (map frame)')
+
+    def _load_calibration(self, path):
+        cal = dict(camera_matrix=[530.0, 0.0, 320.0, 0.0, 530.0, 240.0, 0.0, 0.0, 1.0],
+                   dist_coeffs=[0.0, 0.0, 0.0, 0.0, 0.0],
+                   height=0.20, pitch=0.52, x_offset=0.12, y_offset=0.0)
+        if path:
+            try:
+                with open(path) as f:
+                    loaded = yaml.safe_load(f) or {}
+                cal.update({k: v for k, v in loaded.items() if v is not None})
+                self.get_logger().info(f'loaded calibration: {path}')
+            except Exception as e:
+                self.get_logger().warn(f'calibration load failed ({e}); using defaults')
+        else:
+            self.get_logger().warn('no calibration_file; using rough IMX219 defaults — CALIBRATE!')
+        return cal
+
+    def on_detections(self, msg: Detection2DArray):
+        out = PoseArray()
+        out.header.frame_id = self.map_frame
+        out.header.stamp = msg.header.stamp
+        markers = MarkerArray()
+
+        for i, det in enumerate(msg.detections):
+            score = max((r.hypothesis.score for r in det.results), default=0.0)
+            if score < self.min_score:
+                continue
+            # bottom-centre of the bbox = where the duplo meets the ground
+            u = det.bbox.center.position.x
+            v = det.bbox.center.position.y + det.bbox.size_y / 2.0
+            g = self.proj.project(u, v)
+            if g is None:
+                continue
+            if math.hypot(g[0], g[1]) > self.max_range:
+                continue
+            mp = self._to_map(g, msg.header.stamp)
+            if mp is None:
+                continue
+            pose = Pose()
+            pose.position.x, pose.position.y = mp
+            pose.orientation.w = 1.0
+            out.poses.append(pose)
+            markers.markers.append(self._marker(i, mp, msg.header.stamp))
+
+        if out.poses:
+            self.pub_points.publish(out)
+            self.pub_markers.publish(markers)
+
+    def _to_map(self, g, stamp):
+        ps = PointStamped()
+        ps.header.frame_id = self.base_frame
+        ps.header.stamp = stamp
+        ps.point.x, ps.point.y = float(g[0]), float(g[1])
+        try:
+            # latest transform (we detect while stationary, so latest ≈ detection time)
+            tf = self.tf_buffer.lookup_transform(
+                self.map_frame, self.base_frame, rclpy.time.Time())
+            mp = do_transform_point(ps, tf)
+            return mp.point.x, mp.point.y
+        except Exception as e:
+            self.get_logger().warn(f'tf {self.base_frame}->{self.map_frame} failed: {e}',
+                                   throttle_duration_sec=2.0)
+            return None
+
+    def _marker(self, i, mp, stamp):
+        m = Marker()
+        m.header.frame_id = self.map_frame
+        m.header.stamp = stamp
+        m.ns = 'duplo_points'
+        m.id = i
+        m.type = Marker.CYLINDER
+        m.action = Marker.ADD
+        m.pose.position.x, m.pose.position.y = mp
+        m.pose.orientation.w = 1.0
+        m.scale.x = m.scale.y = 0.08
+        m.scale.z = 0.05
+        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 0.4, 0.0, 0.8
+        m.lifetime.sec = 2
+        return m
+
+
+def main():
+    rclpy.init()
+    node = GroundProjectionNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

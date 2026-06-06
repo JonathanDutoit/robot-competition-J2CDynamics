@@ -8,6 +8,7 @@
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include <chrono>
 #include "rclcpp_lifecycle/state.hpp"
 
 #include <libserial/SerialPort.h>
@@ -70,12 +71,29 @@ private:
   double hw_cmd_left_  {0.0};
   double hw_cmd_right_ {0.0};
 
+  // resolved joint indices (set in on_init)
+  int left_joint_idx_{-1};
+  int right_joint_idx_{-1};
+
+  // fault escalation
+  int consecutive_failures_{0};
+  int failure_threshold_{10};   // tune to your odom_rate (e.g. ~0.2s at 50 Hz)
+
+
   // Ramping (mirrors your Python ArduinoBridge logic)
   double current_left_  {0.0};
   double current_right_ {0.0};
 
   double _ramp(double current, double target) const;
   double _clamp(double value)                 const;
+
+  // dt-spike warn throttle
+  std::chrono::steady_clock::time_point last_dt_warn_{};
+
+  rclcpp::Clock clock_{RCL_STEADY_TIME};
+
+  // odometry parse helper
+  bool parse_odometry(const std::string & line, double & left_vel, double & right_vel);
 
   rclcpp::Logger logger_ {rclcpp::get_logger("ArduinoHardwareInterface")};
 };

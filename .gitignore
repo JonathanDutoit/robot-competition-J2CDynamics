@@ -14,5 +14,7 @@ ros2_ws/log/
 # env file
 .docker/.env
 
-
 __pycache__/
+
+ros2_ws/src/j2cdynamics_perception/scripts/calib_imgs/*
+ros2_ws/src/j2cdynamics_perception/scripts/undistorted/*

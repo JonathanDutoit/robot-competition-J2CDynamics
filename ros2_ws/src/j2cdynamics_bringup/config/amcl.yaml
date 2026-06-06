@@ -1,0 +1,69 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# AMCL — Adaptive Monte Carlo Localization against a static map_server map.
+# Replaces slam_toolbox localization mode. Tuned for OPEN-LOOP, noisy odometry:
+# the motion-model noise (alpha1..4) is raised so the filter leans on the laser
+# rather than trusting the wheel odometry prior.
+# ─────────────────────────────────────────────────────────────────────────────
+amcl:
+  ros__parameters:
+    use_sim_time: false
+
+    # ── Frames / topics ──────────────────────────────────────────────────────
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    global_frame_id: "map"
+    scan_topic: "scan"
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+
+    # ── Particle filter ──────────────────────────────────────────────────────
+    min_particles: 500
+    max_particles: 2000
+    pf_err: 0.05
+    pf_z: 0.99
+
+    # ── Motion model noise — RAISED for open-loop / ~10% noisy odometry ───────
+    # Higher alphas spread particles more per motion step, so the laser update
+    # dominates. Lower these if localization feels too "loose"/jittery.
+    alpha1: 0.25   # rotation noise from rotation
+    alpha2: 0.25   # rotation noise from translation
+    alpha3: 0.25   # translation noise from translation
+    alpha4: 0.25   # translation noise from rotation
+    alpha5: 0.20   # (omni model only; harmless for differential)
+
+    # ── Laser likelihood-field model ─────────────────────────────────────────
+    laser_model_type: "likelihood_field"
+    laser_likelihood_max_dist: 2.0
+    laser_max_range: 12.0
+    laser_min_range: -1.0
+    max_beams: 60
+    z_hit: 0.5
+    z_rand: 0.5
+    z_short: 0.05
+    z_max: 0.05
+    sigma_hit: 0.2
+
+    # ── Update / resample thresholds ─────────────────────────────────────────
+    update_min_d: 0.20          # m of translation before a filter update
+    update_min_a: 0.20          # rad of rotation before a filter update
+    resample_interval: 1
+    transform_tolerance: 1.0    # s — generous, matches the open-loop odom timing
+
+    # ── Kidnapped-robot recovery ─────────────────────────────────────────────
+    # Non-zero alpha_slow/fast enables augmented-MCL random particle injection so
+    # AMCL can recover after the robot is physically displaced. When truly lost,
+    # also call:  ros2 service call /reinitialize_global_localization \
+    #             std_srvs/srv/Empty
+    recovery_alpha_slow: 0.001
+    recovery_alpha_fast: 0.1
+
+    save_pose_rate: 0.5
+    tf_broadcast: true
+
+    # ── Initial pose (override per run via RViz "2D Pose Estimate") ──────────
+    set_initial_pose: true
+    always_reset_initial_pose: false
+    initial_pose:
+      x: 1.25
+      y: 0.4
+      z: 0.0
+      yaw: 0.02

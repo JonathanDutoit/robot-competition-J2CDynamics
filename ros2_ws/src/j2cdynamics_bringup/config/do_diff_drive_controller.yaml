@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 100
+    update_rate: 50   
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -30,7 +30,7 @@ diff_drive_controller:
 
     # Odometry config
     position_feedback: false
-    open_loop: false
+    open_loop: true
 
     pose_covariance_diagonal: [0.01, 0.01, 0.0, 0.0, 0.0, 0.05]
     twist_covariance_diagonal: [0.01, 0.0, 0.0, 0.0, 0.0, 0.04]

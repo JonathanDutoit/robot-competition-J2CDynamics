@@ -48,7 +48,12 @@ class DuploApproach(Node):
         self.pub = self.create_publisher(Twist, 'duplo_vel', 10)
 
         self.enabled = True
-        self.create_subscription(Bool, '/enable_duplo_collection', 10)
+        self.create_subscription(
+            Bool,
+            '/enable_duplo_collection',
+            self.enable_callback,
+            10
+        )
 
         self.state_pub = self.create_publisher(String, 'duplo_state', 10)
 
@@ -83,6 +88,10 @@ class DuploApproach(Node):
             self.best_target = best
             self.last_seen_time = self.get_clock().now()
 
+    # Enable duplo detection callback
+    def enable_callback(self, msg: Bool):
+        self.enabled = msg.data
+        
     # Detection selection 
     def find_best_duplo(self, msg):
         best_score = -1.0

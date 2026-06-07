@@ -23,6 +23,9 @@
 #define PIN_LEFT_MAXON_SPEED_ANA     A4
 #define PIN_LEFT_MAXON_CURR_ANA      A5
 
+// --- Sharp IR Sensor ---
+#define PIN_DUPLO_IR_SENSOR          A9
+
 
 // ------------------------------
 // ---------- ARDUINO -----------
@@ -70,5 +73,13 @@
 // ------------------------
 
 #define NOMINAL_BATTERY_VOLTAGE_V      11.1f // in volts
+
+// -----------------------
+// --- SHARP IR SENSOR ---
+// -----------------------
+
+#define BASELINE_MEASUREMENT_COUNT     50 // Number of readings to average for baseline
+#define DUPLO_DETECTION_DELTA          20.0f // ADC units above baseline to detect presence
+#define DUPLO_RELEASE_DETECTION_DELTA  10.0f // ADC units below baseline to release presence
 
 #endif

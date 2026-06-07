@@ -30,8 +30,8 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 # ──────────────────────────────────────────────────────────────────────────────
 
 BASE_POSE   = (0.45, 0.45, -1.57)
-#START_POSE  = (0.557, 0.626, 1.50)
-START_POSE=(4.255, 5.228, 1.50)
+START_POSE  = (0.557, 0.626, 1.50)
+#START_POSE=(4.255, 5.228, 1.50)
 
 BUTTON_APPROACH = (4.45, 7.40, 1.57) # Nav2 stops here (precise heading)
 BUTTON_PUSH_SPEED = 0.10               # m/s, open-loop forward
@@ -56,11 +56,13 @@ TIMEOUT_ZONE_3 = 180.0
 TIMEOUT_ZONE_1 = 120.0
 MISSION_TIMEOUT = 600.0
 
-NAV_GOAL_TIMEOUT_S = 20.0
+NAV_GOAL_TIMEOUT_S = 40.0
 PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 2
 
 DUPLO_COUNT_ZONE_3 = 6
+
+RAMP_VEL_TOPIC     = 'ramp_vel'        # high-priority twist_mux input
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -89,6 +91,8 @@ class MissionRunner(BasicNavigator):
 
     def __init__(self) -> None:
         super().__init__('mission_runner')
+
+        self._ramp_pub = self.create_publisher(Twist, RAMP_VEL_TOPIC, 10)
 
         # Goal-checker selector (latched, transient_local — survives late subscribers)
         gc_qos = QoSProfile(depth=1, history=HistoryPolicy.KEEP_LAST,

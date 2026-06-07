@@ -30,22 +30,24 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 # ──────────────────────────────────────────────────────────────────────────────
 
 BASE_POSE   = (0.45, 0.45, -1.57)
-START_POSE  = (0.557, 0.626, 1.50)
+#START_POSE  = (0.557, 0.626, 1.50)
+START_POSE=(4.255, 5.228, 1.50)
 
-BUTTON_APPROACH = (4.50, 7.40, 1.50) # Nav2 stops here (precise heading)
+BUTTON_APPROACH = (4.45, 7.40, 1.57) # Nav2 stops here (precise heading)
 BUTTON_PUSH_SPEED = 0.10               # m/s, open-loop forward
-BUTTON_PUSH_TIME  = 2.0                # s
+BUTTON_PUSH_TIME  = 1.5                # s
 BUTTON_BACKOFF_SPEED = -0.10           # m/s, reverse after push
 BUTTON_BACKOFF_TIME  = 3            # s
+BUTTON_BACKOFF_STEP = 0.2
 
 BUTTON_ROTATE_SPEED    = 1.0           # rad/s during the 180° spin
 BUTTON_ROTATE_TIME     = math.pi / BUTTON_ROTATE_SPEED   # = π s for 180°
 
-DOOR_DWELL_S           = 10.0           # wait this long after backing off
-DOOR_PROBE_POSE        = (5.5, 2.0, 0.0)   # a point on the OTHER side of the door
+DOOR_DWELL_S           = 1           # wait this long after backing off
+DOOR_PROBE_POSE        = (2.21, 7.40, 3.14)   # a point on the OTHER side of the door 
 MAX_BUTTON_RETRIES     = 3
 
-DOOR_WAIT_S        = 5.0               # fallback dwell if no /door_open topic
+DOOR_WAIT_S        = 3.0               # fallback dwell dif no /door_open topic
 DOOR_TOPIC         = '/door_open'      # optional std_msgs/Bool, latched
 DOOR_USE_TOPIC     = False             # set True if you publish /door_open
 
@@ -55,7 +57,7 @@ WAYPOINTS_ZONE_B   = '/maps/arena/waypoints_left.yaml'
 ZONE_A_TIMEOUT_S   = 180.0
 ZONE_B_TIMEOUT_S   = 120.0
 
-NAV_GOAL_TIMEOUT_S = 60.0
+NAV_GOAL_TIMEOUT_S = 20.0
 PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 2
 
@@ -195,15 +197,29 @@ class MissionRunner(BasicNavigator):
         Returns True if the door eventually opened, False if we ran out of retries.
         """
         for attempt in range(1, MAX_BUTTON_RETRIES + 1):
-            self.get_logger().info(
-                f'BUTTON: attempt {attempt}/{MAX_BUTTON_RETRIES} — rotate 180°')
-            self._open_loop_rotate(BUTTON_ROTATE_SPEED, BUTTON_ROTATE_TIME)
+            backtrack_time = BUTTON_BACKOFF_TIME + (attempt - 1) * BUTTON_BACKOFF_STEP
+            
+            if(attempt == 1):
+                self.get_logger().info(f'BUTTON: attempt {attempt}/{MAX_BUTTON_RETRIES} — rotate 180°')
+                self._open_loop_rotate(BUTTON_ROTATE_SPEED, BUTTON_ROTATE_TIME)
+            else:
+                self.get_logger().info(f'BUTTON: attempt {attempt}/{MAX_BUTTON_RETRIES} — rotate 90°')
+                self._open_loop_rotate(BUTTON_ROTATE_SPEED / 2, BUTTON_ROTATE_TIME)
 
-            self.get_logger().info('BUTTON: backing into switch')
-            self._open_loop_drive(BUTTON_BACKOFF_SPEED, BUTTON_BACKOFF_TIME)
+            self.get_logger().info('BUTTON: backing into button')
+            self._open_loop_drive(BUTTON_BACKOFF_SPEED, backtrack_time)
 
-            self.get_logger().info(f'BUTTON: dwelling {DOOR_DWELL_S:.1f}s for door')
+            self.get_logger().info('BUTTON: moving back from button')
+            self._open_loop_drive(BUTTON_PUSH_SPEED, backtrack_time)
+
+            self.get_logger().info(f'BUTTON: pressing the button during {DOOR_DWELL_S}')
             time.sleep(DOOR_DWELL_S)
+
+            self.get_logger().info('BUTTON: rotate towards door')
+            self._open_loop_rotate(- BUTTON_ROTATE_SPEED / 2, BUTTON_ROTATE_TIME)
+
+            self.get_logger().info(f'BUTTON: waiting {DOOR_WAIT_S:.1f}s for door to open')
+            time.sleep(DOOR_WAIT_S)
 
             self.get_logger().info(
                 f'BUTTON: probing reachability to {DOOR_PROBE_POSE}')
@@ -214,8 +230,7 @@ class MissionRunner(BasicNavigator):
             self.get_logger().warn(
                 f'BUTTON: probe failed — door still closed, retrying')
 
-        self.get_logger().error(
-            f'BUTTON: door never opened after {MAX_BUTTON_RETRIES} attempts')
+        self.get_logger().error(f'BUTTON: door never opened after {MAX_BUTTON_RETRIES} attempts')
         return False
 
     # ── waypoint-grid exploration ─────────────────────────────────────────────
@@ -325,11 +340,13 @@ class MissionRunner(BasicNavigator):
         self.go_to(BUTTON_APPROACH, precise=False)
 
         # 2. Push it, wait for the door
-        self.push_button_and_wait_for_door()
         if not self.push_button_and_wait_for_door():
             self.get_logger().error('Aborting mission — could not open door')
             self.go_to(BASE_POSE)
             return
+        
+        # 3. Traverse the door
+        self.go_to(DOOR_PROBE_POSE, precise=False)
 
         # 3. Explore the zone behind the door
         self.explore_zone(WAYPOINTS_ZONE_A, ZONE_A_TIMEOUT_S, label='ZONE_A')

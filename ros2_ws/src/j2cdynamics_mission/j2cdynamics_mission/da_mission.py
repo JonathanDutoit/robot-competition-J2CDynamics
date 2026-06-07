@@ -26,7 +26,7 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-#  POSES & PATHS  (TODO: tune to your arena)
+#  POSES & PATHS  
 # ──────────────────────────────────────────────────────────────────────────────
 
 BASE_POSE   = (0.45, 0.45, -1.57)
@@ -43,25 +43,24 @@ BUTTON_BACKOFF_STEP = 0.2
 BUTTON_ROTATE_SPEED    = 1.0           # rad/s during the 180° spin
 BUTTON_ROTATE_TIME     = math.pi / BUTTON_ROTATE_SPEED   # = π s for 180°
 
-DOOR_DWELL_S           = 1           # wait this long after backing off
-DOOR_PROBE_POSE        = (2.21, 7.40, 3.14)   # a point on the OTHER side of the door 
+DOOR_DWELL_S           = 1                  # wait this long after backing off
+DOOR_PROBE_POSE        = (2.41, 7.50, 3.14)   # a point on the OTHER side of the door 
 MAX_BUTTON_RETRIES     = 3
 
-DOOR_WAIT_S        = 3.0               # fallback dwell dif no /door_open topic
-DOOR_TOPIC         = '/door_open'      # optional std_msgs/Bool, latched
-DOOR_USE_TOPIC     = False             # set True if you publish /door_open
+DOOR_WAIT_S        = 2.0               # fallback dwell dif no /door_open topic
 
-WAYPOINTS_ZONE_A   = '/maps/arena/waypoints_left.yaml'
-WAYPOINTS_ZONE_B   = '/maps/arena/waypoints_left.yaml'
+WAYPOINTS_ZONE_3  = '/maps/arena/waypoints_zone3.yaml'
+WAYPOINTS_ZONE_1   = '/maps/arena/waypoints_zone1.yaml'
 
-ZONE_A_TIMEOUT_S   = 180.0
-ZONE_B_TIMEOUT_S   = 120.0
+TIMEOUT_ZONE_3 = 180.0
+TIMEOUT_ZONE_1 = 120.0
+MISSION_TIMEOUT = 600.0
 
 NAV_GOAL_TIMEOUT_S = 20.0
 PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 2
 
-RAMP_VEL_TOPIC     = 'ramp_vel'        # high-priority twist_mux input
+DUPLO_COUNT_ZONE_3 = 6
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -91,8 +90,6 @@ class MissionRunner(BasicNavigator):
     def __init__(self) -> None:
         super().__init__('mission_runner')
 
-        self._ramp_pub = self.create_publisher(Twist, RAMP_VEL_TOPIC, 10)
-
         # Goal-checker selector (latched, transient_local — survives late subscribers)
         gc_qos = QoSProfile(depth=1, history=HistoryPolicy.KEEP_LAST,
                             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -101,13 +98,6 @@ class MissionRunner(BasicNavigator):
 
         # ComputePathToPose action client for reachability checks
         self._plan_client = ActionClient(self, ComputePathToPose, '/compute_path_to_pose')
-
-        # Optional door signal
-        self._door_open = False
-        if DOOR_USE_TOPIC:
-            self.create_subscription(Bool, DOOR_TOPIC,
-                                     lambda m: setattr(self, '_door_open', bool(m.data)),
-                                     10)
 
     # ── primitives ────────────────────────────────────────────────────────────
 
@@ -134,7 +124,6 @@ class MissionRunner(BasicNavigator):
 
     def _open_loop_drive(self, speed_m_s: float, duration_s: float,
                          hz: float = 20.0) -> None:
-        """Constant-velocity twist on ramp_vel for duration_s."""
         cmd = Twist()
         cmd.linear.x = float(speed_m_s)
         period = 1.0 / hz
@@ -175,7 +164,6 @@ class MissionRunner(BasicNavigator):
 
     def _open_loop_rotate(self, yaw_rate: float, duration_s: float,
                       hz: float = 20.0) -> None:
-        """Constant angular twist on ramp_vel for duration_s."""
         cmd = Twist()
         cmd.angular.z = float(yaw_rate)
         period = 1.0 / hz
@@ -337,7 +325,7 @@ class MissionRunner(BasicNavigator):
         self.get_logger().info('Nav2 active — mission start')
 
         # 1. Go to the button
-        self.go_to(BUTTON_APPROACH, precise=False)
+        self.go_to(BUTTON_APPROACH, precise=True)
 
         # 2. Push it, wait for the door
         if not self.push_button_and_wait_for_door():
@@ -346,18 +334,21 @@ class MissionRunner(BasicNavigator):
             return
         
         # 3. Traverse the door
-        self.go_to(DOOR_PROBE_POSE, precise=False)
+        self.go_to(DOOR_PROBE_POSE, precise=True)
 
-        # 3. Explore the zone behind the door
-        self.explore_zone(WAYPOINTS_ZONE_A, ZONE_A_TIMEOUT_S, label='ZONE_A')
+        # 4. Explore the zone behind the door
+        self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3')
+        
+        # 5. Go back to button pose
+        self.go_to(BUTTON_APPROACH, precise=True)
 
-        # 4. Back to base
+        # 6. Back to base
         self.go_to(BASE_POSE)
 
-        # 5. Explore the second zone
-        self.explore_zone(WAYPOINTS_ZONE_B, ZONE_B_TIMEOUT_S, label='ZONE_B')
+        # 7. Explore the second zone
+        self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
 
-        # 6. Home
+        # 8. Home
         self.go_to(BASE_POSE)
 
         self.get_logger().info('MISSION COMPLETE')

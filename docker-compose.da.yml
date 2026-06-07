@@ -116,7 +116,7 @@ services:
         condition: service_healthy
       driver:
         condition: service_healthy
-    command: ros2 launch j2cdynamics_bringup robot.launch.py use_teleop:=true mode:=localization  map:=/maps/arena/map amcl_yaml:=da_amcl.yaml
+    command: ros2 launch j2cdynamics_bringup robot.launch.py use_teleop:=true mode:=localization  map:=/maps/arena/map amcl_yaml:=da_amcl.yaml nav2_yaml:=da_nav2_params.yaml
     healthcheck:
       test:
         [
@@ -146,7 +146,7 @@ services:
     depends_on:
       navigation:
         condition: service_healthy
-    command: ros2 launch j2cdynamics_bringup mission.launch.py 
+    command: ros2 launch j2cdynamics_bringup da_mission.launch.py 
 
   simulation:
     build: 

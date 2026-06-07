@@ -5,7 +5,7 @@ from launch.actions import (
     IncludeLaunchDescription
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition
 from ament_index_python.packages import get_package_share_directory
 
@@ -20,6 +20,12 @@ def generate_launch_description():
     localization_launch = os.path.join(bringup_share, 'launch', 'localization.launch.py')
     navigation_launch = os.path.join(bringup_share, 'launch', 'navigation.launch.py')
 
+    nav2_params_file = PathJoinSubstitution([
+        bringup_share,
+        'config',
+        LaunchConfiguration('nav2_yaml')
+    ])
+    
     teleop = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(teleop_launch),
         launch_arguments={
@@ -42,6 +48,7 @@ def generate_launch_description():
         launch_arguments={
             'mode': mode,
             'map': map_file,
+            'params_file': nav2_params_file,
         }.items(),
     )
 
@@ -54,6 +61,9 @@ def generate_launch_description():
 
         DeclareLaunchArgument('map', default_value='',
             description='Path to saved map (no extension). Required in localization mode.'),
+
+        DeclareLaunchArgument('nav2_yaml', default_value='nav2_params.yaml', 
+            description="Path to the nav2 parameters yaml"),
 
         teleop,
         localization,

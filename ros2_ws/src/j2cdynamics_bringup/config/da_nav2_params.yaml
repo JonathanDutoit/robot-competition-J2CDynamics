@@ -258,7 +258,7 @@ local_costmap:
       height:     3              # m
       resolution: 0.05           # m/cell
       # Base link length 204 + trailer length 180 (204 + 180) / 2 = 19.2. Base link width = 460 
-      footprint: "[[0.192,  0.230], [ 0.192, -0.230], [-0.192, -0.230], [-0.192,  0.230]]"
+      footprint: "[[0.240,  0.231], [ 0.240, -0.231], [-0.240, -0.231], [-0.240,  0.231]]"
       plugins:
         - voxel_layer
         - inflation_layer

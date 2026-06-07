@@ -22,7 +22,7 @@ fi
 
 
 # ── Device symlinks (failsafe) ────────────────────────────────────────────────
-ARDUINO_BY_ID="/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_95736323632351D040D1-if00"
+ARDUINO_BY_ID=$(ls /dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_* 2>/dev/null | head -n1)
 
 link_device() {
   local src="$1"

@@ -10,8 +10,6 @@ if [ -n "$CYCLONEDDS_URI" ]; then
 fi
 
 cd "$ROS_WS"
-
-cd "$ROS_WS"
 echo "[entrypoint] Building workspace..."
 colcon build --symlink-install
 

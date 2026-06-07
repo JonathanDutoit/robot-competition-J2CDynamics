@@ -6,10 +6,10 @@
 
 	<xacro:property name="mm_to_m" value="0.001"/>
 
-	<xacro:property name="base_link_length" value="${204 * mm_to_m}"/>
-	<xacro:property name="base_link_width" value="${460 * mm_to_m}"/>
-	<xacro:property name="base_link_height" value="${156 * mm_to_m}"/>
-	<xacro:property name="base_link_ground_clearance" value="${20.5 * mm_to_m}"/>
+	<xacro:property name="base_link_length" value="${240 * mm_to_m}"/>
+	<xacro:property name="base_link_width" value="${433 * mm_to_m}"/>
+	<xacro:property name="base_link_height" value="${224 * mm_to_m}"/>
+	<xacro:property name="base_link_ground_clearance" value="${23 * mm_to_m}"/>
 
 	<xacro:property name="ball_wheels_radius" value="${9.5 * mm_to_m}"/>
 	<xacro:property name="ball_wheels_x_offset" value="${79.3 * mm_to_m}"/>
@@ -17,29 +17,29 @@
 
 	<xacro:property name="wheels_radius" value="${55.5 * mm_to_m}"/>
 	<xacro:property name="wheels_width" value="${44 * mm_to_m}"/>
-	<xacro:property name="wheels_x_offset" value="${40 * mm_to_m}"/>
-	<xacro:property name="wheels_spacing" value="${414.7 * mm_to_m}"/>
+	<xacro:property name="wheels_x_offset" value="${75 * mm_to_m}"/>
+	<xacro:property name="wheels_spacing" value="${384 * mm_to_m}"/>
 
-	<xacro:property name="trailer_length" value="${180 * mm_to_m}"/>
-	<xacro:property name="trailer_width" value="${265 * mm_to_m}"/>
-	<xacro:property name="trailer_height" value="${156 * mm_to_m}"/>
-	<xacro:property name="trailer_ground_clearance" value="${20.5 * mm_to_m}"/>
-	<xacro:property name="trailer_visual_x_offset" value="${158 * mm_to_m}"/>
+	<xacro:property name="trailer_length" value="${160 * mm_to_m}"/>
+	<xacro:property name="trailer_width" value="${243 * mm_to_m}"/>
+	<xacro:property name="trailer_height" value="${145 * mm_to_m}"/>
+	<xacro:property name="trailer_ground_clearance" value="${7.5 * mm_to_m}"/>
+	<xacro:property name="trailer_visual_x_offset" value="${165 * mm_to_m}"/>
 
-	<xacro:property name="trailer_axis_x_offset" value="${78 * mm_to_m}"/>
-	<xacro:property name="trailer_axis_height" value="${100.5 * mm_to_m}"/>
+	<xacro:property name="trailer_axis_x_offset" value="${80 * mm_to_m}"/>
+	<xacro:property name="trailer_axis_height" value="${100.2 * mm_to_m}"/>
 
-	<xacro:property name="caster_wheels_radius" value="${16 * mm_to_m}"/>
+	<xacro:property name="caster_wheels_radius" value="${27.5 * mm_to_m}"/>
 	<xacro:property name="caster_wheels_x_offset" value="${215 * mm_to_m}"/>
-	<xacro:property name="caster_wheels_spacing" value="${331.2 * mm_to_m}"/>
+	<xacro:property name="caster_wheels_spacing" value="${320 * mm_to_m}"/>
 
 	<xacro:property name="lidar_radius" value="${35 * mm_to_m}"/>
 	<xacro:property name="lidar_height" value="${20 * mm_to_m}"/>
-	<xacro:property name="lidar_x_offset" value="${85 * mm_to_m}"/>
-	<xacro:property name="lidar_z_offset" value="${252 * mm_to_m}"/>
+	<xacro:property name="lidar_x_offset" value="${67 * mm_to_m}"/>
+	<xacro:property name="lidar_z_offset" value="${233 * mm_to_m}"/>
 	<xacro:property name="lidar_mass" value="${0.170}"/>
 
-	<xacro:property name="total_mass" value="3.1"/>
+	<xacro:property name="total_mass" value="3.8"/>
 
 	<xacro:include filename="materials.xacro"/>
 	<xacro:include filename="do_inertia.xacro"/>

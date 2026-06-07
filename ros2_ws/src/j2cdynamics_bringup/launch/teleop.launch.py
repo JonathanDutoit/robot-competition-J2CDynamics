@@ -29,7 +29,7 @@ def generate_launch_description():
                 name='teleop_twist_joy_node',
                 parameters=[teleop_config],
                 condition=IfCondition(use_joy),
-                remappings=[('/cmd_vel', '/cmd_vel')]
+                remappings=[('/cmd_vel', '/teleop_vel')]
             )
     
     teleop_keyboard_node = Node(
@@ -38,7 +38,8 @@ def generate_launch_description():
                 name='teleop_twist_keyboard',
                 prefix='xterm -e',   
                 output='screen',
-                condition=IfCondition(use_keyboard)
+                condition=IfCondition(use_keyboard),
+                remappings=[('/cmd_vel', '/teleop_vel')]   
     )
 
     return LaunchDescription([

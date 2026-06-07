@@ -43,13 +43,16 @@ RUN git reset --hard 6cf6e88715ac034f568603bce9a1b8f4a30c12ce \
 RUN apt update && apt install -y \
       python3-piexif python3-prctl python3-numpy python3-opencv \
       ros-humble-rmw-cyclonedds-cpp \ 
+      ros-humble-vision-msgs \
+      ros-humble-cv-bridge \
     && pip3 install --upgrade pip \
     && pip3 install \
         "numpy<2" \
         pyprctl \
         flask \
         onnxruntime \
-        picamera2==0.3.21
+        picamera2==0.3.21 \
+        python-statemachine
 
 # 5. Environment setup & Manual Link Fix
 # We use hardcoded 3.10 paths since ROS Humble is Ubuntu 22.04 (Python 3.10)
@@ -71,16 +74,6 @@ RUN echo "--- DIAGNOSTICS ---" && \
     python3 -c "import pykms; print('✓ pykms imported')" && \
     python3 -c "from picamera2 import Picamera2; print('✓ picamera2 imported')"
 
-# ROS package setup
-WORKDIR /app
-RUN mkdir -p /app/src
-COPY ros2_ws/src/j2cdynamics_camera /app/src/j2cdynamics_camera
-COPY camera/model/best_int8.onnx /app/model/best_int8.onnx
-
-RUN source /opt/ros/$ROS_DISTRO/setup.bash \
-    && cd /app \
-    && rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO \
-    && colcon build --base-paths src --event-handlers=console_direct+
 
 COPY docker/camera/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

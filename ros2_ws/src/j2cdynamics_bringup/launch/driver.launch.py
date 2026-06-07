@@ -67,9 +67,28 @@ def generate_launch_description():
         actions=[diff_drive_controller_spawner],
     )
 
+    twist_mux = Node(
+        package='twist_mux',
+        executable='twist_mux',
+        name='twist_mux',
+        parameters=[os.path.join(bringup_dir, 'config', 'twist_mux.yaml')],
+        remappings=[
+            ('cmd_vel_out', '/cmd_vel'),
+        ],
+    )
+
+    diagnostics = Node(
+        package='j2cdynamics_diagnostics', 
+        executable='robot_stats_publisher',
+        name='robot_stats_publisher', 
+        output='screen'
+    )
+
     return LaunchDescription([
         robot_state_publisher_node,
         controller_manager_node,
         delayed_joint_state_spawner,
         delayed_diff_drive_spawner,
+        twist_mux, 
+        diagnostics
     ])

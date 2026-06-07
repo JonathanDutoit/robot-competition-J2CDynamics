@@ -2,18 +2,22 @@
 
 #include <common/ISpeedControllable.hpp>
 #include <common/IUpdatable.hpp>
+#include <common/data/robot_command.hpp>
+#include <common/data/robot_state.hpp>
 
 class DifferentialDriveController: public IUpdatable {
     public:
-        DifferentialDriveController(ISpeedControllable* leftController, 
-                                    ISpeedControllable* rightController);
-        void init();
-        void update();
-        void setVelocities(float leftRadPerSec, float rightRadPerSec);
-        void getVelocities(float& leftRadPerSec, float& rightRadPerSec);
+        DifferentialDriveController(
+            ISpeedControllable* leftController, ISpeedControllable* rightController,
+            RobotCommand& cmd, RobotState& state
+        );
+        void init() override;
+        void update() override;
+        void getVelocities();
     private:
-        ISpeedControllable* leftController;
-        ISpeedControllable* rightController;
-        float _targetLeftVel = 0;
-        float _targetRightVel = 0;
+        void _applyVelocities(const RobotCommand& cmds);
+        ISpeedControllable* _leftController;
+        ISpeedControllable* _rightController;
+        RobotCommand& _cmd;
+        RobotState& _state;
 };

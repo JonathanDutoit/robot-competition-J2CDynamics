@@ -11,8 +11,8 @@ enum class State {
 class DuploCounter: public IUpdatable {
     public:
         DuploCounter(uint8_t sensorPin);
-        void init();
-        void update();
+        void init() override;
+        void update() override;
         uint8_t getCount() const;
         void reset();
     private:

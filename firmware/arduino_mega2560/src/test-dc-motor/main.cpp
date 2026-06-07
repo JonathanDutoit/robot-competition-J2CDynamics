@@ -3,13 +3,19 @@
 #include <do2/drivers/dri0018_driver_channel.hpp>
 #include <common_config.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
+#include <common/data/robot_command.hpp>
+#include <common/data/robot_state.hpp>
+
+// Global instances
+RobotCommand cmd;
+RobotState state;
 
 DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR, 
 							   PIN_LEFT_SWEEPER_CURR_SENSE);
 DRI0018DriverChannel rightMotor(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR, 
 								PIN_RIGHT_SWEEPER_CURR_SENSE);
 
-DifferentialDriveController sweepersController(&leftMotor, &rightMotor);
+DifferentialDriveController sweepersController(&leftMotor, &rightMotor, cmd, state);
 
 void setup(void)
 {
@@ -19,7 +25,12 @@ void setup(void)
 	// initialize DRI0018 motor driver channels
 	leftMotor.init();
 	rightMotor.init();
-	}
+
+	// initialize the differential drive controller
+	sweepersController.init();
+
+	Serial.println("Sweeper test bench started");
+}
 
 void loop(void)
 {
@@ -60,10 +71,14 @@ void loop(void)
 		Serial.print(" | Right Speed (rad/s): ");
 		Serial.println(rightSpeed);
 
-		sweepersController.setVelocities(leftSpeed, rightSpeed);
+		cmd.leftWheelVelocity = leftSpeed;
+		cmd.rightWheelVelocity = rightSpeed;
+
+		sweepersController.update();
     } else {
 		Serial.println("Error reading serial input");
-		sweepersController.setVelocities(0.0f, 0.0f); // Stop the motors on error
+		cmd.leftWheelVelocity = 0.0f;
+		cmd.rightWheelVelocity = 0.0f;
 	}
   }
 }

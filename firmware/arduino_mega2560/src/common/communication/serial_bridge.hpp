@@ -8,14 +8,17 @@
 class SerialBridge: public IUpdatable {
     public:
         SerialBridge(RobotCommand&, RobotState&);
-        void init();
-        void update();
+        void init() override;
+        void update() override;
     
     private:
-        bool _parseInput(String input, char* command, int& parsedCount);
-        void _handleSpeedCommand(float leftVel, float rightVel);
-        void _handleOdometryCommand();
-        void _handleDuploCountCommand();
+        bool _parseInput(
+            String input, char* command, float& arg_left, 
+            float& arg_right, int& parsedCount
+        );
+        void _setNextSpeedCommand(float leftVel, float rightVel);
+        void _sendOdometry();
+        void _sendDuploCountCommand();
         
         RobotCommand& _cmd;
         RobotState& _state;

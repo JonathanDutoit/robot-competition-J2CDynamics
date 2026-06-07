@@ -26,6 +26,11 @@
 // --- Sharp IR Sensor ---
 #define PIN_DUPLO_IR_SENSOR          A9
 
+// -----------------------------------
+// --- COMMUNICATION CONFIGURATION ---
+// -----------------------------------
+#define SERIAL_BAUD_RATE             115200
+
 
 // ------------------------------
 // ---------- ARDUINO -----------

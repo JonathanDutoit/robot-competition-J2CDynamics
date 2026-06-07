@@ -1,4 +1,4 @@
-#include <common/periodic_task.hpp>
+#include <common/scheduler/periodic_task.hpp>
 
 PeriodicTask::PeriodicTask(uint32_t periodMs): _period(periodMs){}
 

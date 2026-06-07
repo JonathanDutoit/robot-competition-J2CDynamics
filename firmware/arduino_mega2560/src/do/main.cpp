@@ -6,7 +6,7 @@
 #include <common/drivers/escon_driver.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
 #include <common/sensors/duplo_counter.hpp>
-#include <common/periodic_task.hpp>
+#include <common/scheduler/periodic_task.hpp>
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -30,7 +30,7 @@ bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, in
 void setup()
 {
   //initialize the serial port
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // initialize Escon motor drivers
   leftMotor.init();

@@ -1,13 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
+#include <common/IUpdatable.hpp>
 
 enum class State {
     NO_DUPLO,
     DUPLO_PRESENT
 };
 
-class DuploCounter {
+class DuploCounter: public IUpdatable {
     public:
         DuploCounter(uint8_t sensorPin);
         void init();

@@ -5,6 +5,8 @@
 #include <common_config.hpp>
 #include <common/drivers/escon_driver.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
+#include <common/sensors/duplo_counter.hpp>
+#include <common/periodic_task.hpp>
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -12,37 +14,46 @@ EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR,
 EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_DIR, 
                         PIN_RIGHT_MAXON_READY, PIN_RIGHT_MAXON_SPEED_ANA, 
                         PIN_RIGHT_MAXON_CURR_ANA);
-
 DifferentialDriveController driveController(&leftMotor, &rightMotor); // Example wheel diameter and gear ratio
 
-struct Measurement {
-    float leftWheelRadPerSec;
-    float rightWheelRadPerSec;
-    float leftMotorCurrentA;
-    float rightMotorCurrentA;
-};
-Measurement measurement;
+DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
 
+// Define tasks schedule
+PeriodicTask duploTask(20);
+
+void process_serial_input();
 void set_speed_command(float leftPWM, float rightPWM);
 void get_odometry();
+void get_duplo_count();
 bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount);
 
 void setup()
 {
   //initialize the serial port
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   // initialize Escon motor drivers
   leftMotor.init();
   rightMotor.init();
+
+  // initialize sensors
+  duploCounter.init();
 }
 
 void loop()
 {
+  if (duploTask.ready()){
+      duploCounter.update();
+  }
+
+  process_serial_input();
+}
+
+void process_serial_input() {
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
 
-    char command[10];
+    char command[12];
     float leftPWM = 0, rightPWM = 0;
     int parsedCount = 0;
 
@@ -56,11 +67,24 @@ void loop()
     if (strcmp(command, "SPEED") == 0) {
       if (parsedCount == 3) {
         set_speed_command(leftPWM, rightPWM);
+      }
+    } 
+    
+    // ── ODOMETRY command ────────────────────────────
+    else if (strcmp(command, "ODOMETRY") == 0) {
+      get_odometry();
     }
 
-    // ── ODOMETRY command ────────────────────────────
-    } else if (strcmp(command, "ODOMETRY") == 0) {
-      get_odometry();
+    // ── DUPLO COUNT command ─────────────────────────────
+    else if (strcmp(command, "DUPLO_COUNT") == 0) {
+      get_duplo_count();
+    }
+
+    // ── UNKNOWN command ─────────────────────────────
+    else {
+      Serial.print("ERROR: Unknown command '");
+      Serial.print(command);
+      Serial.println("'");
     }
   }
 }
@@ -84,6 +108,13 @@ void get_odometry() {
   Serial.println(" rad/s ");
 }
 
+void get_duplo_count() {
+  uint8_t count = duploCounter.getCount();
+
+  Serial.print("DUPLO_COUNT: ");
+  Serial.println(count);
+}
+
 bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount) {
   input.trim();
 
@@ -96,8 +127,8 @@ bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, in
   char* token = strtok(buffer, " \r\n");
   if (!token) return false;
 
-  strncpy(command, token, 10);  // copy safely
-  command[9] = '\0';            // ensure null termination
+  strncpy(command, token, 12);  // copy safely
+  command[11] = '\0';            // ensure null termination
   parsedCount++;
 
   // leftPWM

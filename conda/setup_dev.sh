@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
-# !! Must be run as: source setup_dev.sh  (not bash setup_dev.sh)
+# !! Must be run as: source setup_dev.sh [robot_name]
+# Examples:
+#   source setup_dev.sh do     # Loads docker/do.env
+#   source setup_dev.sh da     # Loads docker/da.env
+#   source setup_dev.sh        # Loads docker/.env (default)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../docker/.env"
+
+# ── Parse robot name argument ─────────────────────────────────────────────────
+ROBOT_NAME="${1:-}"  # First argument, empty if not provided
+
+if [[ -n "$ROBOT_NAME" ]]; then
+    ENV_FILE="$SCRIPT_DIR/../docker/${ROBOT_NAME}.env"
+    echo "Loading environment for robot: $ROBOT_NAME"
+else
+    ENV_FILE="$SCRIPT_DIR/../docker/.env"
+    echo "Loading default environment"
+fi
+
 DDS_CONFIG="$SCRIPT_DIR/../dds/cyclonedds_dev.xml"
 
 # ── Init conda shell hooks (required for conda activate to work) ──────────────
@@ -20,7 +35,7 @@ fi
 
 __conda_setup="$("$CONDA_BIN" 'shell.bash' 'hook' 2>/dev/null)"
 
-# ── Load .env ─────────────────────────────────────────────────────────────────
+# ── Load env file ─────────────────────────────────────────────────────────────
 if [[ -f "$ENV_FILE" ]]; then
   while IFS='=' read -r key value; do
     # skip comments, blank lines, and readonly bash vars
@@ -28,6 +43,14 @@ if [[ -f "$ENV_FILE" ]]; then
     [[ "$key" =~ ^(UID|GID|USER|GROUPS|BASH.*)$ ]] && continue
     export "$key"="$value"
   done < "$ENV_FILE"
+  echo "✔ Loaded: $ENV_FILE"
+else
+  echo "⚠ WARNING: Env file not found: $ENV_FILE"
+fi
+
+# ── Set robot name explicitly ─────────────────────────────────────────────────
+if [[ -n "$ROBOT_NAME" ]]; then
+    export ROBOT_NAME="$ROBOT_NAME"
 fi
 
 # ── Activate conda env ────────────────────────────────────────────────────────
@@ -43,5 +66,6 @@ if [[ -f "$SCRIPT_DIR/../ros2_ws/install/setup.bash" ]]; then
 fi
 
 echo "✔ ROS 2 Humble dev environment ready"
+echo "  Robot:        ${ROBOT_NAME:-default}"
 echo "  CYCLONEDDS_URI=${CYCLONEDDS_URI}"
 echo "  ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}"

@@ -12,7 +12,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration, PythonExpression, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch.conditions import IfCondition
 
@@ -22,8 +22,9 @@ def generate_launch_description():
 
     mode = LaunchConfiguration('mode')
     map_file = LaunchConfiguration('map')
+    amcl_file = LaunchConfiguration('amcl_yaml')
 
-    amcl_params_file = os.path.join(bringup_dir, 'config', 'amcl.yaml')
+    amcl_params_file = PathJoinSubstitution([bringup_dir, 'config', amcl_file])
 
     is_localization = IfCondition(PythonExpression(["'", mode, "' == 'localization'"]))
     is_mapping      = IfCondition(PythonExpression(["'", mode, "' == 'mapping'"]))
@@ -116,6 +117,8 @@ def generate_launch_description():
                               description="Path to the saved map WITHOUT extension "
                                           "(map_server reads <map>.yaml, keepout reads "
                                           "<map>_keepout.yaml). Required in localization mode."),
+        DeclareLaunchArgument('amcl_yaml', default_value='amcl.yaml',
+                              description="Path to the amcl yaml"),
         slam_mapping,
         map_server,
         amcl,

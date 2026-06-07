@@ -19,4 +19,5 @@ class DuploCounter {
         float _baselineAdc;
         uint8_t _count = 0;
         State _state = State::NO_DUPLO;
+        uint32_t _ignoreUntil = 0;
 };

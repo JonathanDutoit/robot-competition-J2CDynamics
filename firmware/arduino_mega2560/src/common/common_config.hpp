@@ -81,5 +81,6 @@
 #define BASELINE_MEASUREMENT_COUNT     50 // Number of readings to average for baseline
 #define DUPLO_DETECTION_DELTA          20.0f // ADC units above baseline to detect presence
 #define DUPLO_RELEASE_DETECTION_DELTA  10.0f // ADC units below baseline to release presence
+#define DUPLO_DETECTION_REFRACTORY_MS  1000 // Time to ignore further detections after a valid one (in milliseconds)
 
 #endif

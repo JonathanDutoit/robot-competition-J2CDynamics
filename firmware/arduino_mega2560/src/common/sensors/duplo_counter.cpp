@@ -16,6 +16,10 @@ void DuploCounter::init() {
 }
 
 void DuploCounter::update() {
+    uint32_t now = millis();
+    if (now < _ignoreUntil) {
+        return;
+    }
 
     uint16_t raw = analogRead(_sensorPin);
     float delta = raw - _baselineAdc;
@@ -32,6 +36,9 @@ void DuploCounter::update() {
             if (delta < DUPLO_RELEASE_DETECTION_DELTA) {
                 _count++;
                 _state = State::NO_DUPLO;
+                
+                // start refractory period
+                _ignoreUntil = now + DUPLO_DETECTION_REFRACTORY_MS;
             }
             break;
     }

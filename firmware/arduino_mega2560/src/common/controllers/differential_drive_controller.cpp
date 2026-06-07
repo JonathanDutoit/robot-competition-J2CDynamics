@@ -16,7 +16,7 @@ void DifferentialDriveController::init() {
 
 void DifferentialDriveController::update() {
     _leftController->setVelocity(_cmd.leftWheelVelocity);
-    _rightController->setVelocity(_cmd.rightWheelVelocity);
+    _rightController->setVelocity(-_cmd.rightWheelVelocity);
 }
 
 void DifferentialDriveController::getVelocities() {

@@ -51,6 +51,6 @@ def generate_launch_description():
         DeclareLaunchArgument('params_file', default_value='nav2_params.yaml',
                               description="nav2 parameters file"),
         nav2,
-        collision_monitor,
+        #collision_monitor,
         collision_lifecycle,
     ])

@@ -46,7 +46,7 @@ DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
 PeriodicTask controlTask(20); // 20 ms period for control loop (50 Hz)
 PeriodicTask duploTask(100); // 100 ms period for duplo counter update (10 Hz)
 PeriodicTask sweepersTask(20); // 50 ms period for sweepers control loop (50 Hz)
-PeriodicTask plateTurningTask(10); // 10 ms period for plate control loop (100 Hz)
+PeriodicTask plateTurningTask(0.1); // 0.1 ms period for plate control loop (10000 Hz)
 
 void setup()
 {

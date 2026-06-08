@@ -15,6 +15,8 @@ void SweeperController::update() {
             }
             else if (_cmd.mode == SweeperMode::Dropoff) {
                 _startDropoff();
+            } else {
+                _stopBrushes();
             }
             break;
 

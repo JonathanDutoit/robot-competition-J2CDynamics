@@ -143,6 +143,7 @@ services:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_mission:/ros2_ws/src/j2cdynamics_mission
+      - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps
     depends_on:
       navigation:
         condition: service_healthy

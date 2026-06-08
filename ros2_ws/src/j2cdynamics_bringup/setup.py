@@ -13,9 +13,17 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
 
-        (os.path.join('share', 'j2cdynamics_bringup', 'launch'), glob('launch/*.launch.py')),
-        (os.path.join('share', 'j2cdynamics_bringup', 'config'), glob('config/*.yaml')),
-        (os.path.join('share', 'j2cdynamics_bringup', 'behavior_trees'), glob('behavior_trees/*.xml')),
+        (os.path.join('share', package_name, 'launch'),
+            glob(os.path.join('launch', '*.launch.py'))),
+
+        (os.path.join('share', package_name, 'maps'),
+            glob(os.path.join(os.path.dirname(__file__), 'arena', '*.yaml'))),
+
+        (os.path.join('share', package_name, 'config'),
+            glob(os.path.join(os.path.dirname(__file__), 'config', '*.yaml'))),
+
+        (os.path.join('share', package_name, 'behavior_trees'),
+            glob(os.path.join(os.path.dirname(__file__), 'behavior_trees', '*.xml'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

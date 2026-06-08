@@ -13,6 +13,8 @@ Duplos are caught passively (robot rolls over them); no detection FSM.
 import math
 import time
 import yaml
+import threading 
+import os
 
 import rclpy
 from rclpy.action import ActionClient
@@ -29,38 +31,40 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 #  POSES & PATHS  
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE   = (0.45, 0.45, -1.57)
-#START_POSE  = (0.557, 0.626, 1.50)
-START_POSE=(4.255, 5.228, 1.50)
+BASE_POSE   = (0.45, 0.45, 1.57)
+START_POSE  = (0.557, 0.626, 1.57)
+#START_POSE=(4.255, 5.228, 1.50)
 
 BUTTON_APPROACH = (4.45, 7.40, 1.57) # Nav2 stops here (precise heading)
-BUTTON_PUSH_SPEED = 0.10               # m/s, open-loop forward
-BUTTON_PUSH_TIME  = 1.5                # s
-BUTTON_BACKOFF_SPEED = -0.10           # m/s, reverse after push
-BUTTON_BACKOFF_TIME  = 3            # s
+BUTTON_PUSH_SPEED = 0.20               # m/s, open-loop forward
+BUTTON_BACKOFF_TIME  = 2.0            # s
 BUTTON_BACKOFF_STEP = 0.2
 
 BUTTON_ROTATE_SPEED    = 1.0           # rad/s during the 180° spin
 BUTTON_ROTATE_TIME     = math.pi / BUTTON_ROTATE_SPEED   # = π s for 180°
 
-DOOR_DWELL_S           = 1                  # wait this long after backing off
-DOOR_PROBE_POSE        = (2.41, 7.50, 3.14)   # a point on the OTHER side of the door 
+DOOR_DWELL_S           = 0.5                # wait this long after backing off
+DOOR_PROBE_POSE        = (2.21, 7.60, 3.14)   # a point on the OTHER side of the door 
 MAX_BUTTON_RETRIES     = 3
 
-DOOR_WAIT_S        = 2.0               # fallback dwell dif no /door_open topic
+DOOR_WAIT_S        = 2               # fallback dwell dif no /door_open topic
 
 WAYPOINTS_ZONE_3  = '/maps/arena/waypoints_zone3.yaml'
-WAYPOINTS_ZONE_1   = '/maps/arena/waypoints_zone1.yaml'
+WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_da.yaml'
 
-TIMEOUT_ZONE_3 = 180.0
-TIMEOUT_ZONE_1 = 120.0
+TIMEOUT_ZONE_3 = 200.0
+TIMEOUT_ZONE_1 = 160.0
+
 MISSION_TIMEOUT = 600.0
+MISSION_CLOSING_TIME = 60.0
 
-NAV_GOAL_TIMEOUT_S = 20.0
+NAV_GOAL_TIMEOUT_S = 45.0
 PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 2
 
 DUPLO_COUNT_ZONE_3 = 6
+
+RAMP_VEL_TOPIC     = 'ramp_vel'        # high-priority twist_mux input
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -80,6 +84,9 @@ def make_pose(x: float, y: float, yaw: float, frame: str = 'map') -> PoseStamped
 def node_key(wp):
     return (round(float(wp[0]), 3), round(float(wp[1]), 3))
 
+# Helper exception for the mission time handling 
+class MissionAbortException(Exception):
+    pass
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  MISSION RUNNER
@@ -90,6 +97,8 @@ class MissionRunner(BasicNavigator):
     def __init__(self) -> None:
         super().__init__('mission_runner')
 
+        self._ramp_pub = self.create_publisher(Twist, RAMP_VEL_TOPIC, 10)
+
         # Goal-checker selector (latched, transient_local — survives late subscribers)
         gc_qos = QoSProfile(depth=1, history=HistoryPolicy.KEEP_LAST,
                             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -99,17 +108,34 @@ class MissionRunner(BasicNavigator):
         # ComputePathToPose action client for reachability checks
         self._plan_client = ActionClient(self, ComputePathToPose, '/compute_path_to_pose')
 
+        # Watchdog for end of mission time handling 
+        self.abort_event = threading.Event()
+        self.mission_start = 0.0
+
+    def _supervisor(self):
+        while rclpy.ok():
+            elapsed = time.time() - self.mission_start
+            if MISSION_TIMEOUT - elapsed <= MISSION_CLOSING_TIME:
+                self.abort_event.set()
+                self.get_logger().warn(f'MISSION ABORT – only ≤{MISSION_CLOSING_TIME}s left')
+                self.cancelTask()                 # kill Nav2 goal
+                self._ramp_pub.publish(Twist())   # stop open‑loop motion
+                break
+            time.sleep(0.2)
+
     # ── primitives ────────────────────────────────────────────────────────────
 
     def _select_goal_checker(self, name: str) -> None:
         self._gc_pub.publish(String(data=name))
         time.sleep(0.1)
 
-    def go_to(self, pose_tuple, timeout_s: float = NAV_GOAL_TIMEOUT_S,
-              precise: bool = False) -> bool:
-        self._select_goal_checker(
-            'precise_goal_checker' if precise else 'general_goal_checker')
+    def go_to(self, pose_tuple, timeout_s: float = NAV_GOAL_TIMEOUT_S, precise: bool = False) -> bool:
+        if self.abort_event.is_set():
+            raise MissionAbortException()
+
+        self._select_goal_checker('precise_goal_checker' if precise else 'general_goal_checker')
         self.goToPose(make_pose(*pose_tuple))
+
         t0 = time.time()
         while not self.isTaskComplete():
             if time.time() - t0 > timeout_s:
@@ -195,13 +221,13 @@ class MissionRunner(BasicNavigator):
                 self._open_loop_rotate(BUTTON_ROTATE_SPEED / 2, BUTTON_ROTATE_TIME)
 
             self.get_logger().info('BUTTON: backing into button')
-            self._open_loop_drive(BUTTON_BACKOFF_SPEED, backtrack_time)
-
-            self.get_logger().info('BUTTON: moving back from button')
-            self._open_loop_drive(BUTTON_PUSH_SPEED, backtrack_time)
+            self._open_loop_drive(-BUTTON_PUSH_SPEED, backtrack_time)
 
             self.get_logger().info(f'BUTTON: pressing the button during {DOOR_DWELL_S}')
             time.sleep(DOOR_DWELL_S)
+
+            self.get_logger().info('BUTTON: moving back from button')
+            self._open_loop_drive(BUTTON_PUSH_SPEED * 0.9, backtrack_time)
 
             self.get_logger().info('BUTTON: rotate towards door')
             self._open_loop_rotate(- BUTTON_ROTATE_SPEED / 2, BUTTON_ROTATE_TIME)
@@ -322,36 +348,47 @@ class MissionRunner(BasicNavigator):
     def run(self) -> None:
         self.setInitialPose(make_pose(*START_POSE))
         self.waitUntilNav2Active(localizer='amcl')
+        
+        # Watchdogs for mission time handlong 
+        self.mission_start = time.time()
+        self.abort_event.clear()
+        threading.Thread(target=self._supervisor, daemon=True).start()
+
         self.get_logger().info('Nav2 active — mission start')
 
-        # 1. Go to the button
-        self.go_to(BUTTON_APPROACH, precise=True)
+        try:
+            """ # 1. Go to the button
+            self.go_to(BUTTON_APPROACH, precise=True)
 
-        # 2. Push it, wait for the door
-        if not self.push_button_and_wait_for_door():
-            self.get_logger().error('Aborting mission — could not open door')
+            # 2. Push it, wait for the door
+            if not self.push_button_and_wait_for_door():
+                self.get_logger().error('Aborting mission — could not open door')
+                self.go_to(BASE_POSE)
+                return
+            
+            # 3. Traverse the door
+            self.go_to(DOOR_PROBE_POSE, precise=True)
+
+            # 4. Explore the zone behind the door
+            self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3')
+            
+            # 5. Go back to button pose
+            self.go_to(BUTTON_APPROACH, precise=True)
+
+            # 6. Back to base
+            self.go_to(BASE_POSE) """
+
+            # 7. Explore the second zone
+            self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
+
+            # 8. Home
             self.go_to(BASE_POSE)
-            return
-        
-        # 3. Traverse the door
-        self.go_to(DOOR_PROBE_POSE, precise=True)
 
-        # 4. Explore the zone behind the door
-        self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3')
-        
-        # 5. Go back to button pose
-        self.go_to(BUTTON_APPROACH, precise=True)
+            self.get_logger().info('MISSION COMPLETE')
 
-        # 6. Back to base
-        self.go_to(BASE_POSE)
-
-        # 7. Explore the second zone
-        self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
-
-        # 8. Home
-        self.go_to(BASE_POSE)
-
-        self.get_logger().info('MISSION COMPLETE')
+        except MissionAbortException:
+            self.get_logger().info('Abort triggered – returning to base')
+            self.go_to(BASE_POSE)
 
 
 def main() -> None:

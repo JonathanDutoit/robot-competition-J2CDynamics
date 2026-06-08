@@ -39,6 +39,9 @@ START_POSE = (1.25, 0.4, 0.02)
 RAMP_APPROACH = (8.20, 4.30, 0.0)   
 RAMP_TOP      = (8.20, -6, 0.0) 
 
+RAMP_SPEED = 0.3
+RAMP_TIME = 5.5
+
 WAYPOINTS_ZONE_4  = '/maps/arena/waypoints_zone4.yaml'
 WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_do.yaml'
 
@@ -193,7 +196,12 @@ class MissionRunner(BasicNavigator):
     # ── ramp ─────────────────────────────────────────────────────────
 
     def go_up_ramp(self) -> bool:
-        pass
+        """
+        Approach pose is assumed reached. Sequence: 
+        1. Drive forward about 1.6m
+        """
+        self.get_logger().info(f'RAMP: attempt to climb the ramp')
+        self._open_loop_drive(RAMP_SPEED, RAMP_TIME)
 
     def go_down_ramp(self) -> bool: 
         pass

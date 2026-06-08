@@ -35,6 +35,8 @@ void setup()
   rightMotor.init();
   driveController.init();
 
+  Serial.begin(9600);
+
   Serial.println("Odom test bench started");
 }
 
@@ -69,6 +71,12 @@ void loop()
                 case 'x':
                     leftSpeed = 0.0f;
                     rightSpeed = 0.0f;
+                    break;
+                case 'm': 
+                    Serial.print("State left wheel velocity: ");
+                    Serial.print(state.leftWheelVelocity);
+                    Serial.print("State right wheel velocity: ");
+                    Serial.print(state.rightWheelVelocity);
                     break;
             }
 

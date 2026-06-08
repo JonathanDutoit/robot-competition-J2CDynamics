@@ -15,42 +15,29 @@ void SerialBridge::update() {
 
         char command[12];
         int parsedCount = 0;
-        float arg_left, arg_right; // For commands that require up to 2 float arguments
+        float args[2]; // For commands that require up to 2 float arguments
 
-        bool valid = _parseInput(input, command, arg_left, arg_right, parsedCount);
+        bool valid = _parseInput(input, command, args, parsedCount);
 
         if (!valid) {
             return;
         }
 
-        // ── SPEED command ─────────────────────────────
-        if (strcmp(command, "SPEED") == 0) {
-            if (parsedCount == 3) {
-                _setNextSpeedCommand(arg_left, arg_right);
-            }
-        } 
-        
-        // ── ODOMETRY command ────────────────────────────
-        else if (strcmp(command, "ODOMETRY") == 0) {
-            _sendOdometry();
-        }
-
-        // ── DUPLO COUNT command ─────────────────────────────
-        else if (strcmp(command, "DUPLO_COUNT") == 0) {
-            _sendDuploCountCommand();
-        }
-
-        // ── UNKNOWN command ─────────────────────────────
-        else {
-            Serial.print("ERROR: Unknown command '");
-            Serial.print(command);
-            Serial.println("'");
-        }
+        _processCommand(command, args, parsedCount);
     }
 }
 
+bool SerialBridge::registerHandler(ICommandHandler* handler)
+{
+    if (_handlerCount >= MAX_COMMAND_HANDLERS) {
+        return false; // Cannot register more handlers
+    }
+    _handlers[_handlerCount++] = handler;
+    return true;
+}
+
 bool SerialBridge::_parseInput(
-    String input, char* command, float& arg_left, float& arg_right, int& parsedCount
+    String input, char* command, float* args, int& parsedCount
 ) {
     input.trim();
 
@@ -70,18 +57,57 @@ bool SerialBridge::_parseInput(
     // arg1
     char* arg1 = strtok(nullptr, " \r\n");
     if (arg1) {
-        arg_left = atof(arg1);
+        args[0] = atof(arg1);
         parsedCount++;
     }
 
     // arg2
     char* arg2 = strtok(nullptr, " \r\n");
     if (arg2) {
-        arg_right = atof(arg2);
+        args[1] = atof(arg2);
         parsedCount++;
     }
 
     return true;
+}
+
+bool SerialBridge::_processCommand(
+    const char* command, const float* args, const int& parsedCount
+) {
+    // ── SPEED command ─────────────────────────────
+    if (strcmp(command, "SPEED") == 0) {
+        if (parsedCount == 3) {
+            _setNextSpeedCommand(args[0], args[1]);
+            return true;
+        }
+        return false;
+    } 
+    
+    // ── ODOMETRY command ────────────────────────────
+    else if (strcmp(command, "ODOMETRY") == 0) {
+        _sendOdometry();
+        return true;
+    }
+
+    // ── DUPLO COUNT command ─────────────────────────────
+    else if (strcmp(command, "DUPLO_COUNT") == 0) {
+        _sendDuploCountCommand();
+        return true;
+    }
+
+    for (uint8_t i = 0; i < _handlerCount; ++i) {
+        if (_handlers[i]->handleCommand(command, args)) {
+            return true;
+        } else {
+            Serial.print("ERROR: Handler ");
+            Serial.print(i);
+            Serial.print(" failed to process command '");
+            Serial.print(command);
+            Serial.println("'");
+        }
+    }
+
+    return false;
 }
 
 void SerialBridge::_setNextSpeedCommand(float leftVel, float rightVel) {

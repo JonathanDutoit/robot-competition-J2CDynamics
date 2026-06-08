@@ -88,4 +88,10 @@
 #define DUPLO_RELEASE_DETECTION_DELTA  10.0f // ADC units below baseline to release presence
 #define DUPLO_DETECTION_REFRACTORY_MS  1000 // Time to ignore further detections after a valid one (in milliseconds)
 
+// --------------------------
+// --- CONTROL PARAMETERS ---
+// --------------------------
+
+#define MAX_COMMAND_HANDLERS                   5
+
 #endif

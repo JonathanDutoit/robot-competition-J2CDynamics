@@ -43,6 +43,13 @@
 #define DC_MOTOR_MAX_PWM_DUTY_CYCLE     (int)(ARDUINO_PWM_MAX_COUNT * DC_MOTOR_MAX_VOLTAGE_V / NOMINAL_BATTERY_VOLTAGE_V) // Max duty cycle for acceptable voltage to the motor (4-8V depending on battery level)
 
 // --- Motor cruise speed ---
-#define DC_MOTOR_CRUISE_VELOCITY_RAD_SEC   11.0f // in rad/s (maintain ~6V to the motor)
+#define DC_MOTOR_CRUISE_VEL_RAD_SEC     11.0f // in rad/s (maintain ~6V to the motor)
+
+// --------------------------------
+// --- STEPPER MOTOR PARAMETERS ---
+// --------------------------------
+
+// --- Stepper motor parameters ---
+#define STEPPER_DROPOFF_VEL_STEPS_SEC     500.0f // in steps/s
 
 #endif

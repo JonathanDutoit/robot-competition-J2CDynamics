@@ -37,14 +37,14 @@ void SweeperController::update() {
 }
 
 void SweeperController::_startCollecting() {
-    _leftController->setVelocity(DC_MOTOR_CRUISE_VEL_RAD_SEC);
-    _rightController->setVelocity(-DC_MOTOR_CRUISE_VEL_RAD_SEC);
+    _leftController->setVelocity(DC_MOTOR_MAX_VELOCITY_RAD_SEC);
+    _rightController->setVelocity(-DC_MOTOR_MAX_VELOCITY_RAD_SEC);
     _sweeperState = SweeperControlState::Collecting;
 }
 
 void SweeperController::_startDropoff() {
-    _leftController->setVelocity(-DC_MOTOR_CRUISE_VEL_RAD_SEC);
-    _rightController->setVelocity(DC_MOTOR_CRUISE_VEL_RAD_SEC);
+    _leftController->setVelocity(-DC_MOTOR_MAX_VELOCITY_RAD_SEC);
+    _rightController->setVelocity(DC_MOTOR_MAX_VELOCITY_RAD_SEC);
     _sweeperState = SweeperControlState::Dropoff;
 }
 

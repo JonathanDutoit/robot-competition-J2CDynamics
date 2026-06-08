@@ -1,13 +1,17 @@
 """
-Duplo-aspiration mission:
-    1. Nav2 to button pose
-    2. Open-loop push to press button, wait for door
-    3. Traverse the door 
-    4. Explore Zone 3 via reachability-checked waypoint grid
-    5. Return to button pose
-    6. Return to base (drop off)
-    7. Explore Zone 1 via reachability-checked waypoint grid
-    8. Return to base (drop off)
+Duplo-obliterator mission:
+    1. Explore Zone 1 via reachability-checked waypoint grid 
+    2. Return to base (drop off)
+    3. Nav2 to low ramp pose
+    4. Open-loop to go up the ramp 
+    5. Send Nav2 Pose Estimate to init pose of Zone 4
+    6. Explore Zone 4 via reachability-checked waypoint grid 
+    7. Go to high ramp pose 
+    8. Open-loop to go down the ramp 
+    9. Send Nav2 Pose Estimate down ramp pose 
+    10. Return to base (drop off)
+    11. If time allows, go into carpet 
+    12. Return to base (drop off)
 """
 
 import math
@@ -25,34 +29,21 @@ from std_msgs.msg import String
 from nav2_msgs.action import ComputePathToPose
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 #  POSES & PATHS  
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE   = (0.45, 0.45, 1.57)
-START_POSE  = (0.557, 0.626, 1.57)
-#START_POSE=(4.255, 5.228, 1.50)
+BASE_POSE  = (0.35, 0.3, -1.57)      
+START_POSE = (1.25, 0.4, 0.02)  
 
-BUTTON_APPROACH = (4.45, 7.40, 1.57) # Nav2 stops here (precise heading)
-BUTTON_PUSH_SPEED = 0.20               # m/s, open-loop forward
-BUTTON_BACKOFF_TIME  = 2.0            # s
-BUTTON_BACKOFF_STEP = 0.2
+RAMP_APPROACH = (8.20, 4.30, 0.0)   
+RAMP_TOP      = (8.20, -6, 0.0) 
 
-BUTTON_ROTATE_SPEED    = 1.0           # rad/s during the 180° spin
-BUTTON_ROTATE_TIME     = math.pi / BUTTON_ROTATE_SPEED   # = π s for 180°
+WAYPOINTS_ZONE_4  = '/maps/arena/waypoints_zone4.yaml'
+WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_do.yaml'
 
-DOOR_DWELL_S           = 0.5                # wait this long after backing off
-DOOR_PROBE_POSE        = (2.21, 7.60, 3.14)   # a point on the OTHER side of the door 
-MAX_BUTTON_RETRIES     = 3
-
-DOOR_WAIT_S        = 2               # fallback dwell dif no /door_open topic
-
-WAYPOINTS_ZONE_3  = '/maps/arena/waypoints_zone3.yaml'
-WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_da.yaml'
-
-TIMEOUT_ZONE_3 = 200.0
-TIMEOUT_ZONE_1 = 160.0
+TIMEOUT_ZONE_4 = 240.0
+TIMEOUT_ZONE_1 = 200.0
 
 MISSION_TIMEOUT = 600.0
 MISSION_CLOSING_TIME = 60.0
@@ -61,11 +52,11 @@ NAV_GOAL_TIMEOUT_S = 45.0
 PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 2
 
-DUPLO_COUNT_ZONE_3 = 6
+DUPLO_COUNT_ZONE_4 = 6
 
 SCAN_ROT_STEP = 0.8
 
-RAMP_VEL_TOPIC     = 'ramp_vel'        # high-priority twist_mux input
+RAMP_VEL_TOPIC     = 'ramp_vel'   # must match twist_mux.yaml at priority 150
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -89,12 +80,13 @@ def node_key(wp):
 class MissionAbortException(Exception):
     pass
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 #  MISSION RUNNER
 # ──────────────────────────────────────────────────────────────────────────────
 
 class MissionRunner(BasicNavigator):
-
+     
     def __init__(self) -> None:
         super().__init__('mission_runner')
 
@@ -124,7 +116,8 @@ class MissionRunner(BasicNavigator):
                 break
             time.sleep(0.2)
 
-    # ── primitives ────────────────────────────────────────────────────────────
+
+     # ── primitives ────────────────────────────────────────────────────────────
 
     def _select_goal_checker(self, name: str) -> None:
         self._gc_pub.publish(String(data=name))
@@ -197,57 +190,16 @@ class MissionRunner(BasicNavigator):
         result = result_future.result().result
         return bool(result and result.path.poses)
 
-    # ── button + door ─────────────────────────────────────────────────────────
+    # ── ramp ─────────────────────────────────────────────────────────
 
-    def push_button_and_wait_for_door(self) -> bool:
-        """
-        Approach pose is assumed reached. Sequence:
-        1. Rotate 180° in place    (so the back of the robot faces the button)
-        2. Back up a few cm         (depresses the button with the rear bumper)
-        3. Dwell while the door opens
-        4. Probe with ComputePathToPose against DOOR_PROBE_POSE
-            - if reachable: door's open, we're done
-            - if not: retry from step 1, up to MAX_BUTTON_RETRIES
-        Returns True if the door eventually opened, False if we ran out of retries.
-        """
-        for attempt in range(1, MAX_BUTTON_RETRIES + 1):
-            backtrack_time = BUTTON_BACKOFF_TIME + (attempt - 1) * BUTTON_BACKOFF_STEP
-            
-            if(attempt == 1):
-                self.get_logger().info(f'BUTTON: attempt {attempt}/{MAX_BUTTON_RETRIES} — rotate 180°')
-                self._open_loop_rotate(BUTTON_ROTATE_SPEED, BUTTON_ROTATE_TIME)
-            else:
-                self.get_logger().info(f'BUTTON: attempt {attempt}/{MAX_BUTTON_RETRIES} — rotate 90°')
-                self._open_loop_rotate(BUTTON_ROTATE_SPEED / 2, BUTTON_ROTATE_TIME)
+    def go_up_ramp(self) -> bool:
+        pass
 
-            self.get_logger().info('BUTTON: backing into button')
-            self._open_loop_drive(-BUTTON_PUSH_SPEED, backtrack_time)
+    def go_down_ramp(self) -> bool: 
+        pass
 
-            self.get_logger().info(f'BUTTON: pressing the button during {DOOR_DWELL_S}')
-            time.sleep(DOOR_DWELL_S)
 
-            self.get_logger().info('BUTTON: moving back from button')
-            self._open_loop_drive(BUTTON_PUSH_SPEED * 0.9, backtrack_time)
-
-            self.get_logger().info('BUTTON: rotate towards door')
-            self._open_loop_rotate(- BUTTON_ROTATE_SPEED / 2, BUTTON_ROTATE_TIME)
-
-            self.get_logger().info(f'BUTTON: waiting {DOOR_WAIT_S:.1f}s for door to open')
-            time.sleep(DOOR_WAIT_S)
-
-            self.get_logger().info(
-                f'BUTTON: probing reachability to {DOOR_PROBE_POSE}')
-            if self._is_reachable(DOOR_PROBE_POSE):
-                self.get_logger().info('BUTTON: door open (probe succeeded)')
-                return True
-
-            self.get_logger().warn(
-                f'BUTTON: probe failed — door still closed, retrying')
-
-        self.get_logger().error(f'BUTTON: door never opened after {MAX_BUTTON_RETRIES} attempts')
-        return False
-
-    # ── waypoint-grid exploration ─────────────────────────────────────────────
+     # ── waypoint-grid exploration ─────────────────────────────────────────────
 
     def explore_zone(self, waypoints_file: str, duration_s: float,
                      label: str = 'ZONE') -> None:
@@ -406,6 +358,7 @@ class MissionRunner(BasicNavigator):
         if pose is None:
             return (0.0, 0.0)
         return (pose.pose.pose.position.x, pose.pose.pose.position.y)
+    
 
     # ── mission ───────────────────────────────────────────────────────────────
 
@@ -421,32 +374,41 @@ class MissionRunner(BasicNavigator):
         self.get_logger().info('Nav2 active — mission start')
 
         try:
-            # 1. Go to the button
-            self.go_to(BUTTON_APPROACH, precise=True)
+            #1. Explore Zone 1 via reachability-checked waypoint grid 
+            self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
 
-            # 2. Push it, wait for the door
-            if not self.push_button_and_wait_for_door():
-                self.get_logger().error('Aborting mission — could not open door')
+            #2. Return to base (drop off)
+            self.go_to(BASE_POSE, precise=True)
+
+            #3. Nav2 to low ramp pose
+            self.go_to(RAMP_APPROACH, precise=True)
+
+            #4. Open-loop to go up the ramp 
+            if not self.go_up_ramp():
+                self.get_logger().error('Aborting mission — could not go up the ramp')
                 self.go_to(BASE_POSE)
                 return
             
-            # 3. Traverse the door
-            self.go_to(DOOR_PROBE_POSE, precise=True)
+            #5. Send Nav2 Pose Estimate to init pose of Zone 4
+            # self.setInitialPose(make_pose(*START_POSE))
 
-            # 4. Explore the zone behind the door
-            self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3')
-            
-            # 5. Go back to button pose
-            self.go_to(BUTTON_APPROACH, precise=True)
+            #6. Explore Zone 4 via reachability-checked waypoint grid 
+            self.explore_zone(WAYPOINTS_ZONE_4, TIMEOUT_ZONE_4, label='ZONE_4')
 
-            # 6. Back to base
-            self.go_to(BASE_POSE)
+            #7. Go to high ramp pose 
+            self.go_to(RAMP_TOP)
 
-            # 7. Explore the second zone
-            self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
+            #8. Open-loop to go down the ramp 
+            self.go_down_ramp()
 
-            # 8. Home
-            self.go_to(BASE_POSE)
+            #9. Send Nav2 Pose Estimate down ramp pose 
+            # self.setInitialPose(make_pose(*START_POSE))
+
+            #10. Return to base (drop off)
+            self.go_to(BASE_POSE, precise=True)
+
+            #11. If time allows, go into carpet 
+            #12. Return to base (drop off)
 
             self.get_logger().info('MISSION COMPLETE')
 

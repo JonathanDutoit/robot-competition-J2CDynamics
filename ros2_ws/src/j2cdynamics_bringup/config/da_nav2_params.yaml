@@ -94,7 +94,7 @@ controller_server:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.1
-      yaw_goal_tolerance: 0.3   # 3.14 rad ⇒ any heading satisfies the goal (ignored)
+      yaw_goal_tolerance: 3.14   # 3.14 rad ⇒ any heading satisfies the goal (ignored)
 
     # ── precise: RAMP APPROACH — enforce heading. Selected per-goal by the mission
     #    runner via the /goal_checker_selector topic (GoalCheckerSelector in the BT).

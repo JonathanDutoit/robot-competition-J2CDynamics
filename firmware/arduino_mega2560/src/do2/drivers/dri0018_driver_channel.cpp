@@ -48,7 +48,7 @@ uint8_t DRI0018DriverChannel::isReady() const {
     const int adcValue = analogRead(_currPin);
 
     // Check if the current reading is significantly above the baseline, indicating a potential fault
-    if (adcValue > 1.5f * _baselineAdc) {
+    if (static_cast<float>(adcValue) > 1.2f * static_cast<float>(_baselineAdc)) {
         return 0; // Fault detected
     }
     return 1; // No fault detected

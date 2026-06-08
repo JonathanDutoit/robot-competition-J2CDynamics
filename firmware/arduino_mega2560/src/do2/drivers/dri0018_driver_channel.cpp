@@ -66,10 +66,3 @@ void DRI0018DriverChannel::setVelocity(float rad_per_sec) {
     uint8_t duty = static_cast<uint8_t>(rad_per_sec * DC_MOTOR_MAX_PWM_DUTY_CYCLE);
     analogWrite(_pwmPin, duty);
 }
-
-float DRI0018DriverChannel::getCurrent() const {
-    if (!isReady()) {
-        return -1.0f; // If not ready, return -1 to indicate an error
-    }
-    return digitalRead(_currPin);
-}

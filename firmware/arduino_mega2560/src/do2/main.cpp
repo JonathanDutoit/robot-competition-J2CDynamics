@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <do2/robot_config.hpp>
 #include <do2/drivers/dri0018_driver_channel.hpp>
-#include <do2/communication/collect_command_handler.hpp>
+#include <do2/communication/sweeper_command_handler.hpp>
 #include <do2/data/do2_command.hpp>
 #include <do2/data/do2_state.hpp>
 #include <common_config.hpp>
@@ -21,7 +21,7 @@ Do2Command cmd;
 Do2State state;
 
 SerialBridge serialBridge(cmd, state);
-CollectCommandHandler collectHandler(cmd);
+SweeperCommandHandler sweeperHandler(cmd);
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -58,8 +58,8 @@ void setup()
   duploCounter.init();
 
   serialBridge.init();
-  if (!serialBridge.registerHandler(&collectHandler)) {
-    Serial.println("ERROR: Failed to register COLLECT command handler");
+  if (!serialBridge.registerHandler(&sweeperHandler)) {
+    Serial.println("ERROR: Failed to register SWEEPER command handler");
   }
 
   Serial.println("Robot initialized");

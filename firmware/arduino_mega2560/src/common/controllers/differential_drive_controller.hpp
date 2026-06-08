@@ -14,10 +14,10 @@ class DifferentialDriveController: public IUpdatable {
         void init() override;
         void update() override;
         void getVelocities();
-    private:
-        void _applyVelocities(const RobotCommand& cmds);
+    protected:
         ISpeedControllable* _leftController;
         ISpeedControllable* _rightController;
+    private:
         RobotCommand& _cmd;
         RobotState& _state;
 };

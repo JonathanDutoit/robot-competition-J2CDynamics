@@ -1,12 +1,12 @@
 #pragma once
 
-#include <common/communication/serial_bridge.hpp>
+#include <common/ICommandHandler.hpp>
 #include <do2/data/do2_command.hpp>
 
-class CollectCommandHandler : public ICommandHandler
+class SweeperCommandHandler : public ICommandHandler
 {
     public:
-        CollectCommandHandler(Do2Command& cmd);
+        SweeperCommandHandler(Do2Command& cmd);
         bool handleCommand(const char* command, const float* args) override;
 
     private:

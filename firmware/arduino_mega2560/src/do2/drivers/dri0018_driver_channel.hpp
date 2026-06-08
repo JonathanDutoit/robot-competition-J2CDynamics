@@ -14,10 +14,9 @@ class DRI0018DriverChannel : public ISpeedControllable {
         void init();
         void setVelocity(float rad_per_sec) override;
         float getVelocity() const override {return 0.0f;} // Not implemented for DRI0018
-        float getCurrent() const;
+        uint8_t isReady() const override;
     private:
         uint8_t _pwmPin, _dirPin, _currPin;
-        uint8_t isReady() const;
         void configurePWM();
 };
 

@@ -12,10 +12,10 @@ class EsconDriver : public ISpeedControllable {
         void init();
         void setVelocity(float rad_per_sec) override;
         float getVelocity() const override;
+        uint8_t isReady() const override;
         float getCurrent() const;
     private:
         uint8_t _pwmPin, _enPin, _dirPin, _readyPin, _speedPin, _currPin;
-        uint8_t isReady() const;
         void configurePWM();
 };
 

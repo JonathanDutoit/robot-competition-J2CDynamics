@@ -15,14 +15,6 @@ void DRI0018DriverChannel::init() {
     pinMode(_dirPin, OUTPUT);
     pinMode(_currPin, INPUT);
 
-    // Read the sensor multiple times to get a stable baseline ADC value
-    float sum = 0;
-    for (int i = 0; i < BASELINE_MEASUREMENT_COUNT; ++i) {
-        sum += analogRead(_currPin);
-        delay(5);
-    }
-    _baselineAdc = sum / BASELINE_MEASUREMENT_COUNT;
-
     configurePWM(); // Set PWM frequency for motor control
     digitalWrite(_dirPin, MOTOR_CCW_DIRECTION); // Default direction
     setVelocity(0); // Start with 0 speed
@@ -45,14 +37,8 @@ void DRI0018DriverChannel::configurePWM() {
 
 uint8_t DRI0018DriverChannel::isReady() const {
     // Current sense pin outputs HIGH when a fault condition is detected (overcurrent, overtemperature, etc.)
-    const int adcValue = analogRead(_currPin);
-    float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
-
-    // Check if the current reading is significantly above the baseline, indicating a potential fault
-    if (static_cast<float>(adcValue) > 1.2f * static_cast<float>(_baselineAdc)) {
-        return 0; // Fault detected
-    }
-    return 1; // No fault detected
+    const uint8_t faultState = digitalRead(_currPin);
+    return (faultState == LOW) ? 1 : 0; // LOW means ready
 }
 
 void DRI0018DriverChannel::setVelocity(float rad_per_sec) {
@@ -80,10 +66,4 @@ void DRI0018DriverChannel::setVelocity(float rad_per_sec) {
     // Convert RPM to Duty Cycle (0-255) and write to PWM pin
     uint8_t duty = static_cast<uint8_t>(rad_per_sec * DC_MOTOR_MAX_PWM_DUTY_CYCLE);
     analogWrite(_pwmPin, duty);
-}
-
-float DRI0018DriverChannel::getCurrent() {
-    int adcValue = analogRead(_currPin);
-    float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
-    return voltage * 2 * DRI0018_MAX_CURRENT_A / DRI0018_MAX_OUTPUT_VOLTAGE; // in amps
 }

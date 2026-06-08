@@ -77,14 +77,5 @@ void loop(void)
 	  Serial.println("Right motor fault detected!");
 	  cmd.mode = SweeperMode::Idle; // Stop both motors if right motor is faulty
 	}
-
-	leftMotor.getCurrent(); // Optionally read current for monitoring
-	rightMotor.getCurrent();
-
-	Serial.print("Left Motor Current: ");
-	Serial.print(leftMotor.getCurrent());
-	Serial.print(" A, Right Motor Current: ");
-	Serial.print(rightMotor.getCurrent());
-	Serial.println(" A");
   }
 }

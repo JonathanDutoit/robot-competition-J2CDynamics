@@ -14,12 +14,10 @@ class DRI0018DriverChannel : public ISpeedControllable {
         void init();
         void setVelocity(float rad_per_sec) override;
         float getVelocity() const override {return 0.0f;} // Not implemented for DRI0018
-        float getCurrent();
         uint8_t isReady() const override;
     private:
         void configurePWM();
         uint8_t _pwmPin, _dirPin, _currPin;
-        float _baselineAdc = 0.0f; // Baseline ADC value for current sensing
 };
 
 #endif

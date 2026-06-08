@@ -100,8 +100,9 @@ controller_server:
     #    runner via the /goal_checker_selector topic (GoalCheckerSelector in the BT).
     precise_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.1
-      yaw_goal_tolerance: 0.15   # ~5.7° — tune vs. the 2 cm ramp margin
+      stateful: true
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.25   # ~5.7° — tune vs. the 2 cm ramp margin
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
@@ -257,13 +258,15 @@ local_costmap:
       width:      3              # m — size of the local costmap window
       height:     3              # m
       resolution: 0.05           # m/cell
-      # Base link length 204 + trailer length 180 (204 + 180) / 2 = 19.2. Base link width = 460 
-      footprint: "[[0.182,  0.220], [ 0.182, -0.220], [-0.182, -0.220], [-0.182,  0.220]]"
-      plugins: ["voxel_layer", "inflation_layer", "keepout_filter"]
+      # Base link length 240 + trailer length 160 (240 + 160) / 2 = 200. Base link width = 433 / 2 = 215 
+      footprint: "[[0.200,  0.215], [ 0.200, -0.215], [-0.200, -0.215], [-0.200,  0.215]]"
+      plugins:
+        - voxel_layer
+        - inflation_layer
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 1.0
-        inflation_radius: 0.20   # m - 23 robot radius + 2cm margin that sums to 50cm
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.235   # m - 23 robot radius + 2cm margin that sums to 50cm
       filters: ["keepout_filter"]
       keepout_filter:
         plugin: "nav2_costmap_2d::KeepoutFilter"
@@ -326,8 +329,8 @@ global_costmap:
         map_subscribe_transient_local: true
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 1.0
-        inflation_radius: 0.20   # m - 23 robot radius + 2cm margin that sums to 50cm
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.235   # m - 23 robot radius + 2cm margin that sums to 50cm
       # Keepout zones — danger areas painted black into map_keepout.pgm. Fed by
       # filter_mask_server + costmap_filter_info_server (launched in localization
       # mode). With the default all-free mask this adds zero cost.

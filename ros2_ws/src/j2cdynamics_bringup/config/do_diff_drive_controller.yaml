@@ -15,7 +15,7 @@ diff_drive_controller:
     right_wheel_names: ["right_wheel_joint"]
 
     # Kinematics
-    wheel_separation: 0.4147
+    wheel_separation: 0.384
     wheel_radius: 0.0555
 
     wheel_separation_multiplier: 1.0

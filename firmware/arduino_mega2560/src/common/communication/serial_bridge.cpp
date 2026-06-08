@@ -97,6 +97,11 @@ bool SerialBridge::_processCommand(
 
     for (uint8_t i = 0; i < _handlerCount; ++i) {
         if (_handlers[i]->handleCommand(command, args)) {
+            Serial.print("Handler ");            
+            Serial.print(i);
+            Serial.print(" succesfully processed command '");            
+            Serial.print(command);
+            Serial.println("'");
             return true;
         } else {
             Serial.print("ERROR: Handler ");

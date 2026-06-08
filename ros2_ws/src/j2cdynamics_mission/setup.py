@@ -22,6 +22,7 @@ setup(
             'mission_runner = j2cdynamics_mission.mission_runner:main',
             'explore_zone = j2cdynamics_mission.explore_zone:main',
             'da_mission = j2cdynamics_mission.da_mission:main',
+            'do_mission = j2cdynamics_mission.do_mission:main',
         ],
     },
 )

@@ -52,5 +52,5 @@ def generate_launch_description():
                               description="nav2 parameters file"),
         nav2,
         #collision_monitor,
-        collision_lifecycle,
+        #collision_lifecycle,
     ])

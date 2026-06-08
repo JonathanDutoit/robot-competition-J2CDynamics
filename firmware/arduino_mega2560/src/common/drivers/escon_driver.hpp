@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <common/ISpeedControllable.hpp>
+#include <common_config.hpp>
 
 class EsconDriver : public ISpeedControllable {
     public:
@@ -14,9 +15,12 @@ class EsconDriver : public ISpeedControllable {
         float getVelocity() const override;
         uint8_t isReady() const;
         float getCurrent() const;
+        float EsconDriver::measureZeroVoltage(int samples) const; 
+        void setZeroVoltage(float v) { _zeroVoltage = v; }
     private:
         uint8_t _pwmPin, _enPin, _dirPin, _readyPin, _speedPin, _currPin;
         void configurePWM();
+        float _zeroVoltage{ESCON_VELOCITY_ZERO_VOLTAGE};  // default, overridable
 };
 
 #endif

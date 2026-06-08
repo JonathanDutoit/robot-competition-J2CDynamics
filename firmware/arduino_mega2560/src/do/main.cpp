@@ -36,6 +36,12 @@ void setup()
   // Initialize components
   leftMotor.init();
   rightMotor.init();
+
+  // Offset handling
+  delay(100);  // let ADC settle, motors disabled
+  leftMotor.setZeroVoltage(leftMotor.measureZeroVoltage(250));
+  rightMotor.setZeroVoltage(rightMotor.measureZeroVoltage(250));
+  
   driveController.init();
   duploCounter.init();
   serialBridge.init();

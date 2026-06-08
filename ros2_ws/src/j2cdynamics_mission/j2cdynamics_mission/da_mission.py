@@ -46,7 +46,7 @@ DOOR_DWELL_S           = 0.5                # wait this long after backing off
 DOOR_PROBE_POSE        = (2.21, 7.60, 3.14)   # a point on the OTHER side of the door 
 MAX_BUTTON_RETRIES     = 3
 
-DOOR_WAIT_S        = 2.0               # fallback dwell dif no /door_open topic
+DOOR_WAIT_S        = 3.0               # fallback dwell dif no /door_open topic
 
 WAYPOINTS_ZONE_3  = '/maps/arena/waypoints_zone3.yaml'
 WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_da.yaml'

@@ -4,17 +4,15 @@
 #include <common_config.hpp>
 #include <do2/controllers/sweeper_controller.hpp>
 #include <do2/data/do2_command.hpp>
-#include <do2/data/do2_state.hpp>
 #include <common/scheduler/periodic_task.hpp>
 
 // Global instances
 Do2Command cmd;
-Do2State state;
 
 DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
 DRI0018DriverChannel rightMotor(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
 
-SweeperController sweepersController(&leftMotor, &rightMotor, cmd, state);
+SweeperController sweepersController(&leftMotor, &rightMotor, cmd);
 
 void setup(void)
 {

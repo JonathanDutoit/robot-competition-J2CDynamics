@@ -13,8 +13,9 @@ class DifferentialDriveController: public IUpdatable {
         );
         void init() override;
         void update() override;
-        void getVelocities();
     protected:
+        void setVelocities();
+        void getVelocities();
         ISpeedControllable* _leftController;
         ISpeedControllable* _rightController;
     private:

@@ -1,8 +1,8 @@
 #include <do2/controllers/plate_controller.hpp>
 #include <do2/robot_config.hpp>
 
-PlateController::PlateController()
-: _stepper(AccelStepper::DRIVER, PIN_STEPPER_STEP, PIN_STEPPER_DIR) {}
+PlateController::PlateController(Do2Command& cmd): 
+_stepper(AccelStepper::DRIVER, PIN_STEPPER_STEP, PIN_STEPPER_DIR), _cmd(cmd) {}
 
 void PlateController::init()
 {
@@ -17,14 +17,43 @@ void PlateController::init()
 
 void PlateController::update()
 {
-    _stepper.run();
+    switch (_cmd.mode)
+    {
+        case SweeperMode::Idle:
+            _previousMode = SweeperMode::Idle;
+            _stepper.stop();
+            break;
+
+        case SweeperMode::Collect:
+            _previousMode = SweeperMode::Collect;
+            _stepper.run();
+            break;
+
+        case SweeperMode::Dropoff:
+            if (_previousMode != SweeperMode::Dropoff) {
+                rotateContinuous();
+                _previousMode = SweeperMode::Dropoff;
+            }
+            _stepper.runSpeed();
+            break;
+    }
 }
 
 void PlateController::rotateQuarterTurn()
 {
-    if (_stepper.distanceToGo() != 0)
+    if (_stepper.distanceToGo() != 0 || _cmd.mode != SweeperMode::Collect)
         return;
+    _stepper.move(-QUARTER_TURN_STEPS);
+}
 
-    _targetPosition += QUARTER_TURN_STEPS;
-    _stepper.moveTo(_targetPosition);
+void PlateController::rotateContinuous()
+{
+    if (_cmd.mode != SweeperMode::Dropoff)
+        return;
+    _stepper.setSpeed(DROP_OFF_SPEED);
+}
+
+void PlateController::stop()
+{
+    _stepper.stop();
 }

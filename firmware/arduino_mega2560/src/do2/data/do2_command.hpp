@@ -2,17 +2,9 @@
 
 #include <Arduino.h>
 #include <common/data/robot_command.hpp>
-
-enum class SweeperMode
-{
-    Idle,
-    Collect,
-    Dropoff
-};
+#include <do2/data/sweeper_mode.hpp>
 
 struct Do2Command : public RobotCommand
 {
     SweeperMode mode = SweeperMode::Idle;
-    
-    float stepperVelocity = 0.0f; // in rad/s
 };

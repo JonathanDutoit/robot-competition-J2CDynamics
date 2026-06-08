@@ -58,6 +58,7 @@
 #define QUARTER_TURN_STEPS                  (STEPPER_EFFECTIVE_STEPS_PER_REV / 4) // steps for a quarter turn
 
 #define STEPPER_MAX_SPEED_STEPS_PER_SEC     500.0f
+#define DROP_OFF_SPEED                      STEPPER_MAX_SPEED_STEPS_PER_SEC // in steps per second (same as max speed for continuous rotation)
 
 #define STEPPER_ACCELERATION_STEPS_PER_SEC2 250.0f
 

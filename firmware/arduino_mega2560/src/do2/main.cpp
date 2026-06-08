@@ -7,7 +7,6 @@
 #include <do2/communication/sweeper_command_handler.hpp>
 #include <do2/controllers/sweeper_controller.hpp>
 #include <do2/data/do2_command.hpp>
-#include <do2/data/do2_state.hpp>
 #include <common_config.hpp>
 #include <common/drivers/escon_driver.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
@@ -20,7 +19,7 @@
 
 // Global instances
 Do2Command cmd;
-Do2State state;
+RobotState state;
 uint8_t previousDuploCount = 0;
 
 
@@ -37,9 +36,9 @@ DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, state)
 
 DRI0018DriverChannel leftSweeper(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
 DRI0018DriverChannel rightSweeper(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
-SweeperController sweepersController(&leftSweeper, &rightSweeper, cmd, state);
+SweeperController sweepersController(&leftSweeper, &rightSweeper, cmd);
 
-PlateController plateController;
+PlateController plateController(cmd);
 
 DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
 

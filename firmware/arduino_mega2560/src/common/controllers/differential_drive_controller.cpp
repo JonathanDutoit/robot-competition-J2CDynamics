@@ -15,11 +15,19 @@ void DifferentialDriveController::init() {
 }
 
 void DifferentialDriveController::update() {
-    _leftController->setVelocity(_cmd.leftWheelVelocity);
-    _rightController->setVelocity(-_cmd.rightWheelVelocity);
+    // Apply the velocities from the command to the controllers
+    setVelocities();
+
+    // Update the state with the current velocities from the controllers
+    getVelocities();
 }
 
 void DifferentialDriveController::getVelocities() {
     _state.leftWheelVelocity = _leftController->getVelocity();
     _state.rightWheelVelocity = _rightController->getVelocity();
+}
+
+void DifferentialDriveController::setVelocities() {
+    _leftController->setVelocity(_cmd.leftWheelVelocity);
+    _rightController->setVelocity(-_cmd.rightWheelVelocity);
 }

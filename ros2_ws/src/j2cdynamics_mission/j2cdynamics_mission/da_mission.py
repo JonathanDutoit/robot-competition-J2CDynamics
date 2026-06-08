@@ -14,7 +14,6 @@ import math
 import time
 import yaml
 import threading 
-import os
 
 import rclpy
 from rclpy.action import ActionClient
@@ -63,6 +62,8 @@ PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 2
 
 DUPLO_COUNT_ZONE_3 = 6
+
+SCAN_ROT_STEP = 0.8
 
 RAMP_VEL_TOPIC     = 'ramp_vel'        # high-priority twist_mux input
 
@@ -420,7 +421,7 @@ class MissionRunner(BasicNavigator):
         self.get_logger().info('Nav2 active — mission start')
 
         try:
-            """ # 1. Go to the button
+            # 1. Go to the button
             self.go_to(BUTTON_APPROACH, precise=True)
 
             # 2. Push it, wait for the door
@@ -439,7 +440,7 @@ class MissionRunner(BasicNavigator):
             self.go_to(BUTTON_APPROACH, precise=True)
 
             # 6. Back to base
-            self.go_to(BASE_POSE) """
+            self.go_to(BASE_POSE)
 
             # 7. Explore the second zone
             self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')

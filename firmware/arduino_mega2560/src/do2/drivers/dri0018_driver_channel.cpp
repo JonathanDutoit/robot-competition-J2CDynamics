@@ -15,6 +15,14 @@ void DRI0018DriverChannel::init() {
     pinMode(_dirPin, OUTPUT);
     pinMode(_currPin, INPUT);
 
+    // Read the sensor multiple times to get a stable baseline ADC value
+    float sum = 0;
+    for (int i = 0; i < BASELINE_MEASUREMENT_COUNT; ++i) {
+        sum += analogRead(_currPin);
+        delay(5);
+    }
+    _baselineAdc = sum / BASELINE_MEASUREMENT_COUNT;
+
     configurePWM(); // Set PWM frequency for motor control
     digitalWrite(_dirPin, MOTOR_CCW_DIRECTION); // Default direction
     setVelocity(0); // Start with 0 speed
@@ -37,7 +45,13 @@ void DRI0018DriverChannel::configurePWM() {
 
 uint8_t DRI0018DriverChannel::isReady() const {
     // Current sense pin outputs HIGH when a fault condition is detected (overcurrent, overtemperature, etc.)
-    return digitalRead(_currPin) != HIGH;
+    const int adcValue = analogRead(_currPin);
+
+    // Check if the current reading is significantly above the baseline, indicating a potential fault
+    if (adcValue > 1.5f * _baselineAdc) {
+        return 0; // Fault detected
+    }
+    return 1; // No fault detected
 }
 
 void DRI0018DriverChannel::setVelocity(float rad_per_sec) {

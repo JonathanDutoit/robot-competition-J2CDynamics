@@ -18,6 +18,7 @@ class DRI0018DriverChannel : public ISpeedControllable {
     private:
         uint8_t _pwmPin, _dirPin, _currPin;
         void configurePWM();
+        float _baselineAdc = 0.0f; // Baseline ADC value for current sensing
 };
 
 #endif

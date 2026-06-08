@@ -154,6 +154,8 @@ ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & pe
     hw_vel_left_  = left_vel;
     hw_vel_right_ = right_vel;
     consecutive_failures_ = 0;
+    
+    //RCLCPP_INFO(logger_, "Left wheel=%f - Right wheel=%f", hw_vel_left_, hw_vel_right_);
   } else {
     // Returning ERROR here makes ros2_control deactivate the component. Instead
     // we keep the last good velocity (hw_vel_* already hold it) and only escalate
@@ -171,21 +173,7 @@ ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & pe
     // hw_vel_left_ / hw_vel_right_ deliberately left untouched
   }
 
-  // clamp dt so a stalled cycle can't make position jump. ──
-  // Warn when it fires — a sustained clamp means the integrated position is
-  // drifting and you'd want to know rather than have it hidden.
   double dt = period.seconds();
-  constexpr double kMaxDt = 0.05;  // 50 ms
-  if (dt > kMaxDt) {
-    auto now = std::chrono::steady_clock::now();
-    if (now - last_dt_warn_ > std::chrono::seconds(1)) {
-      RCLCPP_WARN(logger_,
-        "dt spike: %.3fs clamped to %.3fs — position estimate degraded",
-        dt, kMaxDt);
-      last_dt_warn_ = now;
-    }
-    dt = kMaxDt;
-  }
 
   hw_pos_left_  += hw_vel_left_  * dt;
   hw_pos_right_ += hw_vel_right_ * dt;

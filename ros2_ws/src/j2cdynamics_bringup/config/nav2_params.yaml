@@ -234,7 +234,8 @@ velocity_smoother:
     use_sim_time: false
     smoothing_frequency: 20.0
     scale_velocities: false
-    feedback: "OPEN_LOOP"
+    #feedback: "OPEN_LOOP"
+    feedback: "CLOSED_LOOP"
     max_velocity:     [ 0.30,  0.0,  0.85]   # [vx, vy, vtheta]  (match DWB max_vel_x)
     min_velocity:     [-0.30,  0.0, -0.85]
     max_accel:        [ 0.7,  0.0,  1.5]

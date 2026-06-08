@@ -5,19 +5,9 @@ waypoints:
   - 7.452
   - -0.065
      
-# top-left
-- - 1.392
-  - 7.42
-  - -0.065   
-
 # top-right / upper zone
 - - 3.854
   - 6.757
-  - 3.076    
-
-# top-right edge
-- - 4.353
-  - 6.725
   - 3.076    
 
 # upper-left mid

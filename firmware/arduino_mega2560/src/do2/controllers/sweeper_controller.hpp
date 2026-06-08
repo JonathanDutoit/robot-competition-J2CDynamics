@@ -8,9 +8,7 @@
 enum class SweeperControlState {
     Ready,
     Collecting,
-    Dropoff,
-    Unjamming,
-    Fault
+    Dropoff
 };
 
 class SweeperController : public DifferentialDriveController

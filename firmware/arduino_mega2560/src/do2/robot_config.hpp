@@ -52,6 +52,13 @@
 // --------------------------------
 
 // --- Stepper motor parameters ---
-#define STEPPER_DROPOFF_VEL_STEPS_SEC     500.0f // in steps/s
+#define STEP_PER_REV                        200 // for a 1.8 degree stepper
+#define STEPPER_MICROSTEPPING               2 // microstepping factor (e.g., 16 for 1/16 microstepping)
+#define STEPPER_EFFECTIVE_STEPS_PER_REV     (STEP_PER_REV * STEPPER_MICROSTEPPING) // effective steps per revolution considering microstepping
+#define QUARTER_TURN_STEPS                  (STEPPER_EFFECTIVE_STEPS_PER_REV / 4) // steps for a quarter turn
+
+#define STEPPER_MAX_SPEED_STEPS_PER_SEC     500.0f
+
+#define STEPPER_ACCELERATION_STEPS_PER_SEC2 250.0f
 
 #endif

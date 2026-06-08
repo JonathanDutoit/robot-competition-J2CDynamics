@@ -24,11 +24,11 @@ amcl:
     # ── Motion model noise — RAISED for open-loop / ~10% noisy odometry ───────
     # Higher alphas spread particles more per motion step, so the laser update
     # dominates. Lower these if localization feels too "loose"/jittery.
-    alpha1: 0.20   # rotation noise from rotation — keep modest
-    alpha2: 0.60   # rotation noise from translation — RAISED, this is your symptom
-    alpha3: 0.20   # translation noise from translation — keep modest
-    alpha4: 0.40   # translation noise from rotation — moderate
-    alpha5: 0.20   # unused (omni only)
+    alpha1: 0.2   # rotation noise from rotation
+    alpha2: 0.2   # rotation noise from translation
+    alpha3: 0.2   # translation noise from translation
+    alpha4: 0.2   # translation noise from rotation
+    alpha5: 0.20   # (omni model only; harmless for differential)
 
     # ── Laser likelihood-field model ─────────────────────────────────────────
     laser_model_type: "likelihood_field"
@@ -44,16 +44,12 @@ amcl:
     z_max: 0.025            # was 0.05
 
     # ── Update / resample thresholds ─────────────────────────────────────────
-    update_min_d: 0.10          # m of translation before a filter update
-    update_min_a: 0.10          # rad of rotation before a filter update
+    update_min_d: 0.05          # m of translation before a filter update
+    update_min_a: 0.05          # rad of rotation before a filter update
     resample_interval: 1
     transform_tolerance: 1.0    # s — generous, matches the open-loop odom timing
 
     # ── Kidnapped-robot recovery ─────────────────────────────────────────────
-    # Non-zero alpha_slow/fast enables augmented-MCL random particle injection so
-    # AMCL can recover after the robot is physically displaced. When truly lost,
-    # also call:  ros2 service call /reinitialize_global_localization \
-    #             std_srvs/srv/Empty
     recovery_alpha_slow: 0.001
     recovery_alpha_fast: 0.1
 

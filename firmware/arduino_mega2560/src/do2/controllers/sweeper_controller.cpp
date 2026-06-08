@@ -21,18 +21,26 @@ void SweeperController::update() {
             break;
 
         case SweeperControlState::Collecting:
-
             if (_cmd.mode == SweeperMode::Idle) {
                 _stopBrushes();
                 _sweeperState = SweeperControlState::Ready;
             }
 
-            if (_isBlocked()) {
-                _startUnjam();
+            if (_cmd.mode == SweeperMode::Dropoff) {
+                _sweeperState = SweeperControlState::Dropoff;
             }
             break;
 
-        //case SweeperControlState::Dropoff:
+        case SweeperControlState::Dropoff:
+            if (_cmd.mode == SweeperMode::Idle) {
+                _stopBrushes();
+                _sweeperState = SweeperControlState::Ready;
+            }
+
+            if (_cmd.mode == SweeperMode::Collect) {
+                _sweeperState = SweeperControlState::Collecting;
+            }
+            break;
     }
 }
 
@@ -51,15 +59,4 @@ void SweeperController::_startDropoff() {
 void SweeperController::_stopBrushes() {
     _leftController->setVelocity(0.0f);
     _rightController->setVelocity(0.0f);
-}
-
-bool SweeperController::_isBlocked() const {
-    if (_leftController->isReady() && _rightController->isReady()) {
-        return false;
-    }
-    return true;
-}
-
-void SweeperController::_startUnjam() {
-    // TODO
 }

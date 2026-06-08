@@ -26,8 +26,6 @@ class SweeperController : public DifferentialDriveController
         void _startCollecting();
         void _startDropoff();
         void _stopBrushes();
-        bool _isBlocked() const;
-        void _startUnjam();
         Do2Command& _cmd;
         Do2State& _state;
         SweeperControlState _sweeperState = SweeperControlState::Ready;

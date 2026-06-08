@@ -32,10 +32,8 @@ EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_
                         PIN_RIGHT_MAXON_CURR_ANA);
 DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, state); // Example wheel diameter and gear ratio
 
-DRI0018DriverChannel leftSweeper(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR, 
-								PIN_LEFT_SWEEPER_CURR_SENSE);
-DRI0018DriverChannel rightSweeper(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR, 
-								 PIN_RIGHT_SWEEPER_CURR_SENSE);
+DRI0018DriverChannel leftSweeper(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
+DRI0018DriverChannel rightSweeper(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
 SweeperController sweepersController(&leftSweeper, &rightSweeper, cmd, state);
 
 DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);

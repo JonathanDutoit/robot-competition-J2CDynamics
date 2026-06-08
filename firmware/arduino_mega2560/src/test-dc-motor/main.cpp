@@ -11,14 +11,10 @@
 Do2Command cmd;
 Do2State state;
 
-DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR, 
-							   PIN_LEFT_SWEEPER_CURR_SENSE);
-DRI0018DriverChannel rightMotor(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR, 
-								PIN_RIGHT_SWEEPER_CURR_SENSE);
+DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
+DRI0018DriverChannel rightMotor(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
 
 SweeperController sweepersController(&leftMotor, &rightMotor, cmd, state);
-
-PeriodicTask currentSenseTask(100); // Check current sense every 100 ms
 
 void setup(void)
 {
@@ -64,18 +60,6 @@ void loop(void)
 		Serial.println("Error reading serial input");
 		cmd.mode = SweeperMode::Idle;
 		sweepersController.update();
-	}
-  }
-
-  if (currentSenseTask.ready()) {
-	// Check if either motor is in a fault state
-	if (!leftMotor.isReady()) {
-	  Serial.println("Left motor fault detected!");
-	  cmd.mode = SweeperMode::Idle; // Stop both motors if left motor is faulty
-	}
-	if (!rightMotor.isReady()) {
-	  Serial.println("Right motor fault detected!");
-	  cmd.mode = SweeperMode::Idle; // Stop both motors if right motor is faulty
 	}
   }
 }

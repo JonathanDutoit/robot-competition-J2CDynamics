@@ -5,15 +5,12 @@
 #include <common_config.hpp>
 
 DRI0018DriverChannel::DRI0018DriverChannel(uint8_t pwmDigitalInputPin, 
-                                           uint8_t directionDigitalInputPin,
-                                           uint8_t currentSenseDigitalInputPin):
-    _pwmPin(pwmDigitalInputPin), _dirPin(directionDigitalInputPin), 
-    _currPin(currentSenseDigitalInputPin) {}
+                                           uint8_t directionDigitalInputPin):
+    _pwmPin(pwmDigitalInputPin), _dirPin(directionDigitalInputPin) {}
 
 void DRI0018DriverChannel::init() {
     pinMode(_pwmPin, OUTPUT);
     pinMode(_dirPin, OUTPUT);
-    pinMode(_currPin, INPUT);
 
     configurePWM(); // Set PWM frequency for motor control
     digitalWrite(_dirPin, MOTOR_CCW_DIRECTION); // Default direction
@@ -35,18 +32,7 @@ void DRI0018DriverChannel::configurePWM() {
     }
 }
 
-uint8_t DRI0018DriverChannel::isReady() const {
-    // Current sense pin outputs HIGH when a fault condition is detected (overcurrent, overtemperature, etc.)
-    const uint8_t faultState = digitalRead(_currPin);
-    return (faultState == LOW) ? 1 : 0; // LOW means ready
-}
-
 void DRI0018DriverChannel::setVelocity(float rad_per_sec) {
-    if (!isReady()) {
-        analogWrite(_pwmPin, 0);
-        return;
-    }
-
     // Direction Logic
     if (rad_per_sec >= 0) {
         digitalWrite(_dirPin, MOTOR_CCW_DIRECTION);

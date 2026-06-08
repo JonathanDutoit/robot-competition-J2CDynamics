@@ -42,16 +42,16 @@ void loop(void)
     if(val != -1){
 		
 		switch(val){
-			case 'c'://Move Forward
+			case 'c':
 				cmd.mode = SweeperMode::Collect;
 				break;
-			case 'd'://Move Backward
+			case 'd':
 				cmd.mode = SweeperMode::Dropoff;
 				break;
-			case 'i'://Turn Left
+			case 'i':
 				cmd.mode = SweeperMode::Idle;
 				break;
-			case 'z':
+			case 'h':
 				Serial.println("Hello");
 				break;
 		}
@@ -77,6 +77,14 @@ void loop(void)
 	  Serial.println("Right motor fault detected!");
 	  cmd.mode = SweeperMode::Idle; // Stop both motors if right motor is faulty
 	}
-	sweepersController.update(); // Update controller to apply any changes from fault detection
+
+	leftMotor.getCurrent(); // Optionally read current for monitoring
+	rightMotor.getCurrent();
+
+	Serial.print("Left Motor Current: ");
+	Serial.print(leftMotor.getCurrent());
+	Serial.print(" A, Right Motor Current: ");
+	Serial.print(rightMotor.getCurrent());
+	Serial.println(" A");
   }
 }

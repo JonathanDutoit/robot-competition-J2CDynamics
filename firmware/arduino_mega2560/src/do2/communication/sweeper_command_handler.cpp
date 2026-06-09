@@ -5,24 +5,24 @@ SweeperCommandHandler::SweeperCommandHandler(SweeperState& state) : _state(state
 HandlerResponse SweeperCommandHandler::handleCommand(const char* command, const float* args) {
     if (strcmp(command, "COLLECT") == 0) {
         _state.mode = SweeperMode::Collect;
-        return { true, "COLLECT command received" };
+        return { true, "" };
     }
 
     if (strcmp(command, "DROPOFF") == 0) {
         _state.mode = SweeperMode::Dropoff;
-        return { true, "DROPOFF command received" };
+        return { true, "" };
     }
 
     if (strcmp(command, "IDLE") == 0) {
         _state.mode = SweeperMode::Idle;
-        return { true, "IDLE command received" };
+        return { true, "" };
     }
 
     if (strcmp(command, "MODE") == 0) {
         return _sendSweeperMode();
     }
 
-    return { false, "Unknown command" };
+    return { false, "Unknown mode requested." };
 }
 
 HandlerResponse SweeperCommandHandler::_sendSweeperMode() {
@@ -40,6 +40,6 @@ HandlerResponse SweeperCommandHandler::_sendSweeperMode() {
             return { true, "MODE: FAULT" };
             break;
         default:
-            return { false, "MODE: UNKNOWN" };
+            return { false, "Unknown state." };
     }
 }

@@ -85,11 +85,7 @@ void loop()
       if (currentCount > previousDuploCount) {
             if (currentCount < MAX_DUPLO_COUNT) {
                 plateController.rotateQuarterTurn(); // Rotate the plate by a quarter turn for each new duplo detected
-            } else {
-                Serial.println("Warning: Duplo count exceeded maximum limit!");
             }
-            Serial.print("Duplo count updated: ");
-            Serial.println(previousDuploCount);
       }
       
       previousDuploCount = currentCount;

@@ -45,7 +45,7 @@ from rclpy.qos import (QoSProfile, ReliabilityPolicy, DurabilityPolicy,
                        HistoryPolicy, qos_profile_sensor_data)
 
 from std_msgs.msg import String, Bool
-from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped
+from geometry_msgs.msg import Twist, PoseWithCovarianceStamped, PoseStamped, PoseArray
 from sensor_msgs.msg import LaserScan, Image, CompressedImage
 from nav_msgs.msg import Odometry, OccupancyGrid, Path
 
@@ -85,6 +85,8 @@ AMCL_POSE_TOPIC   = "/amcl_pose"         # AMCL estimated pose + covariance
 RELOCALIZE_SRV    = "/reinitialize_global_localization"  # AMCL kidnap recovery (Empty)
 GOAL_TOPIC        = "/goal_pose"         # Nav2 bt_navigator goal
 DUPLO_STATE_TOPIC = "/duplo_state"       # duplo_approach FSM state (JSON String)
+DUPLO_MAP_TOPIC   = "/duplo_map"         # PoseArray of CONFIRMED duplos in map frame
+DUPLO_DEBUG_TOPIC = "/duplo_debug"       # per-detection JSON: cx, cy, x_map, y_map, dist
 MAP_FRAME        = "map"
 ROBOT_FRAME      = "base_link"
 # velocity lanes in priority order (highest first) for "active source"
@@ -119,6 +121,8 @@ WATCH = [
     ("/teleop_vel",   Twist,         _RELIABLE),
     ("/robot_stats",  String,        _RELIABLE),
     (DUPLO_STATE_TOPIC, String,      _RELIABLE),
+    (DUPLO_MAP_TOPIC,   PoseArray,   _RELIABLE),
+    (DUPLO_DEBUG_TOPIC, String,      _RELIABLE),
     (GLOBAL_PLAN_TOPIC, Path,        _RELIABLE),
     (LOCAL_PLAN_TOPIC,  Path,        _RELIABLE),
 ]
@@ -165,6 +169,9 @@ class Monitor(Node):
         self.amcl_sigma = None  # position std-dev (m) from AMCL covariance
         self.duplo = None
         self.duplo_t = 0.0
+        self.duplo_map_msg = None         # latest /duplo_map PoseArray
+        self.duplo_debug = None            # latest parsed /duplo_debug JSON
+        self.duplo_debug_t = 0.0
         self.tf_ok = False
         self.nodes = []
         self.topics = []
@@ -240,6 +247,14 @@ class Monitor(Node):
                         self.duplo_t = now
                     except Exception:
                         pass
+                elif mtype is String and name == DUPLO_DEBUG_TOPIC:
+                    try:
+                        self.duplo_debug = json.loads(msg.data)
+                        self.duplo_debug_t = now
+                    except Exception:
+                        pass
+                elif mtype is PoseArray and name == DUPLO_MAP_TOPIC:
+                    self.duplo_map_msg = msg
                 elif _HAVE_VISION and mtype is Detection2DArray:
                     self.det_n = len(msg.detections)
                     self.det_t = now
@@ -297,6 +312,11 @@ class Monitor(Node):
         # detections are in DETECTION_REF_W/H pixel space; scale to this frame
         h, w = img.shape[:2]
         sx, sy = w / float(DETECTION_REF_W), h / float(DETECTION_REF_H)
+        # Pull the latest projection debug (cx, cy in MAIN coords + dist + world xy)
+        debug_items = []
+        if self.duplo_debug is not None and \
+                (time.monotonic() - self.duplo_debug_t) < 2.0:
+            debug_items = self.duplo_debug.get("items", [])
         for d in det.detections:
             cx = d.bbox.center.position.x * sx
             cy = d.bbox.center.position.y * sy
@@ -313,6 +333,23 @@ class Monitor(Node):
             cv2.rectangle(img, (x1, y1 - 16), (x1 + 8 * len(txt), y1), (40, 200, 40), -1)
             cv2.putText(img, txt, (x1 + 2, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX,
                         0.45, (0, 0, 0), 1, cv2.LINE_AA)
+            # ── distance overlay from /duplo_debug ──
+            # Match by bbox-centre proximity in MAIN coords (≤ ~20 px).
+            best, best_d = None, 20.0 * 20.0
+            cx_main = d.bbox.center.position.x
+            cy_main = d.bbox.center.position.y
+            for it in debug_items:
+                dd = (it["cx"] - cx_main) ** 2 + (it["cy"] - cy_main) ** 2
+                if dd < best_d:
+                    best_d, best = dd, it
+            if best is not None:
+                btxt = f"d={best['dist']:.2f}m  ({best['x_map']:.2f},{best['y_map']:.2f})"
+                bx = x1
+                by = min(y2 + 16, img.shape[0] - 4)
+                cv2.rectangle(img, (bx, by - 12), (bx + 8 * len(btxt), by + 4),
+                              (0, 0, 0), -1)
+                cv2.putText(img, btxt, (bx + 2, by), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.42, (40, 200, 255), 1, cv2.LINE_AA)
 
     def _decode_image(self, msg):
         try:
@@ -525,6 +562,36 @@ class Monitor(Node):
             duplo = None
             if self.duplo is not None and (time.monotonic() - self.duplo_t) < 1.5:
                 duplo = self.duplo
+
+            # ── duplo panel payload: robot pose + each confirmed duplo with dist
+            robot_pose = None
+            try:
+                tf = self.tf_buffer.lookup_transform(
+                    MAP_FRAME, ROBOT_FRAME, rclpy.time.Time())
+                robot_pose = {
+                    "x": round(tf.transform.translation.x, 3),
+                    "y": round(tf.transform.translation.y, 3),
+                    "yaw": round(quat_to_yaw(tf.transform.rotation), 3),
+                }
+            except Exception:
+                pass
+
+            duplos = []
+            if self.duplo_map_msg is not None and robot_pose is not None:
+                for p in self.duplo_map_msg.poses:
+                    dx = p.position.x - robot_pose["x"]
+                    dy = p.position.y - robot_pose["y"]
+                    duplos.append({
+                        "x": round(p.position.x, 3),
+                        "y": round(p.position.y, 3),
+                        "dist": round(math.hypot(dx, dy), 3),
+                    })
+            duplos.sort(key=lambda d: d["dist"])
+            debug = None
+            if self.duplo_debug is not None and \
+                    (time.monotonic() - self.duplo_debug_t) < 2.0:
+                debug = self.duplo_debug.get("items", [])
+
             return {
                 "signals": self._signals(rates),
                 "map_geom": mg,
@@ -532,6 +599,9 @@ class Monitor(Node):
                 "nodes": self.nodes,
                 "topics": self.topics,
                 "robot": self.robot_stats,
+                "robot_pose": robot_pose,
+                "duplos": duplos,
+                "duplo_debug": debug,
             }
 
     def latest_camera(self):
@@ -578,6 +648,13 @@ class Monitor(Node):
 
         if scan is not None:
             self._draw_scan(img, scan, to_px)
+
+        # ── duplo cluster centres (orange = uncollected, confirmed) ──────────
+        if self.duplo_map_msg is not None:
+            for p in self.duplo_map_msg.poses:
+                px, py = to_px(p.position.x, p.position.y)
+                cv2.circle(img, (px, py), 6, (0, 0, 0), -1, cv2.LINE_AA)
+                cv2.circle(img, (px, py), 5, (40, 150, 255), -1, cv2.LINE_AA)
 
         try:
             tf = self.tf_buffer.lookup_transform(MAP_FRAME, ROBOT_FRAME, rclpy.time.Time())
@@ -880,6 +957,10 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
     <div id="duplo"></div>
   </div>
   <div class="panel">
+    <h2>Duplos — robot &amp; detected positions</h2>
+    <div id="duplos"></div>
+  </div>
+  <div class="panel">
     <details><summary>Nodes (<span id="nnodes">0</span>)</summary>
       <div class="drawer" id="nodes"></div></details>
     <details><summary>Topics (<span id="ntopics">0</span>)</summary>
@@ -1036,6 +1117,49 @@ function renderDuplo(d){
   bars += '</div>';
   el.innerHTML = chain + bars;
 }
+function renderDuplos(rp, duplos, debug){
+  const el = document.getElementById('duplos');
+  if(!el) return;
+  let html = '<div class="grp"><div class="gh">ROBOT POSE (map)</div>';
+  if(rp){
+    html += '<div class="sig"><span class="lbl">x</span><span class="val">'+rp.x.toFixed(2)+' m</span></div>'
+         +  '<div class="sig"><span class="lbl">y</span><span class="val">'+rp.y.toFixed(2)+' m</span></div>'
+         +  '<div class="sig"><span class="lbl">yaw</span><span class="val">'+(rp.yaw*180/Math.PI).toFixed(0)+'°</span></div>';
+  } else {
+    html += '<div class="mut">no tf map->base</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="grp"><div class="gh">CONFIRMED DUPLOS  ('+(duplos?duplos.length:0)+')</div>';
+  if(duplos && duplos.length){
+    html += '<table><tr><th>#</th><th>x</th><th>y</th><th class="num">dist</th></tr>';
+    duplos.forEach((d, i) => {
+      html += '<tr><td class="mut">'+i+'</td>'
+            + '<td>'+d.x.toFixed(2)+'</td>'
+            + '<td>'+d.y.toFixed(2)+'</td>'
+            + '<td class="num">'+d.dist.toFixed(2)+' m</td></tr>';
+    });
+    html += '</table>';
+  } else {
+    html += '<div class="mut">no confirmed duplos in /duplo_map</div>';
+  }
+  html += '</div>';
+
+  if(debug && debug.length){
+    html += '<div class="grp"><div class="gh">LIVE DETECTIONS  ('+debug.length+')</div>';
+    html += '<table><tr><th>cx,cy (px)</th><th>x_map,y_map</th><th class="num">dist</th><th class="num">score</th></tr>';
+    debug.forEach(it => {
+      html += '<tr>'
+            + '<td class="mut">'+it.cx.toFixed(0)+','+it.cy.toFixed(0)+'</td>'
+            + '<td>'+it.x_map.toFixed(2)+','+it.y_map.toFixed(2)+'</td>'
+            + '<td class="num">'+it.dist.toFixed(2)+' m</td>'
+            + '<td class="num">'+it.score.toFixed(2)+'</td></tr>';
+    });
+    html += '</table></div>';
+  }
+
+  el.innerHTML = html;
+}
 async function tick(){
   try{
     let s = await (await fetch('/api/status')).json();
@@ -1045,6 +1169,7 @@ async function tick(){
       '<div class="grp"><div class="gh">'+g.name+'</div>'+g.rows.map(sigRow).join('')+'</div>').join('');
     document.getElementById('res').innerHTML = resBlock('ROBOT', s.robot);
     renderDuplo(s.duplo);
+    renderDuplos(s.robot_pose, s.duplos, s.duplo_debug);
     document.getElementById('nnodes').textContent = s.nodes.length;
     document.getElementById('ntopics').textContent = s.topics.length;
     document.getElementById('counts').textContent = s.nodes.length+' nodes  '+s.topics.length+' topics';

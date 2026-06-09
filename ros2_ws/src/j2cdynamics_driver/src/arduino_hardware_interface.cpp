@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <cmath>
-#include <iomanip>      // std::setprecision / std::fixed (was relying on transitive include)
+#include <iomanip>      
 #include <sstream>
 #include <stdexcept>
 
@@ -170,13 +170,10 @@ ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & pe
     RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
       "Odometry read failed (%d in a row) — reusing last value",
       consecutive_failures_);
-    // hw_vel_left_ / hw_vel_right_ deliberately left untouched
   }
 
-  double dt = period.seconds();
-
-  hw_pos_left_  += hw_vel_left_  * dt;
-  hw_pos_right_ += hw_vel_right_ * dt;
+  hw_pos_left_  += hw_vel_left_  * period.seconds();
+  hw_pos_right_ += hw_vel_right_ * period.seconds();
 
   return hardware_interface::return_type::OK;
 }

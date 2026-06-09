@@ -227,7 +227,7 @@ class MissionRunner(BasicNavigator):
             time.sleep(DOOR_DWELL_S)
 
             self.get_logger().info('BUTTON: moving back from button')
-            self._open_loop_drive(BUTTON_PUSH_SPEED * 0.9, backtrack_time)
+            self._open_loop_drive(BUTTON_PUSH_SPEED, BUTTON_BACKOFF_TIME)
 
             self.get_logger().info('BUTTON: rotate towards door')
             self._open_loop_rotate(- BUTTON_ROTATE_SPEED / 2, BUTTON_ROTATE_TIME)

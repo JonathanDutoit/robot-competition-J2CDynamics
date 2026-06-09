@@ -39,12 +39,16 @@ DROPFF_FIRST_WAYPOINT = (1.5, 0.3, 3.14)
 DROPOFF_POSE = (0.2, 0.2, 3.14)
 
 START_POSE = (1.25, 0.4, 0.02)  
+#START_POSE = (8, 3.20, 1.57)
 
-RAMP_APPROACH = (8.20, 4.30, 0.0)   
+RAMP_APPROACH = (8, 4, 0.02)   
 RAMP_TOP      = (8.20, -6, 0.0) 
 
-RAMP_SPEED = 0.3
-RAMP_TIME = 5.5
+RAMP_BACKOFF_TIME  = 1.5            
+RAMP_ROTATE_SPEED    = 1.0           # rad/s during the 180° spin
+RAMP_ROTATE_TIME     = math.pi / RAMP_ROTATE_SPEED   # = π s for 180°
+RAMP_SPEED = 0.35
+RAMP_TIME = 6.0
 
 WAYPOINTS_ZONE_4  = '/maps/arena/waypoints_zone4.yaml'
 WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_do.yaml'
@@ -205,10 +209,23 @@ class MissionRunner(BasicNavigator):
     def go_up_ramp(self) -> bool:
         """
         Approach pose is assumed reached. Sequence: 
+        1. Rotate 180 Degree
+        2. 
         1. Drive forward about 1.6m
         """
+        self.get_logger().info(f'Ramp attemp — rotate 180°')
+        self._open_loop_rotate(RAMP_ROTATE_SPEED, RAMP_ROTATE_TIME)
+
+        self.get_logger().info('BUTTON: moving back from button')
+        self._open_loop_drive(-RAMP_SPEED, RAMP_BACKOFF_TIME)
+
+        self.get_logger().info('BUTTON: rotate towards ramp')
+        self._open_loop_rotate(- RAMP_ROTATE_SPEED / 1.5, RAMP_ROTATE_TIME)
+
         self.get_logger().info(f'RAMP: attempt to climb the ramp')
         self._open_loop_drive(RAMP_SPEED, RAMP_TIME)
+
+        
 
     def go_down_ramp(self) -> bool: 
         pass
@@ -400,10 +417,10 @@ class MissionRunner(BasicNavigator):
 
         try:
             #1. Explore Zone 1 via reachability-checked waypoint grid 
-            self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
+            """  self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
 
             #2. Return to base (drop off)
-            self.dropoff()
+            self.dropoff() """
 
             #3. Nav2 to low ramp pose
             self.go_to(RAMP_APPROACH, precise=True)
@@ -418,19 +435,19 @@ class MissionRunner(BasicNavigator):
             # self.setInitialPose(make_pose(*START_POSE))
 
             #6. Explore Zone 4 via reachability-checked waypoint grid 
-            self.explore_zone(WAYPOINTS_ZONE_4, TIMEOUT_ZONE_4, label='ZONE_4')
+            #self.explore_zone(WAYPOINTS_ZONE_4, TIMEOUT_ZONE_4, label='ZONE_4')
 
             #7. Go to high ramp pose 
-            self.go_to(RAMP_TOP)
+            #self.go_to(RAMP_TOP)
 
             #8. Open-loop to go down the ramp 
-            self.go_down_ramp()
+            #self.go_down_ramp()
 
             #9. Send Nav2 Pose Estimate down ramp pose 
             # self.setInitialPose(make_pose(*START_POSE))
 
             #10. Return to base (drop off)
-            self.dropoff()
+            #self.dropoff()
 
             #11. If time allows, go into carpet 
             #12. Return to base (drop off)

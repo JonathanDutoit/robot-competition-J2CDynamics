@@ -1,61 +1,68 @@
-/**:
-  controller_manager:
-    ros__parameters:
-      update_rate: 50
+controller_manager:
+  ros__parameters:
+    update_rate: 50
 
-      joint_state_broadcaster:
-        type: joint_state_broadcaster/JointStateBroadcaster
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
 
-      diff_drive_controller:
-        type: diff_drive_controller/DiffDriveController
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
 
-  diff_drive_controller:
-    ros__parameters:
-      # Joints
-      left_wheel_names: ["left_wheel_joint"]
-      right_wheel_names: ["right_wheel_joint"]
+    sweeper_mode_controller:
+      type: forward_command_controller/ForwardCommandController
 
-      # Kinematics
-      wheel_separation: 0.4216
-      wheel_radius: 0.0555
+diff_drive_controller:
+  ros__parameters:
+    # Joints
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
 
-      wheel_separation_multiplier: 1.0
-      left_wheel_radius_multiplier: 1.0
-      right_wheel_radius_multiplier: 1.0
+    # Kinematics
+    wheel_separation: 0.4216
+    wheel_radius: 0.0555
 
-      # Odometry output
-      odom_frame_id: odom
-      base_frame_id: base_link
-      enable_odom_tf: true
-      use_stamped_vel: false
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: 1.0
+    right_wheel_radius_multiplier: 1.0
 
-      # Odometry config
-      position_feedback: false
-      open_loop: true
+    # Odometry output
+    odom_frame_id: odom
+    base_frame_id: base_link
+    enable_odom_tf: true
+    use_stamped_vel: false
 
-      pose_covariance_diagonal: [0.01, 0.01, 0.0, 0.0, 0.0, 0.05]
-      twist_covariance_diagonal: [0.01, 0.0, 0.0, 0.0, 0.0, 0.04]
+    # Odometry config
+    position_feedback: false
+    open_loop: true
 
-      # Safety
-      cmd_vel_timeout: 0.5 # seconds
-      publish_limited_velocity: true
-      velocity_rolling_window_size: 10
+    pose_covariance_diagonal: [0.01, 0.01, 0.0, 0.0, 0.0, 0.05]
+    twist_covariance_diagonal: [0.01, 0.0, 0.0, 0.0, 0.0, 0.04]
 
-      # Velocity/accel limits
-      linear.x.max_velocity: .NAN
-      linear.x.min_velocity: .NAN
-      linear.x.max_acceleration: .NAN
-      linear.x.max_deceleration: .NAN
-      linear.x.max_acceleration_reverse: .NAN
-      linear.x.max_deceleration_reverse: .NAN
-      linear.x.max_jerk: .NAN
-      linear.x.min_jerk: .NAN
+    # Safety
+    cmd_vel_timeout: 0.5 # seconds
+    publish_limited_velocity: true
+    velocity_rolling_window_size: 10
 
-      angular.z.max_velocity: .NAN
-      angular.z.min_velocity: .NAN
-      angular.z.max_acceleration: .NAN
-      angular.z.max_deceleration: .NAN
-      angular.z.max_acceleration_reverse: .NAN
-      angular.z.max_deceleration_reverse: .NAN
-      angular.z.max_jerk: .NAN
-      angular.z.min_jerk: .NAN
+    # Velocity/accel limits
+    linear.x.max_velocity: .NAN
+    linear.x.min_velocity: .NAN
+    linear.x.max_acceleration: .NAN
+    linear.x.max_deceleration: .NAN
+    linear.x.max_acceleration_reverse: .NAN
+    linear.x.max_deceleration_reverse: .NAN
+    linear.x.max_jerk: .NAN
+    linear.x.min_jerk: .NAN
+
+    angular.z.max_velocity: .NAN
+    angular.z.min_velocity: .NAN
+    angular.z.max_acceleration: .NAN
+    angular.z.max_deceleration: .NAN
+    angular.z.max_acceleration_reverse: .NAN
+    angular.z.max_deceleration_reverse: .NAN
+    angular.z.max_jerk: .NAN
+    angular.z.min_jerk: .NAN
+
+forward_command_controller:
+  ros__parameters:
+    joints:
+      - robot_mode

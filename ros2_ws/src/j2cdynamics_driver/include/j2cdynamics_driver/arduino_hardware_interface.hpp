@@ -16,6 +16,14 @@
 namespace j2cdynamics_driver
 {
 
+enum class SweeperMode : int
+{
+  Idle = 0,
+  Collect = 1,
+  Dropoff = 2,
+  Fault = 3
+};
+
 class ArduinoHardwareInterface : public hardware_interface::SystemInterface
 {
 public:
@@ -51,6 +59,7 @@ private:
   // Serial helpers
   bool send_command(const std::string & cmd);
   bool request_odometry(double & left_vel, double & right_vel);
+  bool request_mode(SweeperMode & mode);
 
   // Config (loaded from URDF <hardware> params)
   std::string port_;
@@ -66,10 +75,12 @@ private:
   double hw_vel_right_ {0.0};
   double hw_pos_left_  {0.0};   // integrated position (rad)
   double hw_pos_right_ {0.0};
+  double hw_mode_state_{0.0};
 
   // Command interfaces — what ros2_control writes TO hardware
   double hw_cmd_left_  {0.0};
   double hw_cmd_right_ {0.0};
+  double hw_cmd_mode_{0.0};
 
   // resolved joint indices (set in on_init)
   int left_joint_idx_{-1};
@@ -79,13 +90,19 @@ private:
   int consecutive_failures_{0};
   int failure_threshold_{10};   // tune to your odom_rate (e.g. ~0.2s at 50 Hz)
 
-
   // Ramping (mirrors your Python ArduinoBridge logic)
   double current_left_  {0.0};
   double current_right_ {0.0};
 
+  // Internal sweeper state tracking
+  SweeperMode current_mode_ {SweeperMode::Idle};
+  SweeperMode last_send_mode_    {SweeperMode::Idle};
+
+  // Helper functions
   double _ramp(double current, double target) const;
   double _clamp(double value)                 const;
+  SweeperMode decode_mode(double v) const;
+  std::string encode_mode_command(SweeperMode mode) const;
 
   // dt-spike warn throttle
   std::chrono::steady_clock::time_point last_dt_warn_{};
@@ -94,6 +111,9 @@ private:
 
   // odometry parse helper
   bool parse_odometry(const std::string & line, double & left_vel, double & right_vel);
+
+  // mode parse helper
+  bool parse_mode(const std::string & line, SweeperMode & mode);
 
   rclcpp::Logger logger_ {rclcpp::get_logger("ArduinoHardwareInterface")};
 };

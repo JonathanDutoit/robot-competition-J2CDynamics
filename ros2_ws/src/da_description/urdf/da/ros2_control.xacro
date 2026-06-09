@@ -36,5 +36,10 @@
             <command_interface name="velocity"/>
             <state_interface name="velocity"/>
         </joint>
+
+        <joint name="robot_mode">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+        </joint>
     </ros2_control>
 </robot>

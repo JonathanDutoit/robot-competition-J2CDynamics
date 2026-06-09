@@ -23,6 +23,7 @@ find_library(LIBSERIAL_LIB serial REQUIRED)
 # ── Build the plugin library ─────────────────────────────────────────────────
 add_library(arduino_hardware_interface SHARED
   src/arduino_hardware_interface.cpp
+  src/joy_mode_mapper.cpp
 )
 
 target_include_directories(arduino_hardware_interface PUBLIC

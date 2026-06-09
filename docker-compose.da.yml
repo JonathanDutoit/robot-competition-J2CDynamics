@@ -108,6 +108,7 @@ services:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
+      - ./ros2_ws/src/j2cdynamics_driver:/ros2_ws/src/j2cdynamics_driver
       - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps
     devices:
       - /dev/input/js0:/dev/input/js0

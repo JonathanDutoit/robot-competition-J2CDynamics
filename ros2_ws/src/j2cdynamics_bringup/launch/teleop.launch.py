@@ -42,6 +42,13 @@ def generate_launch_description():
                 remappings=[('/cmd_vel', '/teleop_vel')]   
     )
 
+    mode_mapper_node = Node(
+        package='j2cdynamics_driver',
+        executable='joy_mode_mapper',
+        name='joy_mode_mapper',
+        output='screen'
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_keyboard', 
@@ -57,5 +64,6 @@ def generate_launch_description():
 
         joy_node,
         teleop_joy_node,
-        teleop_keyboard_node
+        teleop_keyboard_node,
+        mode_mapper_node
     ])

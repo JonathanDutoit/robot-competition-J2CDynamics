@@ -89,6 +89,8 @@ ArduinoHardwareInterface::on_activate(const rclcpp_lifecycle::State &)
   hw_cmd_left_ = hw_cmd_right_ = 0.0;
   current_left_ = current_right_ = 0.0;
   hw_vel_left_ = hw_vel_right_ = 0.0;
+  hw_mode_state_ = hw_cmd_mode_ = 0.0;
+  current_mode_ = last_send_mode_ = SweeperMode::Idle;
   consecutive_failures_ = 0;
   RCLCPP_INFO(logger_, "Hardware activated");
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -99,6 +101,7 @@ ArduinoHardwareInterface::on_deactivate(const rclcpp_lifecycle::State &)
 {
   // Send zero velocity before deactivating
   send_command("SPEED 0.0000 0.0000\n");
+  send_command("MODE IDLE\n");
   RCLCPP_INFO(logger_, "Hardware deactivated");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -139,6 +142,8 @@ ArduinoHardwareInterface::export_command_interfaces()
     info_.joints[left_joint_idx_].name,  hardware_interface::HW_IF_VELOCITY, &hw_cmd_left_);
   command_interfaces.emplace_back(
     info_.joints[right_joint_idx_].name, hardware_interface::HW_IF_VELOCITY, &hw_cmd_right_);
+  command_interfaces.emplace_back(
+    "robot_mode", hardware_interface::HW_IF_POSITION, &hw_cmd_mode_);
 
   return command_interfaces;
 }
@@ -147,6 +152,7 @@ ArduinoHardwareInterface::export_command_interfaces()
 hardware_interface::return_type
 ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & period)
 {
+  // ── ODOMETRY POLLING ─────────────────────
   double left_vel = 0.0, right_vel = 0.0;
 
   if (request_odometry(left_vel, right_vel)) {
@@ -190,6 +196,34 @@ ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & pe
   hw_pos_left_  += hw_vel_left_  * dt;
   hw_pos_right_ += hw_vel_right_ * dt;
 
+  // ── MODE POLLING ─────────────────────
+  SweeperMode mode;
+
+  if (request_mode(mode)) {
+    hw_mode_state_ = static_cast<double>(mode);
+    if (hw_cmd_mode_ != hw_mode_state_) {
+      RCLCPP_WARN(logger_,
+        "Mode mismatch: commanded=%d actual=%d",
+        (int)hw_cmd_mode_,
+        (int)hw_mode_state_);
+    }
+  } else {
+    // On a read failure, keep hw_mode_state_ unchanged (last good value) and
+    // let the failure counter govern escalation rather than faulting on a single
+    // hiccup. Note that the mode state is informational only (not used in
+    // control logic), so it's less critical to have it update every cycle.
+    ++consecutive_failures_;
+    if (consecutive_failures_ > failure_threshold_) {
+      RCLCPP_ERROR(logger_,
+        "Arduino unresponsive: %d consecutive failed reads — reporting fault",
+        consecutive_failures_);
+      return hardware_interface::return_type::ERROR;
+    }
+    RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
+      "Mode read failed (%d in a row) — reusing last value",
+      consecutive_failures_);
+  }
+
   return hardware_interface::return_type::OK;
 }
 
@@ -218,6 +252,24 @@ ArduinoHardwareInterface::write(const rclcpp::Time &, const rclcpp::Duration &)
     }
     RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
       "Failed to send SPEED command (%d in a row)", consecutive_failures_);
+  }
+
+  SweeperMode desired_mode = decode_mode(hw_cmd_mode_);
+
+  if (desired_mode != last_send_mode_) {
+    std::string cmd = encode_mode_command(desired_mode);
+
+    if (!send_command(cmd)) {
+      ++consecutive_failures_;
+      if (consecutive_failures_ > failure_threshold_) {
+        RCLCPP_ERROR(logger_, "Repeated MODE write failures — reporting fault");
+        return hardware_interface::return_type::ERROR;
+      }
+      RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
+        "Failed to send MODE command (%d in a row)", consecutive_failures_);
+    } else {
+      last_send_mode_ = desired_mode;
+    }
   }
 
   return hardware_interface::return_type::OK;
@@ -284,6 +336,58 @@ bool ArduinoHardwareInterface::parse_odometry(
   return true;
 }
 
+bool ArduinoHardwareInterface::request_mode(SweeperMode & mode)
+{
+  try {
+    // NOTE: flushing before each request is acceptable in a strict
+    // request/response protocol (clears stale partial replies). If you ever
+    // move the Arduino to streaming mode, drop this and the Write below.
+    serial_.FlushInputBuffer();
+    serial_.Write("MODE\n");
+    std::string line;
+
+    // Short timeout: a late Arduino must not stall the control loop for long.
+    // (Was 50 with a comment claiming 500 — reconcile this with your odom_rate.)
+    serial_.ReadLine(line, '\n', 50);
+
+    return parse_mode(line, mode);
+
+  } catch (const LibSerial::ReadTimeout &) {
+    // No reply this cycle — a normal transient, not an exception worth logging
+    // at error level. Caller treats the false return as "reuse last value".
+    return false;
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger_, "Serial read error: %s", e.what());
+    return false;
+  }
+}
+
+// Accept the MODE line even with leading noise/whitespace, rather than
+// demanding it start exactly at index 0. Still strict about the numeric format.
+bool ArduinoHardwareInterface::parse_mode(
+  const std::string & line, SweeperMode & mode)
+{
+  std::size_t start = line.find("MODE:");
+  if (start == std::string::npos) return false;
+
+  std::string value = line.substr(start);
+
+  if (value.find("IDLE") != std::string::npos) {
+    mode = SweeperMode::Idle;
+    return true;
+  }
+  if (value.find("COLLECT") != std::string::npos) {
+    mode = SweeperMode::Collect;
+    return true;
+  }
+  if (value.find("DROPOFF") != std::string::npos) {
+    mode = SweeperMode::Dropoff;
+    return true;
+  }
+
+  return false;
+}
+
 double ArduinoHardwareInterface::_ramp(double current, double target) const
 {
   double delta = target - current;
@@ -296,7 +400,38 @@ double ArduinoHardwareInterface::_clamp(double value) const
   return std::max(-max_rad_s_, std::min(max_rad_s_, value));
 }
 
-}  
+SweeperMode ArduinoHardwareInterface::decode_mode(double v) const
+{
+  int mode_int = static_cast<int>(std::round(v));
+  switch (mode_int) {
+    case 0: return SweeperMode::Idle;
+    case 1: return SweeperMode::Collect;
+    case 2: return SweeperMode::Dropoff;
+    case 3: return SweeperMode::Fault;
+    default:
+      RCLCPP_WARN(logger_, "Invalid mode command value: %.2f — treating as Idle", v);
+      return SweeperMode::Idle;
+  }
+}
+
+std::string ArduinoHardwareInterface::encode_mode_command(SweeperMode mode) const
+{
+  switch (mode)
+  {
+    case SweeperMode::Idle:
+      return "MODE IDLE\n";
+
+    case SweeperMode::Collect:
+      return "MODE COLLECT\n";
+
+    case SweeperMode::Dropoff:
+      return "MODE DROPOFF\n";
+  }
+
+  return "MODE IDLE\n";
+}
+
+}  // namespace j2cdynamics_driver
 
 // ── Plugin registration ───────────────────────────────────────────────────────
 #include "pluginlib/class_list_macros.hpp"

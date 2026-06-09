@@ -9,6 +9,7 @@ def generate_launch_description():
     calibration_file = LaunchConfiguration('calibration_file')
 
     perception_pkg = get_package_share_directory('j2cdynamics_perception')
+    calibration_file_path = PathJoinSubstitution([perception_pkg, 'config', calibration_file])
 
     camera_node = Node(
         package='j2cdynamics_camera', 
@@ -22,7 +23,7 @@ def generate_launch_description():
         name='ground_projection', 
         output='screen',
         parameters=[{
-            'calibration_file': calibration_file
+            'calibration_file': calibration_file_path
         }]
     )
 
@@ -34,7 +35,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('calibration_file', default_value='', description='Camera calibration file'),
+        DeclareLaunchArgument('calibration_file', default_value='camera_calibration_do.yaml', description='Camera calibration file'),
         camera_node,
         duplo_map,
         ground_projection

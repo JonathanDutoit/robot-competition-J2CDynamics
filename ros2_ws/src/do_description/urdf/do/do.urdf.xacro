@@ -39,7 +39,7 @@
 	<xacro:property name="lidar_z_offset" value="${233 * mm_to_m}"/>
 	<xacro:property name="lidar_mass" value="${0.170}"/>
 
-	<xacro:property name="total_mass" value="3.8"/>
+	<xacro:property name="total_mass" value="4.7"/>
 
 	<xacro:include filename="materials.xacro"/>
 	<xacro:include filename="do_inertia.xacro"/>

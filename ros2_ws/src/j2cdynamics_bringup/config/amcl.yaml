@@ -16,9 +16,8 @@ amcl:
     robot_model_type: "nav2_amcl::DifferentialMotionModel"
 
     # ── Particle filter ──────────────────────────────────────────────────────
-    min_particles: 1000     # 500
-    min_particles: 1000     # 500
-    max_particles: 2000
+    min_particles: 5000     # 500
+    max_particles: 8000
     pf_err: 0.05
     pf_z: 0.99
 
@@ -51,8 +50,8 @@ amcl:
     transform_tolerance: 1.0    # s — generous, matches the open-loop odom timing
 
     # ── Kidnapped-robot recovery ─────────────────────────────────────────────
-    recovery_alpha_slow: 0.001
     recovery_alpha_fast: 0.1
+    recovery_alpha_slow: 0.001
 
     save_pose_rate: 0.5
     tf_broadcast: true

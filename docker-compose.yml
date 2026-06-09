@@ -55,13 +55,15 @@ services:
       - /run/udev:/run/udev:ro
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_camera:/ros2_ws/src/j2cdynamics_camera
+      - ./ros2_ws/src/j2cdynamics_perception:/ros2_ws/src/j2cdynamics_perception
       - ./camera/model/best_int8.onnx:/ros2_ws/model/best_int8.onnx
+      - ./ros2_ws/src/j2cdynamics_perception/config/camera_calibration_do.yaml:/calibration_files/camera_calibration_do.yaml
     group_add:
       - "video"
     depends_on:
       driver:
         condition: service_healthy
-    command: ros2 launch j2cdynamics_bringup camera.launch.py
+    command: ros2 launch j2cdynamics_bringup camera.launch.py calibration_files:=/calibration_files/camera_calibration_do.yaml
 
   lidar: 
     build:

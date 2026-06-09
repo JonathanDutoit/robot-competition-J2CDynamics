@@ -14,8 +14,6 @@ def generate_launch_description():
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
     bringup_dir = get_package_share_directory('j2cdynamics_bringup')
 
-    collision_monitor_params_file = os.path.join(bringup_dir, 'config', 'collision_monitor.yaml')
-
     # ── Nav2 stack (controller / planner / bt_navigator / smoother) ─────────────
     nav2 = GroupAction(
         actions=[
@@ -32,25 +30,9 @@ def generate_launch_description():
         ]
     )
 
-    # ── Safety layer — runs in BOTH modes (brakes the joystick during mapping) ──
-    collision_monitor = Node(
-        package='nav2_collision_monitor', executable='collision_monitor',
-        name='collision_monitor', output='screen',
-        parameters=[collision_monitor_params_file],
-    )
-
-    collision_lifecycle = Node(
-        package='nav2_lifecycle_manager', executable='lifecycle_manager',
-        name='lifecycle_manager_safety', output='screen',
-        parameters=[{'autostart': True,
-                     'node_names': ['collision_monitor']}],
-    )
-
     return LaunchDescription([
         LogInfo(msg=['nav2 params file: ', params_file]),
         DeclareLaunchArgument('params_file', default_value='nav2_params.yaml',
                               description="nav2 parameters file"),
-        nav2,
-        #collision_monitor,
-        #collision_lifecycle,
+        nav2        
     ])

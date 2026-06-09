@@ -33,7 +33,11 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 #  POSES & PATHS  
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE  = (0.35, 0.3, -1.57)      
+BASE_POSE  = (0.35, 0.3, -1.57)  
+
+DROPFF_FIRST_WAYPOINT = (1.5, 0.3, 3.14)
+DROPOFF_POSE = (0.2, 0.2, 3.14)
+
 START_POSE = (1.25, 0.4, 0.02)  
 
 RAMP_APPROACH = (8.20, 4.30, 0.0)   
@@ -51,6 +55,9 @@ TIMEOUT_ZONE_1 = 200.0
 MISSION_TIMEOUT = 600.0
 MISSION_CLOSING_TIME = 60.0
 
+DROPOFF_SPEED = -0.3
+DROPOFF_TIME = 2 # s
+
 NAV_GOAL_TIMEOUT_S = 45.0
 PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 2
@@ -59,7 +66,7 @@ DUPLO_COUNT_ZONE_4 = 6
 
 SCAN_ROT_STEP = 0.8
 
-RAMP_VEL_TOPIC     = 'ramp_vel'   # must match twist_mux.yaml at priority 150
+RAMP_VEL_TOPIC = 'ramp_vel'   # must match twist_mux.yaml at priority 150
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -368,6 +375,16 @@ class MissionRunner(BasicNavigator):
         return (pose.pose.pose.position.x, pose.pose.pose.position.y)
     
 
+    def dropoff(self): 
+        # Go to safe waypoint to align correctly
+        self.go_to(DROPFF_FIRST_WAYPOINT, precise=True)
+
+        # Go to base position
+        self.go_to(BASE_POSE, precise=True)
+        
+        # Go backwards for a bit
+        self._open_loop_drive(DROPOFF_SPEED, DROPOFF_TIME)
+    
     # ── mission ───────────────────────────────────────────────────────────────
 
     def run(self) -> None:
@@ -386,7 +403,7 @@ class MissionRunner(BasicNavigator):
             self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
 
             #2. Return to base (drop off)
-            self.go_to(BASE_POSE, precise=True)
+            self.dropoff()
 
             #3. Nav2 to low ramp pose
             self.go_to(RAMP_APPROACH, precise=True)
@@ -413,7 +430,7 @@ class MissionRunner(BasicNavigator):
             # self.setInitialPose(make_pose(*START_POSE))
 
             #10. Return to base (drop off)
-            self.go_to(BASE_POSE, precise=True)
+            self.dropoff()
 
             #11. If time allows, go into carpet 
             #12. Return to base (drop off)

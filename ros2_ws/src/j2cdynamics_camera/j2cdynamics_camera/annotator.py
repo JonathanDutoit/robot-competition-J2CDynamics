@@ -23,6 +23,11 @@ def draw_fps(frame: np.ndarray, fps: float) -> np.ndarray:
                 (0, 200, 255), 2, cv2.LINE_AA)
     return frame
 
+def draw_projected_point(frame: np.ndarray, u: float, v: float) -> np.ndarray:
+    cv2.circle(frame, (int(u), int(v)), 8, (255, 0, 255), -1)
+    cv2.putText(frame, "projected", (int(u)+10, int(v)), ...)
+    return frame
+
 def encode_jpeg(frame: np.ndarray) -> bytes:
     _, jpeg_buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
     return jpeg_buf.tobytes()

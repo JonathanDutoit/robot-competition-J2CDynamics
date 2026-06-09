@@ -16,7 +16,7 @@ amcl:
     robot_model_type: "nav2_amcl::DifferentialMotionModel"
 
     # ── Particle filter ──────────────────────────────────────────────────────
-    min_particles: 1000     # 500
+    min_particles: 100     # 500
     max_particles: 2000
     pf_err: 0.05
     pf_z: 0.99
@@ -27,7 +27,7 @@ amcl:
     alpha1: 0.20   # rotation noise from rotation — keep modest
     alpha2: 0.60   # rotation noise from translation — RAISED, this is your symptom
     alpha3: 0.20   # translation noise from translation — keep modest
-    alpha4: 0.40   # translation noise from rotation — moderate
+    alpha4: 0.20   # translation noise from rotation — moderate
     alpha5: 0.20   # unused (omni only)
 
     # ── Laser likelihood-field model ─────────────────────────────────────────
@@ -35,27 +35,23 @@ amcl:
     laser_likelihood_max_dist: 2.0
     laser_max_range: 12.0
     laser_min_range: -1.0
-    max_beams: 180          # was 60
+    max_beams: 60          # was 60
 
     sigma_hit: 0.1          # was 0.2 — sharper laser likelihood peaks
-    z_hit: 0.7              # was 0.5 — weight "good hits" more
-    z_rand: 0.25            # was 0.5 — fewer random hits
-    z_short: 0.025          # was 0.05
-    z_max: 0.025            # was 0.05
+    z_hit: 0.85
+    z_rand: 0.10
+    z_short: 0.025
+    z_max: 0.025           
 
     # ── Update / resample thresholds ─────────────────────────────────────────
-    update_min_d: 0.10          # m of translation before a filter update
+    update_min_d: 0.15          # m of translation before a filter update
     update_min_a: 0.10          # rad of rotation before a filter update
     resample_interval: 1
-    transform_tolerance: 1.0    # s — generous, matches the open-loop odom timing
+    transform_tolerance: 0.5    # s — generous, matches the open-loop odom timing
 
     # ── Kidnapped-robot recovery ─────────────────────────────────────────────
-    # Non-zero alpha_slow/fast enables augmented-MCL random particle injection so
-    # AMCL can recover after the robot is physically displaced. When truly lost,
-    # also call:  ros2 service call /reinitialize_global_localization \
-    #             std_srvs/srv/Empty
-    recovery_alpha_slow: 0.001
     recovery_alpha_fast: 0.1
+    recovery_alpha_slow: 0.001
 
     save_pose_rate: 0.5
     tf_broadcast: true

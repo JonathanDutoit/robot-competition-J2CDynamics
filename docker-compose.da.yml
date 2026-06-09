@@ -17,7 +17,7 @@ services:
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_driver:/ros2_ws/src/j2cdynamics_driver
       - ./ros2_ws/src/j2cdynamics_diagnostics:/ros2_ws/src/j2cdynamics_diagnostics
-      - ./ros2_ws/src/do_description:/ros2_ws/src/do_description
+      - ./ros2_ws/src/da_description:/ros2_ws/src/da_description
     devices:
       - /dev/serial:/dev/serial
     group_add:

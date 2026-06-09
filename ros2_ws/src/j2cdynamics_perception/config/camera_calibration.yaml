@@ -1,9 +1,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Camera calibration for ground-plane projection (Raspberry Pi Camera v2.1 / IMX219).
 #
-# INTRINSICS — for the 640x480 stream the detector reports bboxes in. Replace the
-# values below with YOUR calibration from scripts/calibrate_camera.py. The ones
-# here are only a rough IMX219 prior (≈62° HFOV) so the node runs before calibration.
+# INTRINSICS — replace with YOUR calibration from scripts/calibrate_camera.py.
+# image_size is the resolution the calibration was DONE at. ground_projection
+# auto-scales K from this resolution to the bbox stream resolution (bbox_image_size
+# parameter, default 1640x1232 = MAIN_SIZE). Distortion coeffs don't scale.
+#
+# If you re-calibrate at the new MAIN_SIZE directly, set image_size: [1640, 1232]
+# and no scaling happens at load.
+image_size:  [640, 480]
 camera_matrix: [2489.41, 0.0, 517.82,
                  0.0, 2483.84, 399.88,
                  0.0, 0.0, 1.0]

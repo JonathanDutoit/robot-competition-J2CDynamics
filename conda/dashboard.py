@@ -72,10 +72,12 @@ CMD_OUT_TOPIC    = "/cmd_vel_muxed"      # twist_mux output
 ESTOP_TOPIC      = "/e_stop"
 DETECTIONS_TOPIC = "/detections"
 COLLISION_POLY   = "/collision_approach"
-# detections arrive in LORES pixel space; set to your detector's frame size
-# so boxes scale correctly onto whatever resolution the camera topic streams.
-DETECTION_REF_W  = 640      # <-- LORES_SIZE[0]
-DETECTION_REF_H  = 480      # <-- LORES_SIZE[1]
+# detections arrive in MAIN_SIZE pixel space (1640x1232); the dashboard renders
+# the camera image at whatever size /camera/image_raw is published in, then scales
+# bboxes by w/DETECTION_REF_W. If the published image is 1640x1232 these factors
+# are exactly 1.0 — bboxes drawn at their bbox coords with no scaling distortion.
+DETECTION_REF_W  = 1640     # <-- MAIN_SIZE[0]
+DETECTION_REF_H  = 1232     # <-- MAIN_SIZE[1]
 GLOBAL_PLAN_TOPIC = "/plan"              # Nav2 global path
 LOCAL_PLAN_TOPIC  = "/local_plan"        # controller local trajectory
 INITIALPOSE_TOPIC = "/initialpose"       # AMCL re-localization seed (2D Pose Estimate)

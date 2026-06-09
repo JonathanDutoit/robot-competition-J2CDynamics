@@ -69,8 +69,7 @@ class GroundProjector:
         s = -self.t[2] / ray[2]                   # intersect z = 0
         p = self.t + s * ray
         return float(p[0]), float(p[1])
-
-
+    
 # ── ROS node ──────────────────────────────────────────────────────────────────
 class GroundProjectionNode(Node):
     def __init__(self):
@@ -80,11 +79,16 @@ class GroundProjectionNode(Node):
         self.declare_parameter('max_range', 3.0)     # m; drop far projections (perspective error grows)
         self.declare_parameter('base_frame', 'base_link')
         self.declare_parameter('map_frame', 'map')
+        # Resolution the INCOMING bbox coords are expressed in. Must match the
+        # detector's MAIN_SIZE. K is auto-scaled from its calibration resolution
+        # (set in the yaml) to this resolution at load time.
+        self.declare_parameter('bbox_image_size', [1640, 1232])
 
         self.min_score = float(self.get_parameter('min_score').value)
         self.max_range = float(self.get_parameter('max_range').value)
         self.base_frame = self.get_parameter('base_frame').value
         self.map_frame = self.get_parameter('map_frame').value
+        self.bbox_image_size = list(self.get_parameter('bbox_image_size').value)
 
         cal = self._load_calibration(self.get_parameter('calibration_file').value)
         self.proj = GroundProjector(
@@ -114,6 +118,27 @@ class GroundProjectionNode(Node):
                 self.get_logger().warn(f'calibration load failed ({e}); using defaults')
         else:
             self.get_logger().warn('no calibration_file; using rough IMX219 defaults — CALIBRATE!')
+
+        # ── Scale K from its calibration resolution to the bbox resolution ────
+        # K is resolution-dependent: fx, fy, cx, cy all scale linearly with size.
+        # Distortion coefficients are in normalised image coords so they DON'T scale.
+        calib_size = list(cal.get('image_size', [640, 480]))
+        target_size = list(self.bbox_image_size)
+        if calib_size[0] != target_size[0] or calib_size[1] != target_size[1]:
+            K = np.asarray(cal['camera_matrix'], dtype=np.float64).reshape(3, 3)
+            sx = float(target_size[0]) / float(calib_size[0])
+            sy = float(target_size[1]) / float(calib_size[1])
+            K[0, 0] *= sx   # fx
+            K[1, 1] *= sy   # fy
+            K[0, 2] *= sx   # cx
+            K[1, 2] *= sy   # cy
+            cal['camera_matrix'] = K.flatten().tolist()
+            self.get_logger().info(
+                f'K scaled: calib {calib_size} → bbox {target_size}  '
+                f'(sx={sx:.3f}, sy={sy:.3f})')
+        else:
+            self.get_logger().info(
+                f'K already at bbox resolution {target_size} — no scaling')
         return cal
 
     def on_detections(self, msg: Detection2DArray):
@@ -146,6 +171,7 @@ class GroundProjectionNode(Node):
         if out.poses:
             self.pub_points.publish(out)
             self.pub_markers.publish(markers)
+            
 
     def _to_map(self, g, stamp):
         ps = PointStamped()

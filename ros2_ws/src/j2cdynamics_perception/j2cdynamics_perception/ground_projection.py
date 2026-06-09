@@ -5,7 +5,7 @@ in the map frame, by projecting the bbox's ground-contact pixel onto the ground
 plane (pinhole model + known camera mount), then transforming through tf.
 
 Pipeline:
-    /detections (Detection2DArray, 640x480 px)
+    /detections (Detection2DArray, 1640x1232 px — MAIN_SIZE)
         → bottom-centre pixel of each bbox  (the duplo touches the ground there)
         → undistort + back-project to a ray in the camera frame
         → intersect the ground plane (z = 0 in base_link)  → (x, y) in base_link

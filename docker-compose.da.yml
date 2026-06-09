@@ -23,7 +23,7 @@ services:
     group_add:
       - "dialout"
     privileged: true
-    command: ros2 launch j2cdynamics_bringup driver.launch.py
+    command: ros2 launch j2cdynamics_bringup driver.launch.py robot_name:=da
     
     healthcheck:
       test: [

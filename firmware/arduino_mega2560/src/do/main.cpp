@@ -13,9 +13,9 @@
 
 // Global instances
 RobotCommand cmd;
-RobotState state;
+RobotState robotState;
 
-SerialBridge serialBridge(cmd, state);
+SerialBridge serialBridge(cmd, robotState);
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -23,7 +23,7 @@ EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR,
 EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_DIR, 
                         PIN_RIGHT_MAXON_READY, PIN_RIGHT_MAXON_SPEED_ANA, 
                         PIN_RIGHT_MAXON_CURR_ANA);
-DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, state);
+DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, robotState);
 
 DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
 
@@ -51,7 +51,7 @@ void loop()
 
   if (duploTask.ready()){
       duploCounter.update();
-      state.duploCount = duploCounter.getCount();
+      robotState.duploCount = duploCounter.getCount();
   }
 
   serialBridge.update();

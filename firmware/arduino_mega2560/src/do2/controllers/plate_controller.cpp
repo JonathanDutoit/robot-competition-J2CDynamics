@@ -1,8 +1,9 @@
 #include <do2/controllers/plate_controller.hpp>
 #include <do2/robot_config.hpp>
 
-PlateController::PlateController(Do2Command& cmd, RobotState& state) : 
-_stepper(AccelStepper::DRIVER, PIN_STEPPER_STEP, PIN_STEPPER_DIR), _cmd(cmd), _state(state) {}
+PlateController::PlateController(SweeperState& sweeperState, RobotState& robotState) : 
+_stepper(AccelStepper::DRIVER, PIN_STEPPER_STEP, PIN_STEPPER_DIR), 
+_sweeperState(sweeperState), _robotState(robotState) {}
 
 void PlateController::init()
 {
@@ -17,7 +18,7 @@ void PlateController::init()
 
 void PlateController::update()
 {
-    switch (_cmd.mode)
+    switch (_sweeperState.mode)
     {
         case SweeperMode::Idle:
             _previousMode = SweeperMode::Idle;
@@ -41,14 +42,14 @@ void PlateController::update()
 
 void PlateController::rotateQuarterTurn()
 {
-    if (_stepper.distanceToGo() != 0 || _cmd.mode != SweeperMode::Collect)
+    if (_stepper.distanceToGo() != 0 || _sweeperState.mode != SweeperMode::Collect)
         return;
     _stepper.move(-QUARTER_TURN_STEPS);
 }
 
 void PlateController::rotateContinuous()
 {
-    if (_cmd.mode != SweeperMode::Dropoff)
+    if (_sweeperState.mode != SweeperMode::Dropoff)
         return;
     _stepper.setSpeed(DROP_OFF_SPEED);
 }

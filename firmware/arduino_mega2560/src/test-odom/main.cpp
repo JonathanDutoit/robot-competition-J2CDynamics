@@ -15,7 +15,7 @@
 
 // Global instances
 RobotCommand cmd;
-RobotState state;
+RobotState robotState;
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -23,7 +23,7 @@ EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR,
 EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_DIR, 
                         PIN_RIGHT_MAXON_READY, PIN_RIGHT_MAXON_SPEED_ANA, 
                         PIN_RIGHT_MAXON_CURR_ANA);
-DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, state);
+DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, robotState);
 
 // Define tasks schedule
 PeriodicTask controlTask(20); // 20 ms period for control loop (50 Hz)
@@ -74,9 +74,9 @@ void loop()
                     break;
                 case 'm': 
                     Serial.print("State left wheel velocity: ");
-                    Serial.print(state.leftWheelVelocity);
+                    Serial.print(robotState.leftWheelVelocity);
                     Serial.print("State right wheel velocity: ");
-                    Serial.print(state.rightWheelVelocity);
+                    Serial.print(robotState.rightWheelVelocity);
                     break;
             }
 

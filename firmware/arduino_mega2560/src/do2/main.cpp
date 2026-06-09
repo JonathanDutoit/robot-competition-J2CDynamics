@@ -6,7 +6,7 @@
 #include <do2/drivers/dri0018_driver_channel.hpp>
 #include <do2/communication/sweeper_command_handler.hpp>
 #include <do2/controllers/sweeper_controller.hpp>
-#include <do2/data/do2_command.hpp>
+#include <do2/data/sweeper_state.hpp>
 #include <common_config.hpp>
 #include <common/drivers/escon_driver.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
@@ -18,13 +18,14 @@
 #include <do2/controllers/plate_controller.hpp>
 
 // Global instances
-Do2Command cmd;
-RobotState state;
+SweeperState sweeperState;
+RobotCommand cmd;
+RobotState robotState;
 uint8_t previousDuploCount = 0;
 
 
-SerialBridge serialBridge(cmd, state);
-SweeperCommandHandler sweeperHandler(cmd);
+SerialBridge serialBridge(cmd, robotState);
+SweeperCommandHandler sweeperHandler(sweeperState);
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -32,13 +33,13 @@ EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR,
 EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_DIR, 
                         PIN_RIGHT_MAXON_READY, PIN_RIGHT_MAXON_SPEED_ANA, 
                         PIN_RIGHT_MAXON_CURR_ANA);
-DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, state); // Example wheel diameter and gear ratio
+DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, robotState); // Example wheel diameter and gear ratio
 
 DRI0018DriverChannel leftSweeper(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
 DRI0018DriverChannel rightSweeper(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
-SweeperController sweepersController(&leftSweeper, &rightSweeper, cmd);
+SweeperController sweepersController(&leftSweeper, &rightSweeper, sweeperState);
 
-PlateController plateController(cmd, state);
+PlateController plateController(sweeperState, robotState);
 
 DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
 
@@ -92,7 +93,7 @@ void loop()
       }
       
       previousDuploCount = currentCount;
-      state.duploCount = currentCount;
+      robotState.duploCount = currentCount;
   }
 
   if (sweepersTask.ready()){

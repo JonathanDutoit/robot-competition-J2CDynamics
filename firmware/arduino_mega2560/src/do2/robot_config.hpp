@@ -55,11 +55,16 @@
 #define STEP_PER_REV                        200 // for a 1.8 degree stepper
 #define STEPPER_MICROSTEPPING               2 // microstepping factor (e.g., 16 for 1/16 microstepping)
 #define STEPPER_EFFECTIVE_STEPS_PER_REV     (STEP_PER_REV * STEPPER_MICROSTEPPING) // effective steps per revolution considering microstepping
-#define QUARTER_TURN_STEPS                  (STEPPER_EFFECTIVE_STEPS_PER_REV / 5) // steps for a quarter turn
+#define QUARTER_TURN_STEPS                  (STEPPER_EFFECTIVE_STEPS_PER_REV / 6) // steps for a quarter turn
 
-#define STEPPER_MAX_SPEED_STEPS_PER_SEC     50.0f
-#define DROP_OFF_SPEED                      STEPPER_MAX_SPEED_STEPS_PER_SEC // in steps per second (same as max speed for continuous rotation)
+#define STEPPER_MAX_SPEED_STEPS_PER_SEC     100.0f // in steps per second
+#define DROP_OFF_SPEED                      10.0f // in steps per second (same as max speed for continuous rotation)
 
-#define STEPPER_ACCELERATION_STEPS_PER_SEC2 20.0f
+#define STEPPER_ACCELERATION_STEPS_PER_SEC2 25.0f
+
+// --------------------------
+// --- MISSION PARAMETERS ---
+// --------------------------
+#define MAX_DUPLO_COUNT                     6
 
 #endif

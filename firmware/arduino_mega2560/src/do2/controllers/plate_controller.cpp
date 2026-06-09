@@ -1,8 +1,8 @@
 #include <do2/controllers/plate_controller.hpp>
 #include <do2/robot_config.hpp>
 
-PlateController::PlateController(Do2Command& cmd): 
-_stepper(AccelStepper::DRIVER, PIN_STEPPER_STEP, PIN_STEPPER_DIR), _cmd(cmd) {}
+PlateController::PlateController(Do2Command& cmd, RobotState& state) : 
+_stepper(AccelStepper::DRIVER, PIN_STEPPER_STEP, PIN_STEPPER_DIR), _cmd(cmd), _state(state) {}
 
 void PlateController::init()
 {

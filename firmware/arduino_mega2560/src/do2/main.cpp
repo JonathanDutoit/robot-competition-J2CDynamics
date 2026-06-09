@@ -38,7 +38,7 @@ DRI0018DriverChannel leftSweeper(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
 DRI0018DriverChannel rightSweeper(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
 SweeperController sweepersController(&leftSweeper, &rightSweeper, cmd);
 
-PlateController plateController(cmd);
+PlateController plateController(cmd, state);
 
 DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
 
@@ -82,9 +82,13 @@ void loop()
       uint8_t currentCount = duploCounter.getCount();
 
       if (currentCount > previousDuploCount) {
-          plateController.rotateQuarterTurn(); // Rotate the plate by a quarter turn for each new duplo detected
-          Serial.print("Duplo count updated: ");
-          Serial.println(previousDuploCount);
+            if (currentCount < MAX_DUPLO_COUNT) {
+                plateController.rotateQuarterTurn(); // Rotate the plate by a quarter turn for each new duplo detected
+            } else {
+                Serial.println("Warning: Duplo count exceeded maximum limit!");
+            }
+            Serial.print("Duplo count updated: ");
+            Serial.println(previousDuploCount);
       }
       
       previousDuploCount = currentCount;

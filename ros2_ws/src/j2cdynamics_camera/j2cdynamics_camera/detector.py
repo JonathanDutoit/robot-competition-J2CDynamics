@@ -63,9 +63,10 @@ class Detector:
             self._debug_first = False
 
         dets = []
+        img_area = MAIN_SIZE[0] * MAIN_SIZE[1]
+        n_above_conf = 0
+
         for row in output_np:
-            # YOLO output row format: configurable in config.py.
-            # Whatever the format, downstream wants (x1, y1, x2, y2) in YOLO_INPUT coords.
             if YOLO_OUTPUT_FORMAT == "xywh":
                 cx, cy, w_box, h_box, conf, cls = row
                 x1 = cx - w_box / 2.0
@@ -76,6 +77,7 @@ class Detector:
                 x1, y1, x2, y2, conf, cls = row
             if conf < CONF_THRESH:
                 continue
+            n_above_conf += 1
 
             # YOLO (640×640) → LORES coords (unletterbox)
             x1 = (x1 - _PAD_X) / _SCALE
@@ -89,25 +91,18 @@ class Detector:
             x2 = int(np.clip(x2 * SCALE_X, 0, MAIN_SIZE[0]))
             y2 = int(np.clip(y2 * SCALE_Y, 0, MAIN_SIZE[1]))
 
-            h = y2 - y1
             w = x2 - x1
+            h = y2 - y1
+            if w <= 0 or h <= 0:
+                continue
 
             area = w * h
-            img_area = MAIN_SIZE[0] * MAIN_SIZE[1]
-
-            # reject huge boxes (bug)
             if area > 0.9 * img_area:
                 continue
 
-            # reject tiny noise
-            if area < 0.001 * img_area:
-                continue
+            dets.append((x1, y1, x2, y2, CLASS_NAMES[int(cls)], float(conf)))
 
-            # reject extreme aspect ratios
-            if w / h > 5 or h / w > 5:
-                continue
-
-            if x2 > x1 and y2 > y1:
-                dets.append((x1, y1, x2, y2, CLASS_NAMES[int(cls)], float(conf)))
+        if self._debug_first or n_above_conf > 0:
+            print(f"[detector] conf>thresh: {n_above_conf}, kept: {len(dets)}")
 
         return dets

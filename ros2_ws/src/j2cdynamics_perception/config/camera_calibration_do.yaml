@@ -13,6 +13,6 @@ dist_coeffs: [-0.10354, 5.79753, -0.00487, -0.02593, -66.06766]
 # level, OR refine with solvePnP (calibrate_camera.py --extrinsics). Accuracy here
 # matters MORE than the intrinsics for near-field range, so measure carefully.
 height:   0.193    # m — optical centre height above the ground
-pitch:    0.52    # rad — downward tilt from horizontal (0.52 ≈ 30°)
+pitch:    0.32    # rad — downward tilt from horizontal (0.52 ≈ 30°)
 x_offset: 0.157    # m — forward of base_link origin
 y_offset: 0.0     # m — left of base_link origin (0 if centred)

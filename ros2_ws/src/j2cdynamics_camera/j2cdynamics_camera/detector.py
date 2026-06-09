@@ -2,7 +2,8 @@ import numpy as np
 import cv2
 import onnxruntime as ort
 from j2cdynamics_camera.config import (
-    MODEL_PATH, LORES_SIZE, MAIN_SIZE, YOLO_INPUT, CONF_THRESH, CLASS_NAMES
+    MODEL_PATH, LORES_SIZE, MAIN_SIZE, YOLO_INPUT, YOLO_OUTPUT_FORMAT,
+    CONF_THRESH, CLASS_NAMES,
 )
 
 # Letterbox: LORES_SIZE (4:3) → YOLO_INPUT square, aspect-preserving with gray pad
@@ -34,18 +35,19 @@ class Detector:
         self._buffer = np.empty((1, 3, YOLO_INPUT, YOLO_INPUT), dtype=np.float32)
         # 114 = standard YOLO letterbox pad colour
         self._canvas = np.full((YOLO_INPUT, YOLO_INPUT, 3), 114, dtype=np.uint8)
+        out_shape = self.session.get_outputs()[0].shape
         print(f"[detector] ONNX loaded; YOLO {YOLO_INPUT}×{YOLO_INPUT}, "
               f"letterbox {_NEW_W}×{_NEW_H} pad ({_PAD_X},{_PAD_Y}), "
-              f"LORES {LORES_SIZE} → MAIN {MAIN_SIZE}")
+              f"LORES {LORES_SIZE} → MAIN {MAIN_SIZE}, "
+              f"out_shape={out_shape}, output_format={YOLO_OUTPUT_FORMAT}")
+        self._debug_first = True
 
     def detect(self, frame: np.ndarray) -> list:
         """Takes a raw HxWx3 RGB frame from lores; returns
         [(x1, y1, x2, y2, label, conf), ...] in MAIN_SIZE coords."""
-        # picamera2 RGB888 comes out as BGR for OpenCV; YOLO wants RGB
-        rgb = frame[:, :, ::-1]
-
+        # picamera2 RGB888 capture_array already returns RGB — no flip needed
         # Aspect-preserving resize + paste into the gray canvas (letterbox)
-        resized = cv2.resize(rgb, (_NEW_W, _NEW_H), interpolation=cv2.INTER_LINEAR)
+        resized = cv2.resize(frame, (_NEW_W, _NEW_H), interpolation=cv2.INTER_LINEAR)
         self._canvas[:] = 114
         self._canvas[_PAD_Y:_PAD_Y + _NEW_H, _PAD_X:_PAD_X + _NEW_W] = resized
 
@@ -53,9 +55,25 @@ class Detector:
         self._buffer[0] = self._canvas.transpose(2, 0, 1).astype(np.float32) / 255.0
         output_np = self.session.run(None, {self.input_name: self._buffer})[0][0]
 
+        # One-shot diagnostic: print the top-3 raw rows so you can verify the
+        # output format (xyxy vs xywh, pixel vs normalized).
+        if self._debug_first:
+            top = sorted(output_np, key=lambda r: -float(r[4]))[:3]
+            print(f"[detector] sample output rows (top-3 by conf): {top}")
+            self._debug_first = False
+
         dets = []
         for row in output_np:
-            x1, y1, x2, y2, conf, cls = row
+            # YOLO output row format: configurable in config.py.
+            # Whatever the format, downstream wants (x1, y1, x2, y2) in YOLO_INPUT coords.
+            if YOLO_OUTPUT_FORMAT == "xywh":
+                cx, cy, w_box, h_box, conf, cls = row
+                x1 = cx - w_box / 2.0
+                y1 = cy - h_box / 2.0
+                x2 = cx + w_box / 2.0
+                y2 = cy + h_box / 2.0
+            else:  # "xyxy"
+                x1, y1, x2, y2, conf, cls = row
             if conf < CONF_THRESH:
                 continue
 

@@ -154,6 +154,8 @@ ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & pe
     hw_vel_left_  = left_vel;
     hw_vel_right_ = right_vel;
     consecutive_failures_ = 0;
+    
+    //RCLCPP_INFO(logger_, "Left wheel=%f - Right wheel=%f", hw_vel_left_, hw_vel_right_);
   } else {
     // Returning ERROR here makes ros2_control deactivate the component. Instead
     // we keep the last good velocity (hw_vel_* already hold it) and only escalate

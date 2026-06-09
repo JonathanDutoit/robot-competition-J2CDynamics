@@ -61,7 +61,6 @@ void EsconDriver::setVelocity(float rad_per_sec) {
         digitalWrite(_dirPin, MOTOR_CW_DIRECTION);
         rad_per_sec = -rad_per_sec;
     }
-
     // Saturation
     if (rad_per_sec > MAXON_MAX_VELOCITY_RAD_SEC) {
         rad_per_sec = MAXON_MAX_VELOCITY_RAD_SEC;
@@ -84,7 +83,7 @@ float EsconDriver::getVelocity() const {
     }
     float adcValue = static_cast<float>(analogRead(_speedPin));
     float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
-    voltage = voltage - ESCON_VELOCITY_ZERO_VOLTAGE; // Center around 0V (2V is 0 speed)
+    voltage = voltage - _zeroVoltage; // Center around 0V + offset (2V is 0 speed)
     return voltage * 2 * MAXON_MAX_VELOCITY_RAD_SEC / ESCON_MAX_OUTPUT_VOLTAGE; // in radians per second
 }
 
@@ -96,4 +95,14 @@ float EsconDriver::getCurrent() const {
     float voltage = (adcValue / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF; // Convert ADC value to voltage (0-5V)
     voltage = voltage - ESCON_CURRENT_ZERO_VOLTAGE; // Center around 0V (2V is 0 current)
     return voltage * 2 * MAXON_MAX_CURRENT_A / ESCON_MAX_OUTPUT_VOLTAGE; // in amps
+}
+
+float EsconDriver::measureZeroVoltage(int samples) const {
+  long sum = 0;
+  for (int i = 0; i < samples; ++i) {
+    sum += analogRead(_speedPin);
+    delay(2);
+  }
+  float adc = static_cast<float>(sum) / samples;
+  return (adc / ARDUINO_ADC_MAX_COUNT) * ARDUINO_ADC_VOLTAGE_REF;
 }

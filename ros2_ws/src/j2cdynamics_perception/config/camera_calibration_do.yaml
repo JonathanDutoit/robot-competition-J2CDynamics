@@ -1,14 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Camera calibration for ground-plane projection (Raspberry Pi Camera v2.1 / IMX219).
 #
-# INTRINSICS — replace with YOUR calibration from scripts/calibrate_camera.py.
-# image_size is the resolution the calibration was DONE at. ground_projection
-# auto-scales K from this resolution to the bbox stream resolution (bbox_image_size
-# parameter, default 1640x1232 = MAIN_SIZE). Distortion coeffs don't scale.
-#
-# If you re-calibrate at the new MAIN_SIZE directly, set image_size: [1640, 1232]
-# and no scaling happens at load.
-image_size:  [640, 480]
+# INTRINSICS — for the 640x480 stream the detector reports bboxes in. Replace the
+# values below with YOUR calibration from scripts/calibrate_camera.py. The ones
+# here are only a rough IMX219 prior (≈62° HFOV) so the node runs before calibration.
 camera_matrix: [2489.41, 0.0, 517.82,
                  0.0, 2483.84, 399.88,
                  0.0, 0.0, 1.0]
@@ -17,7 +12,7 @@ dist_coeffs: [-0.10354, 5.79753, -0.00487, -0.02593, -66.06766]
 # EXTRINSICS — where the camera sits on base_link. Measure with a ruler + a phone
 # level, OR refine with solvePnP (calibrate_camera.py --extrinsics). Accuracy here
 # matters MORE than the intrinsics for near-field range, so measure carefully.
-height:   0.20    # m — optical centre height above the ground
-pitch:    0.52    # rad — downward tilt from horizontal (0.52 ≈ 30°)
-x_offset: 0.12    # m — forward of base_link origin
+height:   0.193    # m — optical centre height above the ground
+pitch:    0.32    # rad — downward tilt from horizontal (0.52 ≈ 30°)
+x_offset: 0.157    # m — forward of base_link origin
 y_offset: 0.0     # m — left of base_link origin (0 if centred)

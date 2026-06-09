@@ -23,7 +23,7 @@ RUN apt update
 RUN apt install -y ros-humble-ament-cmake
 RUN apt install -y ros-humble-nav2-bringup
 RUN apt install -y ros-humble-slam-toolbox
-RUN apt install -y ros-humble-joy ros-humble-teleop-twist-joy
+RUN apt install -y ros-humble-joy-linux ros-humble-teleop-twist-joy
 RUN apt install -y ros-humble-tf2-ros ros-humble-tf2-geometry-msgs
 
 # Clean up at the end

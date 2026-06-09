@@ -32,9 +32,12 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
+import json
+
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import PoseArray, Pose, PointStamped
 from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import String
 
 import tf2_ros
 from tf2_geometry_msgs import do_transform_point
@@ -100,6 +103,9 @@ class GroundProjectionNode(Node):
 
         self.pub_points = self.create_publisher(PoseArray, 'duplo_points', 10)
         self.pub_markers = self.create_publisher(MarkerArray, 'duplo_points_markers', 10)
+        # Per-detection debug info (JSON) for the dashboard: bbox center pixel,
+        # robot-frame (x, y), map-frame (x, y), and distance from base_link.
+        self.pub_debug = self.create_publisher(String, 'duplo_debug', 10)
         self.create_subscription(Detection2DArray, '/detections',
                                  self.on_detections, qos_profile_sensor_data)
         self.get_logger().info('ground_projection started -> /duplo_points (map frame)')
@@ -147,6 +153,7 @@ class GroundProjectionNode(Node):
         out.header.stamp = msg.header.stamp
         markers = MarkerArray()
 
+        debug_items = []
         for i, det in enumerate(msg.detections):
             score = max((r.hypothesis.score for r in det.results), default=0.0)
             if score < self.min_score:
@@ -157,7 +164,8 @@ class GroundProjectionNode(Node):
             g = self.proj.project(u, v)
             if g is None:
                 continue
-            if math.hypot(g[0], g[1]) > self.max_range:
+            dist = math.hypot(g[0], g[1])
+            if dist > self.max_range:
                 continue
             mp = self._to_map(g, msg.header.stamp)
             if mp is None:
@@ -167,10 +175,24 @@ class GroundProjectionNode(Node):
             pose.orientation.w = 1.0
             out.poses.append(pose)
             markers.markers.append(self._marker(i, mp, msg.header.stamp))
+            debug_items.append({
+                "cx": float(det.bbox.center.position.x),
+                "cy": float(det.bbox.center.position.y),
+                "bw": float(det.bbox.size_x),
+                "bh": float(det.bbox.size_y),
+                "x_base": float(g[0]),
+                "y_base": float(g[1]),
+                "x_map": float(mp[0]),
+                "y_map": float(mp[1]),
+                "dist": float(dist),
+                "score": float(score),
+            })
 
         if out.poses:
             self.pub_points.publish(out)
             self.pub_markers.publish(markers)
+        # Always publish debug (empty list is meaningful — "no projections this tick")
+        self.pub_debug.publish(String(data=json.dumps({"items": debug_items})))
             
 
     def _to_map(self, g, stamp):

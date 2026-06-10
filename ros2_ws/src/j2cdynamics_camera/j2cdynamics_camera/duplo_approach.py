@@ -42,6 +42,10 @@ REACQUIRE_VX        = 0.10   # m/s; slow creep forward while reacquiring a lost 
 COLLECT_DURATION    = 5.0    # s; open-loop scoop duration
 COLLECT_LOST_TIME   = 0.3    # s continuously lost (went under the robot) before scooping
 RECENT_CLOSE_WINDOW = 0.7    # s; "was close very recently" memory for the scoop trigger
+APPROACH_HARD_TIMEOUT_S = 10.0   # max time in 'approach' before giving up via 'lost'.
+                                # Catches the case where a duplo is visible but unreachable
+                                # (e.g. blocked by costmap safety near a wall) — without this,
+                                # the FSM has no transition out since the target stays visible.
 CONTROL_HZ          = 10.0
 
 # ── Forward safety (local costmap) ────────────────────────────────────────────
@@ -121,7 +125,8 @@ class DuploApproach(Node):
         # Collect state memory
         self.collect_start_time = None
         self.last_close_time = None
-        self.lost_start_time = None   # NEW: continuous loss tracking
+        self.lost_start_time = None
+        self.approach_start_time = None   # for APPROACH_HARD_TIMEOUT_S
 
         # Accel-limited output state
         self.cur_vx = 0.0
@@ -247,9 +252,24 @@ class DuploApproach(Node):
         if state == self.machine.search:
             if self.duplo_visible:
                 self._fire('search_to_approach')
-            
+                self.approach_start_time = now
+
         # Approach -> Collected
         elif state == self.machine.approach:
+
+            # Hard timeout: if a duplo stays visible but unreachable (e.g.
+            # blocked by costmap safety near a wall), the recently_close /
+            # target_active conditions never fire and we'd loop forever.
+            if self.approach_start_time is not None:
+                approach_age = (now - self.approach_start_time).nanoseconds * 1e-9
+                if approach_age > APPROACH_HARD_TIMEOUT_S:
+                    self.get_logger().warn(
+                        f'approach timeout after {approach_age:.1f}s — giving up target')
+                    self.approach_start_time = None
+                    self.last_close_time = None
+                    self.lost_start_time = None
+                    self._fire('lost')   # back to search
+                    return
 
             # Track proximity when visible
             if self.duplo_visible and self.best_target is not None:
@@ -279,6 +299,7 @@ class DuploApproach(Node):
             if recently_close and lost_long_enough:
                 self.last_close_time = None
                 self.lost_start_time = None
+                self.approach_start_time = None
                 self._fire('approach_to_collect')
                 self.collect_start_time = now
 
@@ -286,6 +307,7 @@ class DuploApproach(Node):
             #    wasn't close — i.e. target_active has finally gone False. Until then we
             #    keep pursuing (dead-reckon in publish_control). "If we see it, we fetch it."
             elif not self.target_active and not recently_close:
+                self.approach_start_time = None
                 self._fire('lost')  # Approach -> search
 
         # Collect -> Search

@@ -69,7 +69,7 @@ DROPOFF_TIME = 2 # s
 
 NAV_GOAL_TIMEOUT_S = 60.0
 PLAN_TIMEOUT_S     = 8.0
-MAX_NODE_RETRIES   = 2
+MAX_NODE_RETRIES   = 1   # single attempt per waypoint — retries rarely succeed and double the wasted time
 
 DUPLO_COUNT_ZONE_4 = 6
 
@@ -81,7 +81,8 @@ SCAN_STEP_RAD       = 0.4        # ~23° per step
 SCAN_STEP_RATE      = 0.4        # rad/s while moving
 SCAN_DWELL_S        = 1.0        # > ramp_vel timeout (0.5s) so visual servo can grab control
 SCAN_MAX_FSM_CYCLES = 4          # cap approach cycles per waypoint to avoid stubborn-target loops
-FSM_WAIT_TIMEOUT_S  = 30.0       # max time to wait for a single FSM approach→collect→search cycle
+FSM_WAIT_TIMEOUT_S  = 15.0       # max time per cycle: successful pickup ~13s (8s approach + 5s collect);
+                                 # stuck approaches now self-abort at APPROACH_HARD_TIMEOUT_S (~8s) in duplo_approach.py
 
 RAMP_VEL_TOPIC = 'ramp_vel'   # must match twist_mux.yaml at priority 150
 

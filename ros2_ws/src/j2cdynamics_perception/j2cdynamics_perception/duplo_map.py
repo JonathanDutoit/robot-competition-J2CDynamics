@@ -43,8 +43,8 @@ class Cluster:
 class DuploMap(Node):
     def __init__(self):
         super().__init__('duplo_map')
-        self.declare_parameter('merge_dist', 0.35)      # m; points closer than this fuse
-        self.declare_parameter('min_obs', 5)            # detections before a cluster is "confirmed"
+        self.declare_parameter('merge_dist', 0.55)      # m; points closer than this fuse
+        self.declare_parameter('min_obs', 3)            # detections before a cluster is "confirmed"
         self.declare_parameter('collect_radius', 0.30)  # m; /duplo_collected → nearest within this
         self.declare_parameter('map_frame', 'map')
 

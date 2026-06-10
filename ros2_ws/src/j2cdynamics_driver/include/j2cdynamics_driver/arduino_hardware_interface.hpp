@@ -85,6 +85,7 @@ private:
   // resolved joint indices (set in on_init)
   int left_joint_idx_{-1};
   int right_joint_idx_{-1};
+  int sweeper_joint_idx_{-1};
 
   // fault escalation
   int consecutive_failures_{0};

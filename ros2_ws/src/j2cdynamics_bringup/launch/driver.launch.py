@@ -87,6 +87,16 @@ def generate_launch_description():
     )
 
     # -------------------------
+    # joy_mode_mapper node (maps joystick buttons to sweeper modes)
+    # -------------------------
+    joy_mode_mapper = Node(
+        package='j2cdynamics_driver',
+        executable='joy_mode_mapper',
+        name='joy_mode_mapper',
+        output='screen'
+    )
+
+    # -------------------------
     # Spawners
     # -------------------------
     joint_state_broadcaster_spawner = Node(
@@ -154,6 +164,7 @@ def generate_launch_description():
 
         robot_state_publisher_node,
         controller_manager_node,
+        joy_mode_mapper,
 
         delayed_joint_state_spawner,
         delayed_diff_drive_spawner,

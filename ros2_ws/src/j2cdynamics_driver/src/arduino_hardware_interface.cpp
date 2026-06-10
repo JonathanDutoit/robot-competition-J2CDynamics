@@ -28,32 +28,34 @@ ArduinoHardwareInterface::on_init(const hardware_interface::HardwareInfo & info)
   max_rad_s_ = std::stod(info_.hardware_parameters.at("max_rad_s"));
   ramp_step_ = std::stod(info_.hardware_parameters.at("ramp_step"));
 
-  // Validate joint count — expect exactly 2 (left + right wheel)
-  if (info_.joints.size() != 2) {
-    RCLCPP_FATAL(logger_, "Expected 2 joints, got %zu", info_.joints.size());
+  // Validate joint count — expect exactly 3 (left + right wheel + sweeper mode)
+  if (info_.joints.size() != 3) {
+    RCLCPP_FATAL(logger_, "Expected 3 joints, got %zu", info_.joints.size());
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  left_joint_idx_ = right_joint_idx_ = -1;
+  left_joint_idx_ = right_joint_idx_ = sweeper_joint_idx_ = -1;
   for (size_t i = 0; i < info_.joints.size(); ++i) {
     const std::string & name = info_.joints[i].name;
     if (name.find("left")  != std::string::npos) left_joint_idx_  = static_cast<int>(i);
     if (name.find("right") != std::string::npos) right_joint_idx_ = static_cast<int>(i);
+    if (name.find("sweeper") != std::string::npos) sweeper_joint_idx_ = static_cast<int>(i);
   }
-  if (left_joint_idx_ < 0 || right_joint_idx_ < 0 ||
-      left_joint_idx_ == right_joint_idx_)
+  if (left_joint_idx_ < 0 || right_joint_idx_ < 0 || sweeper_joint_idx_ < 0 ||
+      left_joint_idx_ == right_joint_idx_ || left_joint_idx_ == sweeper_joint_idx_ || right_joint_idx_ == sweeper_joint_idx_)
   {
     RCLCPP_FATAL(logger_,
-      "Could not identify distinct 'left' and 'right' joints by name "
-      "(got '%s', '%s'). Rename joints or adjust the matcher.",
-      info_.joints[0].name.c_str(), info_.joints[1].name.c_str());
+      "Could not identify distinct 'left', 'right', and 'sweeper' joints by name "
+      "(got '%s', '%s', '%s'). Rename joints or adjust the matcher.",
+      info_.joints[0].name.c_str(), info_.joints[1].name.c_str(), info_.joints[2].name.c_str());
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  RCLCPP_INFO(logger_, "on_init OK — port=%s baud=%d (left=%s right=%s)",
+  RCLCPP_INFO(logger_, "on_init OK — port=%s baud=%d (left=%s right=%s sweeper=%s)",
     port_.c_str(), baudrate_,
     info_.joints[left_joint_idx_].name.c_str(),
-    info_.joints[right_joint_idx_].name.c_str());
+    info_.joints[right_joint_idx_].name.c_str(),
+    info_.joints[sweeper_joint_idx_].name.c_str());
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -129,6 +131,8 @@ ArduinoHardwareInterface::export_state_interfaces()
     info_.joints[right_joint_idx_].name, hardware_interface::HW_IF_VELOCITY, &hw_vel_right_);
   state_interfaces.emplace_back(
     info_.joints[right_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_pos_right_);
+  state_interfaces.emplace_back(
+    info_.joints[sweeper_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_mode_state_);
 
   return state_interfaces;
 }
@@ -143,7 +147,7 @@ ArduinoHardwareInterface::export_command_interfaces()
   command_interfaces.emplace_back(
     info_.joints[right_joint_idx_].name, hardware_interface::HW_IF_VELOCITY, &hw_cmd_right_);
   command_interfaces.emplace_back(
-    "robot_mode", hardware_interface::HW_IF_POSITION, &hw_cmd_mode_);
+    info_.joints[sweeper_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_cmd_mode_);
 
   return command_interfaces;
 }

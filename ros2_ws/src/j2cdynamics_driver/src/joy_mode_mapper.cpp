@@ -1,7 +1,14 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <std_msgs/msg/float64.hpp>
-#include "j2cdynamics_driver/arduino_hardware_interface.hpp"
+
+enum class SweeperMode : int
+{
+  Idle = 0,
+  Collect = 1,
+  Dropoff = 2,
+  Fault = 3
+};
 
 class JoyModeMapper : public rclcpp::Node
 {
@@ -13,30 +20,35 @@ public:
       std::bind(&JoyModeMapper::onJoy, this, std::placeholders::_1));
 
     mode_pub_ = create_publisher<std_msgs::msg::Float64>(
-      "/robot_mode", 10);
+      "/sweeper_mode_controller/commands", 10);
   }
 
 private:
   void onJoy(const sensor_msgs::msg::Joy::SharedPtr msg)
   {
-    j2cdynamics_driver::SweeperMode mode = j2cdynamics_driver::SweeperMode::Idle;
+    SweeperMode mode = SweeperMode::Idle;
 
     // Xbox mapping (adjust if needed)
     if (msg->buttons[0]) {        // A
-      mode = j2cdynamics_driver::SweeperMode::Collect;
+      mode = SweeperMode::Collect;
     }
     else if (msg->buttons[1]) {   // B
-      mode = j2cdynamics_driver::SweeperMode::Dropoff;
+      mode = SweeperMode::Dropoff;
     }
     else if (msg->buttons[2]) {   // X
-      mode = j2cdynamics_driver::SweeperMode::Idle;
+      mode = SweeperMode::Idle;
     }
 
     auto out = std_msgs::msg::Float64();
     out.data = static_cast<double>(mode);
 
-    mode_pub_->publish(out);
+    if (out.data != last_mode_) {
+      mode_pub_->publish(out);
+      last_mode_ = out.data;
+    }
   }
+
+  double last_mode_ = -1.0; // Initialize to an invalid mode
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr mode_pub_;

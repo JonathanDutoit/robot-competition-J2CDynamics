@@ -12,20 +12,20 @@ endif()
 
 # ── Find dependencies ────────────────────────────────────────────────────────
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
-find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 
-# libserial — system library installed via apt
 find_library(LIBSERIAL_LIB serial REQUIRED)
 
-# ── Build the plugin library ─────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# 1. HARDWARE PLUGIN
+# ─────────────────────────────────────────────
 add_library(arduino_hardware_interface SHARED
-  src/arduino_hardware_interface.cpp
-  src/joy_mode_mapper.cpp
-)
-
+  src/arduino_hardware_interface.cpp)
 target_include_directories(arduino_hardware_interface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -35,23 +35,17 @@ ament_target_dependencies(arduino_hardware_interface
   hardware_interface
   pluginlib
   rclcpp
-  rclcpp_lifecycle
-)
+  rclcpp_lifecycle)
 
 target_link_libraries(arduino_hardware_interface ${LIBSERIAL_LIB})
 
-# ── Export plugin description ────────────────────────────────────────────────
 pluginlib_export_plugin_description_file(
-  hardware_interface arduino_hardware_interface.xml
-)
+  hardware_interface arduino_hardware_interface.xml)
 
-# ── Install ──────────────────────────────────────────────────────────────────
-install(
-  TARGETS arduino_hardware_interface
+install(TARGETS arduino_hardware_interface
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-)
+  RUNTIME DESTINATION bin)
 
 install(
   DIRECTORY include/
@@ -63,6 +57,20 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+# ─────────────────────────────────────────────
+# 2. JOY MODE MAPPER NODE
+# ─────────────────────────────────────────────
+add_executable(joy_mode_mapper
+  src/joy_mode_mapper.cpp)
+
+ament_target_dependencies(joy_mode_mapper
+  rclcpp
+  sensor_msgs
+  std_msgs)
+
+install(TARGETS joy_mode_mapper
+  DESTINATION lib/${PROJECT_NAME})
+
 # ── Ament export ─────────────────────────────────────────────────────────────
 ament_export_include_directories(include)
 ament_export_libraries(arduino_hardware_interface)
@@ -73,4 +81,5 @@ ament_export_dependencies(
   rclcpp_lifecycle
 )
 
+# ─────────────────────────────────────────────
 ament_package()

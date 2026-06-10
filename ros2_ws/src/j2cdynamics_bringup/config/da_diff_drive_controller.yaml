@@ -11,14 +11,13 @@ controller_manager:
     sweeper_mode_controller:
       type: forward_command_controller/ForwardCommandController
 
+diff_drive_controller:
+  ros__parameters:
+    publish_rate: 50.0
 
-  diff_drive_controller:
-    ros__parameters:
-      publish_rate: 50.0
-
-      # Joints
-      left_wheel_names: ["left_wheel_joint"]
-      right_wheel_names: ["right_wheel_joint"]
+    # Joints
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
 
     # Kinematics
     wheel_separation: 0.4216
@@ -57,7 +56,8 @@ controller_manager:
     angular.z.max_jerk: 0.0
     angular.z.min_jerk: 0.0
 
-forward_command_controller:
+sweeper_mode_controller:
   ros__parameters:
     joints:
-      - robot_mode
+      - sweeper_mode
+    interface_name: position

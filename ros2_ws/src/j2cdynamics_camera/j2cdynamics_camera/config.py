@@ -12,5 +12,13 @@ YOLO_OUTPUT_FORMAT = "xyxy"   # "xyxy"  OR  "xywh"
 CONF_THRESH  = 0.8
 MODEL_PATH   = "model/best_int8.onnx"
 CLASS_NAMES  = ["duplo"]
-INFER_FPS    = 10
+# Inference rate. Each detection cycle ≈ 80-150 ms on Pi 4 CPU; at 10 FPS that's
+# ~80-100% of one core. 6 FPS is enough for the visual-servo loop (running at
+# CONTROL_HZ=10 in duplo_approach.py) since the controller uses last_seen_time +
+# REACQUIRE_TIME for persistence between detections. Drop further if needed.
+INFER_FPS    = 6
+# Image publishing decimation: skip /camera/image_raw on most detection cycles.
+# Dashboard MJPEG only needs a few FPS. 3 = publish every 3rd frame (2 FPS at
+# INFER_FPS=6). 1 = publish every frame. Detections always go out at full rate.
+IMAGE_PUB_EVERY_N = 3
 JPEG_QUALITY = 60

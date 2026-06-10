@@ -257,7 +257,6 @@ local_costmap:
       width:      3              # m — size of the local costmap window
       height:     3              # m
       resolution: 0.05           # m/cell
-      # Base link length 204 + trailer length 180 (204 + 180) / 2 = 19.2. Base link width = 460 
       footprint: "[[0.240,  0.231], [ 0.240, -0.231], [-0.240, -0.231], [-0.240,  0.231]]"
       plugins: ["voxel_layer", "inflation_layer", "keepout_filter"]
       inflation_layer:
@@ -300,7 +299,7 @@ global_costmap:
       publish_frequency:  1.0    # Hz
       global_frame: map
       robot_base_frame: base_link
-      footprint: "[[0.192,  0.230], [ 0.192, -0.230], [-0.192, -0.230], [-0.192,  0.230]]"
+      footprint: "[[0.240,  0.231], [ 0.240, -0.231], [-0.240, -0.231], [-0.240,  0.231]]"
       resolution: 0.05
       track_unknown_space: true
       plugins:

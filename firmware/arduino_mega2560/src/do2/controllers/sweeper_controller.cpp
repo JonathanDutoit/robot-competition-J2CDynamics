@@ -3,15 +3,17 @@
 
 SweeperController::SweeperController(
     DRI0018DriverChannel* leftController, DRI0018DriverChannel* rightController,
-    Do2Command &cmd
-) : _leftController(leftController), _rightController(rightController), _cmd(cmd) {}
+    SweeperState &sweeperState
+):
+_leftController(leftController), _rightController(rightController), 
+_sweeperState(sweeperState) {}
 
 void SweeperController::init() {
     _stopBrushes();
 }
 
 void SweeperController::update() {
-    switch (_cmd.mode) {
+    switch (_sweeperState.mode) {
         case SweeperMode::Idle:
             _stopBrushes();
             break;

@@ -1,14 +1,15 @@
 #pragma once
 
 #include <common/ICommandHandler.hpp>
-#include <do2/data/do2_command.hpp>
+#include <do2/data/sweeper_state.hpp>
 
 class SweeperCommandHandler : public ICommandHandler
 {
     public:
-        SweeperCommandHandler(Do2Command& cmd);
-        bool handleCommand(const char* command, const float* args) override;
+        SweeperCommandHandler(SweeperState& state);
+        HandlerResponse handleCommand(const char* command, const float* args) override;
 
     private:
-        Do2Command& _cmd;
+        HandlerResponse _sendSweeperMode();
+        SweeperState& _state;
 };

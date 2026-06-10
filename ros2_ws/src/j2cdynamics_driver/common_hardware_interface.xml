@@ -1,0 +1,15 @@
+<library path="common_hardware_interface">
+  <class
+    name="j2cdynamics_driver/DaHardwareInterface"
+    type="j2cdynamics_driver::DaHardwareInterface"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>Hardware interface for DA robot</description>
+  </class>
+
+  <class
+    name="j2cdynamics_driver/DoHardwareInterface"
+    type="j2cdynamics_driver::DoHardwareInterface"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>Hardware interface for DO robot</description>
+  </class>
+</library>

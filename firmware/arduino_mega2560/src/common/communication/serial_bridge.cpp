@@ -96,12 +96,11 @@ bool SerialBridge::_processCommand(
     }
 
     for (uint8_t i = 0; i < _handlerCount; ++i) {
-        if (_handlers[i]->handleCommand(command, args)) {
-            Serial.print("Handler ");            
-            Serial.print(i);
-            Serial.print(" succesfully processed command '");            
-            Serial.print(command);
-            Serial.println("'");
+        HandlerResponse response = _handlers[i]->handleCommand(command, args);
+        if (response.success) {
+            if (response.message.length() > 0) {
+                Serial.println(response.message);
+            }
             return true;
         } else {
             Serial.print("ERROR: Handler ");
@@ -109,6 +108,8 @@ bool SerialBridge::_processCommand(
             Serial.print(" failed to process command '");
             Serial.print(command);
             Serial.println("'");
+            Serial.print("-> Error Response message: ");
+            Serial.println(response.message);
         }
     }
 

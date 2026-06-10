@@ -1184,6 +1184,7 @@ async function tick(){
       '<div class="grp"><div class="gh">'+g.name+'</div>'+g.rows.map(sigRow).join('')+'</div>').join('');
     document.getElementById('res').innerHTML = resBlock('ROBOT', s.robot);
     renderDuplo(s.duplo);
+    renderDuplos(s.robot_pose, s.duplos, s.duplo_debug);
     document.getElementById('nnodes').textContent = s.nodes.length;
     document.getElementById('ntopics').textContent = s.topics.length;
     document.getElementById('counts').textContent = s.nodes.length+' nodes  '+s.topics.length+' topics';

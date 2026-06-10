@@ -3,16 +3,16 @@
 #include <do2/drivers/dri0018_driver_channel.hpp>
 #include <common_config.hpp>
 #include <do2/controllers/sweeper_controller.hpp>
-#include <do2/data/do2_command.hpp>
+#include <do2/data/sweeper_state.hpp>
 #include <common/scheduler/periodic_task.hpp>
 
 // Global instances
-Do2Command cmd;
+SweeperState sweeperState;
 
 DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
 DRI0018DriverChannel rightMotor(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
 
-SweeperController sweepersController(&leftMotor, &rightMotor, cmd);
+SweeperController sweepersController(&leftMotor, &rightMotor, sweeperState);
 
 void setup(void)
 {
@@ -37,13 +37,13 @@ void loop(void)
 		
 		switch(val){
 			case 'c':
-				cmd.mode = SweeperMode::Collect;
+				sweeperState.mode = SweeperMode::Collect;
 				break;
 			case 'd':
-				cmd.mode = SweeperMode::Dropoff;
+				sweeperState.mode = SweeperMode::Dropoff;
 				break;
 			case 'i':
-				cmd.mode = SweeperMode::Idle;
+				sweeperState.mode = SweeperMode::Idle;
 				break;
 			case 'h':
 				Serial.println("Hello");
@@ -51,12 +51,12 @@ void loop(void)
 		}
 
 		Serial.print("Sweeper Mode: ");
-		Serial.println(static_cast<int>(cmd.mode));
+		Serial.println(static_cast<int>(sweeperState.mode));
 
 		sweepersController.update();
     } else {
 		Serial.println("Error reading serial input");
-		cmd.mode = SweeperMode::Idle;
+		sweeperState.mode = SweeperMode::Idle;
 		sweepersController.update();
 	}
   }

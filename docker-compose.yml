@@ -5,61 +5,67 @@ services:
       dockerfile: docker/driver/Dockerfile
       args:
         BUILDPLATFORM: linux/arm64
+
     network_mode: host
     platform: linux/arm64
+
     env_file:
-      - ./docker/do.env
-    environment:
-      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+      - ./robots/${ROBOT_NAME}/manifest.env
+
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
-      - /dev:/dev  
+      - /dev:/dev
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_driver:/ros2_ws/src/j2cdynamics_driver
       - ./ros2_ws/src/j2cdynamics_diagnostics:/ros2_ws/src/j2cdynamics_diagnostics
-      - ./ros2_ws/src/do_description:/ros2_ws/src/do_description
+      - ./ros2_ws/src/${ROBOT_DESCRIPTION}:/ros2_ws/src/${ROBOT_DESCRIPTION}
+
     devices:
       - /dev/serial:/dev/serial
+
     group_add:
       - "dialout"
+
     privileged: true
-    command: ros2 launch j2cdynamics_bringup driver.launch.py robot_name:=do 
-    
+
+    command: >
+      ros2 launch j2cdynamics_bringup driver.launch.py
+      robot_name:=${ROBOT_NAME}
+
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/odom$'"
-        ]
+      test: ["CMD-SHELL", ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/odom$'"]
       interval: 5s
       timeout: 5s
       retries: 10
+
 
   camera:
     build:
       context: .
       dockerfile: docker/camera/Dockerfile
-    platform: linux/arm64
+
     network_mode: host
+    platform: linux/arm64
     privileged: true
     stdin_open: true
     tty: true
+
     env_file:
-      - ./docker/do.env
-    environment:
-      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
-      - HOME=/tmp
-      - UDEV=1
+      - ./robots/${ROBOT_NAME}/manifest.env
+
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
-      - /dev:/dev  
+      - /dev:/dev
       - /run/udev:/run/udev:ro
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_camera:/ros2_ws/src/j2cdynamics_camera
       - ./ros2_ws/src/j2cdynamics_perception:/ros2_ws/src/j2cdynamics_perception
       - ./camera/model/best_int8.onnx:/ros2_ws/model/best_int8.onnx
       - ./ros2_ws/src/j2cdynamics_perception/config:/calibration_files/
+
     group_add:
       - "video"
+
     depends_on:
       driver:
         condition: service_healthy
@@ -67,101 +73,113 @@ services:
         condition: service_healthy
       navigation:
         condition: service_healthy
-    command: ros2 launch j2cdynamics_bringup camera.launch.py calibration_file:=camera_calibration_do.yaml
 
-  lidar: 
+    command: >
+      ros2 launch j2cdynamics_bringup camera.launch.py
+      calibration_file:=${CAMERA_CALIBRATION}
+
+
+  lidar:
     build:
       context: .
       dockerfile: docker/lidar/Dockerfile
-    platform: linux/arm64
+
     network_mode: host
+    platform: linux/arm64
     privileged: true
-    stdin_open: true
-    tty: true
+
     env_file:
-      - ./docker/do.env
-    environment:
-      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+      - ./robots/${ROBOT_NAME}/manifest.env
+
     volumes:
-      - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
-      - /dev:/dev  
+      - /dev:/dev
+      - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
+
     command: ros2 launch j2cdynamics_bringup lidar.launch.py
+
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/scan$'"
-        ]
+      test: ["CMD-SHELL", ". /opt/ros/humble/setup.sh && ros2 topic list | grep -q '^/scan$'"]
       interval: 5s
       timeout: 5s
       retries: 10
+
 
   navigation:
     build:
       context: .
       dockerfile: docker/navigation/Dockerfile
-    platform: linux/arm64
+
     network_mode: host
+    platform: linux/arm64
     privileged: true
-    stdin_open: true
-    tty: true
+
     env_file:
-      - ./docker/do.env
-    environment:
-      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+      - ./robots/${ROBOT_NAME}/manifest.env
+
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - /dev:/dev
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps
+
     devices:
       - /dev/input/js0:/dev/input/js0
+
     depends_on:
       lidar:
         condition: service_healthy
       driver:
         condition: service_healthy
-    command: ros2 launch j2cdynamics_bringup robot.launch.py use_teleop:=true mode:=localization  map:=/maps/arena/map
+
+    command: >
+      ros2 launch j2cdynamics_bringup robot.launch.py
+      use_teleop:=true
+      mode:=localization
+      map:=/maps/arena/map
+      amcl_yaml:=${AMCL_PARAMS}
+      nav2_yaml:=${NAV2_PARAMS}
+    
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          ". /opt/ros/humble/setup.sh && \
-          ros2 service call /lifecycle_manager_navigation/is_active std_srvs/srv/Trigger {} | grep -q 'success=True'"
-        ]
+        ["CMD-SHELL", ". /opt/ros/humble/setup.sh && \
+          ros2 service call /lifecycle_manager_navigation/is_active std_srvs/srv/Trigger \
+          {} | grep -q 'success=True'"]
       interval: 5s
       timeout: 5s
       retries: 20
-  
+
+
   mission:
     build:
       context: .
       dockerfile: docker/navigation/Dockerfile
-    platform: linux/arm64
+
     network_mode: host
+    platform: linux/arm64
     privileged: true
+
     env_file:
-      - ./docker/do.env
-    environment:
-      - CYCLONEDDS_URI=file:///dds/cyclonedds_robot.xml
+      - ./robots/${ROBOT_NAME}/manifest.env
+
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_mission:/ros2_ws/src/j2cdynamics_mission
       - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps
+
     depends_on:
       navigation:
         condition: service_healthy
-      camera:
-        condition: service_started
-        
-    command: ros2 launch j2cdynamics_bringup do_mission.launch.py 
+
+    command: ros2 launch j2cdynamics_bringup ${ROBOT_NAME}_mission.launch.py
+
 
   simulation:
-    build: 
+    build:
       context: .
       dockerfile: simulation/docker/Dockerfile
+
     platform: linux/amd64
     volumes:
       - ./ros2_ws:/home/ubuntu/ros2_ws
@@ -170,4 +188,5 @@ services:
     shm_size: 512m
     security_opt:
       - seccomp=unconfined
-
+    profiles:
+      - manual

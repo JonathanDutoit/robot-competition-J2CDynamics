@@ -414,17 +414,12 @@ class MissionRunner(BasicNavigator):
     
     
     # ── carpet exploration ────────────────────────────────────────────────────
-    # ── keepout mask swapper ──────────────────────────────────────────────────
-
     def _swap_keepout_map(self, map_yaml_path: str) -> None:
         """
         Calls the filter_mask_server to load a new keepout mask on the fly, 
         then clears the costmaps so the new navigable zones are instantly recognized.
         """
         self.get_logger().info(f'Swapping keepout mask to: {map_yaml_path}')
-        
-        # 1. Load the new map into the mask server
-        # NOTE: 'filter_mask_server' is the standard Nav2 name. If you changed it in your launch file, update it here.
         load_map_client = self.create_client(LoadMap, '/filter_mask_server/load_map')
         
         if load_map_client.wait_for_service(timeout_sec=2.0):
@@ -454,7 +449,6 @@ class MissionRunner(BasicNavigator):
 
     
     # ── mission ───────────────────────────────────────────────────────────────
-
     def run(self) -> None:
         self.setInitialPose(make_pose(*START_POSE))
         self.waitUntilNav2Active(localizer='amcl')

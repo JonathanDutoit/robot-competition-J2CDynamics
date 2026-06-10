@@ -29,6 +29,10 @@ from std_msgs.msg import String
 from nav2_msgs.action import ComputePathToPose
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 
+from rcl_interfaces.srv import SetParameters
+from rcl_interfaces.msg import Parameter, ParameterValue, ParameterType
+from nav2_msgs.srv import LoadMap, ClearEntireCostmap
+
 # ──────────────────────────────────────────────────────────────────────────────
 #  POSES & PATHS  
 # ──────────────────────────────────────────────────────────────────────────────
@@ -52,6 +56,12 @@ RAMP_TIME = 6.0
 
 WAYPOINTS_ZONE_4  = '/maps/arena/waypoints_zone4.yaml'
 WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_do.yaml'
+
+# CARPET-RELATED CONSTANTS
+WAYPOINTS_ZONE_CARPET = '/maps/arena/waypoints_zone_carpet.yaml'
+KEEPOUT_CARPET_YAML   = '/maps/arena/map_keepout_for_carpet.yaml'  # Must be the .yaml, not .pgm
+TIMEOUT_CARPET        = 150.0
+################################
 
 TIMEOUT_ZONE_4 = 240.0
 TIMEOUT_ZONE_1 = 200.0
@@ -402,6 +412,47 @@ class MissionRunner(BasicNavigator):
         # Go backwards for a bit
         self._open_loop_drive(DROPOFF_SPEED, DROPOFF_TIME)
     
+    
+    # ── carpet exploration ────────────────────────────────────────────────────
+    # ── keepout mask swapper ──────────────────────────────────────────────────
+
+    def _swap_keepout_map(self, map_yaml_path: str) -> None:
+        """
+        Calls the filter_mask_server to load a new keepout mask on the fly, 
+        then clears the costmaps so the new navigable zones are instantly recognized.
+        """
+        self.get_logger().info(f'Swapping keepout mask to: {map_yaml_path}')
+        
+        # 1. Load the new map into the mask server
+        # NOTE: 'filter_mask_server' is the standard Nav2 name. If you changed it in your launch file, update it here.
+        load_map_client = self.create_client(LoadMap, '/filter_mask_server/load_map')
+        
+        if load_map_client.wait_for_service(timeout_sec=2.0):
+            req = LoadMap.Request()
+            req.map_url = map_yaml_path
+            
+            future = load_map_client.call_async(req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
+            
+            if future.result() is not None and future.result().result == LoadMap.Response.RESULT_SUCCESS:
+                self.get_logger().info('Successfully loaded new keepout map.')
+            else:
+                self.get_logger().error('Failed to load new keepout map! Check file path.')
+        else:
+            self.get_logger().error('/filter_mask_server/load_map service not available!')
+
+        time.sleep(1.0) # Give the server a moment to publish the new mask grid
+
+        # 2. Wiping the old costmaps
+        self.get_logger().info('Clearing costmaps to apply the new mask...')
+        for clear_srv in ['/global_costmap/clear_entirely_global_costmap', '/local_costmap/clear_entirely_local_costmap']:
+            clear_client = self.create_client(ClearEntireCostmap, clear_srv)
+            if clear_client.wait_for_service(timeout_sec=1.0):
+                clear_client.call_async(ClearEntireCostmap.Request())
+        
+        time.sleep(1.0) # Give the planner a second to digest the new open space
+
+    
     # ── mission ───────────────────────────────────────────────────────────────
 
     def run(self) -> None:
@@ -449,10 +500,42 @@ class MissionRunner(BasicNavigator):
             #10. Return to base (drop off)
             #self.dropoff()
 
-            #11. If time allows, go into carpet 
-            #12. Return to base (drop off)
+            #11. If time allows, go into carpet
+            ''' 
+            elapsed = time.time() - self.mission_start
+            time_remaining = MISSION_TIMEOUT - elapsed
+            
+            # Ensure we have at least 45 seconds left to do the carpet AND the final dropoff
+            if time_remaining > 45.0: 
+                self.get_logger().info(f'Time remaining: {time_remaining:.0f}s. Proceeding to carpet!')
+                self.carpet_exploration(CARPET_POSE, precise=True)
+                
+                # Optional: Add an explore_zone call here if you have waypoints for the carpet
+                # self.explore_zone('/maps/arena/waypoints_carpet.yaml', duration_s=20.0, label='CARPET')
+            else:
+                self.get_logger().info(f'Only {time_remaining:.0f}s left. Skipping carpet to ensure safe dropoff.')
+
+            # 12. Return to base (drop off)
+            self.dropoff()
+           '''
+           
+           # 11. carpet explo
+            self._swap_keepout_map(KEEPOUT_CARPET_YAML) #Swap the keepout map to unlock the carpet
+            elapsed = time.time() - self.mission_start
+            time_remaining = MISSION_TIMEOUT - elapsed
+            if time_remaining > 60.0:
+                self.get_logger().info(f'Time remaining: {time_remaining:.0f}s. Entering Carpet Zone.')
+                self.explore_zone(WAYPOINTS_ZONE_CARPET, TIMEOUT_CARPET, label='CARPET')
+            else:
+                self.get_logger().warn('Not enough time for Carpet Zone! Skipping.')
+
+
+            # 12. Return to base for final dropoff
+            self.get_logger().info('Returning for final dropoff.')
+            self.dropoff()
 
             self.get_logger().info('MISSION COMPLETE')
+
 
         except MissionAbortException:
             self.get_logger().info('Abort triggered – returning to base')

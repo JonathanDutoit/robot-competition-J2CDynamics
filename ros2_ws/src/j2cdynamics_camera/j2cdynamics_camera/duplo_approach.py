@@ -1,7 +1,10 @@
 import math
 import rclpy
 import json
+import numpy as np
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, String
@@ -41,6 +44,17 @@ COLLECT_LOST_TIME   = 0.3    # s continuously lost (went under the robot) before
 RECENT_CLOSE_WINDOW = 0.7    # s; "was close very recently" memory for the scoop trigger
 CONTROL_HZ          = 10.0
 
+# ── Forward safety (lidar) ────────────────────────────────────────────────────
+# The visual servo has no obstacle awareness — it would happily drive into a
+# wall behind a duplo. We sample /scan in a forward cone and zero out forward
+# velocity when something is closer than SAFE_DIST. Rotation is unaffected so
+# the robot can still re-acquire / turn away while stopped.
+# NOTE: if the lidar sits below ~5cm it may see the duplo itself as an obstacle
+# and stop short of every pickup. Verify on the bench; narrow CONE_HALF_RAD or
+# raise SAFE_DIST if false-positives, the opposite if it bumps walls.
+SAFE_DIST_M     = 0.30   # forward stop distance (lidar frame)
+CONE_HALF_RAD   = 0.35   # ~20° each side of straight-ahead
+
 # ── Anti-wander tuning ────────────────────────────────────────────────────────
 # When the target is lost mid-approach, distinguish "tracking cleanly, momentary
 # dropout" (creep forward) from "lost at edge or far" (don't commit forward,
@@ -75,6 +89,13 @@ class DuploApproach(Node):
         )
 
         self.state_pub = self.create_publisher(String, 'duplo_state', 10)
+
+        # Forward clearance (m) from the latest /scan, in the ±CONE_HALF_RAD cone.
+        # inf means "no scan yet" — we treat that as safe so we don't deadlock at
+        # startup if /scan is briefly late. The gate fires only on a real reading.
+        self.front_clearance = float('inf')
+        self.create_subscription(
+            LaserScan, '/scan', self.on_scan, qos_profile_sensor_data)
 
         self.dt = 1.0 / CONTROL_HZ
         self.timer = self.create_timer(self.dt, self.on_timer)
@@ -111,6 +132,18 @@ class DuploApproach(Node):
     # Enable duplo collection callback
     def enable_duplo_collection(self, msg: Bool):
         self.enabled = msg.data
+
+    # Lidar callback — min range in forward cone, cached for the control loop.
+    def on_scan(self, msg: LaserScan):
+        n = len(msg.ranges)
+        if n == 0:
+            return
+        angles = msg.angle_min + np.arange(n) * msg.angle_increment
+        ranges = np.asarray(msg.ranges, dtype=np.float32)
+        valid = (np.abs(angles) <= CONE_HALF_RAD) & \
+                (ranges > msg.range_min) & (ranges < msg.range_max) & \
+                np.isfinite(ranges)
+        self.front_clearance = float(ranges[valid].min()) if valid.any() else float('inf')
 
     # Detection selection 
     def find_best_duplo(self, msg):
@@ -289,6 +322,15 @@ class DuploApproach(Node):
         elif state == self.machine.collect:
             des_vx = COLLECT_SPEED
 
+        # Forward safety gate: lidar says something's in our path → stop forward.
+        # Rotation is left intact so we can still steer away or re-acquire.
+        if des_vx > 0.0 and self.front_clearance < SAFE_DIST_M:
+            self.get_logger().warn(
+                f'front clearance {self.front_clearance:.2f}m < {SAFE_DIST_M}m '
+                f'(state={state.id}) — blocking forward',
+                throttle_duration_sec=1.0)
+            des_vx = 0.0
+
         self._publish(des_vx, des_wz)
 
     def _ramp(self, cur, target, max_acc):
@@ -320,6 +362,9 @@ class DuploApproach(Node):
             "close_frac": CLOSE_ROW_FRAC,
             "vx": round(self.cur_vx, 3),
             "wz": round(self.cur_wz, 3),
+            "clearance": (round(self.front_clearance, 2)
+                          if math.isfinite(self.front_clearance) else None),
+            "safe_dist": SAFE_DIST_M,
         }
         if self.best_target is not None:
             s["err_x"] = round(self.best_target[0], 3)

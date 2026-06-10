@@ -37,14 +37,16 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 BASE_POSE  = (0.35, 0.3, -1.57)  
 
 DROPFF_FIRST_WAYPOINT = (1.5, 0.3, 3.14)
-DROPOFF_POSE = (0.2, 0.2, 3.14)
+DROPOFF_POSE = (0.05, 0.4, 3.14)
 
 START_POSE = (1.25, 0.4, 0.02)  
 #START_POSE = (8.38, 5.88, 1.50)
 
 RAMP_APPROACH = (8.0, 4, 0.02)   
 RAMP_TOP      = (8.22, 5.88, 1.50) 
-RAMP_EXIT     = (8.48, 5.47, -1.50)
+RAMP_EXIT     = (8.0, 6.0, -1.50)
+RAMP_DOWN_SPEED = 0.1
+RAMP_DOWN_TIME = 10.0
 
 RAMP_BACKOFF_TIME    = 1.5            
 RAMP_ROTATE_SPEED    = 1.0           # rad/s during the 180° spin
@@ -53,7 +55,7 @@ RAMP_SPEED = 0.35 # Speed to go up the ramp
 RAMP_TIME = 6.5   # s - Time to go up the ramp
 
 RAMP_DOWN_SPEED = 0.1 # Speed for going down the ramp
-RAMP_DOWN_TIME = 10 # s - Time to go down the ramp
+RAMP_DOWN_TIME = 12 # s - Time to go down the ramp
 
 WAYPOINTS_ZONE_4  = '/maps/arena/waypoints_zone4.yaml'
 WAYPOINTS_ZONE_1  = '/maps/arena/waypoints_zone1_do.yaml'
@@ -65,7 +67,7 @@ MISSION_TIMEOUT = 600.0
 MISSION_CLOSING_TIME = 60.0
 
 DROPOFF_SPEED = -0.3
-DROPOFF_TIME = 2 # s
+DROPOFF_TIME = 3 # s
 
 NAV_GOAL_TIMEOUT_S = 60.0
 PLAN_TIMEOUT_S     = 8.0
@@ -80,8 +82,8 @@ DUPLO_COUNT_ZONE_4 = 6
 SCAN_STEP_RAD       = 0.4        # ~23° per step
 SCAN_STEP_RATE      = 0.4        # rad/s while moving
 SCAN_DWELL_S        = 1.0        # > ramp_vel timeout (0.5s) so visual servo can grab control
-SCAN_MAX_FSM_CYCLES = 4          # cap approach cycles per waypoint to avoid stubborn-target loops
-FSM_WAIT_TIMEOUT_S  = 15.0       # max time per cycle: successful pickup ~13s (8s approach + 5s collect);
+SCAN_MAX_FSM_CYCLES = 3          # cap approach cycles per waypoint to avoid stubborn-target loops
+FSM_WAIT_TIMEOUT_S  = 12.0       # max time per cycle: successful pickup ~13s (8s approach + 5s collect);
                                  # stuck approaches now self-abort at APPROACH_HARD_TIMEOUT_S (~8s) in duplo_approach.py
 
 RAMP_VEL_TOPIC = 'ramp_vel'   # must match twist_mux.yaml at priority 150
@@ -254,7 +256,17 @@ class MissionRunner(BasicNavigator):
         return True
 
     def go_down_ramp(self) -> bool: 
-        pass
+        self.get_logger().info('Ramp: rotate 180°')
+        self._open_loop_rotate(RAMP_ROTATE_SPEED, RAMP_ROTATE_TIME)
+
+        self.get_logger().info('Ramp: moving back from button')
+        self._open_loop_drive(-RAMP_SPEED, RAMP_BACKOFF_TIME)
+
+        self.get_logger().info('Ramp: rotate towards ramp')
+        self._open_loop_rotate(+RAMP_ROTATE_SPEED / 1.5, RAMP_ROTATE_TIME)
+
+        self.get_logger().info('Ramp: attempt to climb the ramp')
+        self._open_loop_drive(RAMP_DOWN_SPEED, RAMP_DOWN_TIME)
 
 
     # ── waypoint-grid exploration ─────────────────────────────────────────────

@@ -3,6 +3,7 @@ import rclpy
 import json
 import numpy as np
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from nav_msgs.msg import OccupancyGrid
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import Twist
@@ -48,17 +49,24 @@ APPROACH_HARD_TIMEOUT_S = 10.0   # max time in 'approach' before giving up via '
                                 # the FSM has no transition out since the target stays visible.
 CONTROL_HZ          = 10.0
 
-# ── Forward safety (local costmap) ────────────────────────────────────────────
-# Visual servo has no map awareness on its own. We trust Nav2's local costmap,
-# which is configured (see nav2_params.yaml) with voxel + inflation + keepout
-# filter — so a single subscription covers walls, scan-detected obstacles, AND
-# the painted "do not enter" zones (carpet/ramp) where odometry blows.
-# The grid arrives in its own frame (typically 'odom'); we read frame_id from
-# the header to stay correct if config changes. Check a few look-ahead points
-# along the robot's forward axis; block forward velocity if any are too costly.
+# ── Forward safety (global costmap) ───────────────────────────────────────────
+# We use the GLOBAL costmap, not local:
+#   - global has static_layer (walls) + keepout_filter (carpet/ramp/danger zones)
+#   - global is in MAP frame → keepout positions don't drift when AMCL is stale
+#     (which it is during open-loop visual-servo rotation)
+#   - local is in odom frame; keepout is re-projected via map→odom every cycle, and
+#     stale TF caused the carpet entry we saw in field tests
+# Threshold 99: in OccupancyGrid encoding, 100=lethal/keepout and 99=inscribed-
+# inflated (robot footprint would touch). Lower thresholds catch soft inflation
+# and stop the robot well before the wall, which was preventing pickups of
+# wall-near duplos. 99 = "stop only when about to actually intersect something".
 SAFETY_LOOKAHEAD_M  = [0.10, 0.25, 0.40]   # m ahead of base_link
-SAFETY_THRESHOLD    = 80                   # OccupancyGrid value: 100=lethal/keepout, 99=inscribed inflation
+SAFETY_THRESHOLD    = 99
 SAFETY_BASE_FRAME   = 'base_link'
+# Blocked-while-in-approach timer: if the gate has been firing continuously for
+# this long while we're in approach, the target is unreachable (e.g. on carpet).
+# Abandon faster than the 10s hard timeout so we don't burn 40s/waypoint.
+BLOCKED_APPROACH_TIMEOUT_S = 3.0
 
 # ── Anti-wander tuning ────────────────────────────────────────────────────────
 # When the target is lost mid-approach, distinguish "tracking cleanly, momentary
@@ -67,8 +75,8 @@ SAFETY_BASE_FRAME   = 'base_link'
 # the robot away from the duplo when it was last seen near the FOV edge.
 BLIND_FORWARD_BUDGET   = 1.0    # s; cap on continuous blind forward motion
 WANDER_OFFCENTER_THRESH = 0.4   # |err_x| above this → was at FOV edge, don't dead-reckon forward
-WANDER_FAR_THRESH       = 0.4   # last by below this → was far, don't dead-reckon forward
-REACQUIRE_ROTATE_RATE   = 0.3   # rad/s; in-place sweep toward last bearing while re-acquiring
+WANDER_FAR_THRESH       = 0.3   # last by below this → was far, don't dead-reckon forward
+REACQUIRE_ROTATE_RATE   = 0.4   # rad/s; in-place sweep toward last bearing while re-acquiring
 
 
 class DuploApproach(Node):
@@ -95,14 +103,19 @@ class DuploApproach(Node):
 
         self.state_pub = self.create_publisher(String, 'duplo_state', 10)
 
-        # Local costmap (voxel + inflation + keepout, per nav2_params.yaml).
+        # Global costmap (static walls + inflation + keepout, per nav2_params.yaml).
         # None means "not received yet" → treated as safe so startup doesn't
         # deadlock before Nav2 is fully up. The gate fires only on a real grid.
+        # In map frame → unaffected by AMCL/odom drift during open-loop rotation.
         self._costmap_map = None
         self._costmap_data = None
         self._costmap_frame = None
+        # Global costmap is published transient_local; need matching QoS for late join.
+        costmap_qos = QoSProfile(
+            depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST)
         self.create_subscription(
-            OccupancyGrid, '/local_costmap/costmap', self.on_costmap, 10)
+            OccupancyGrid, '/global_costmap/costmap', self.on_costmap, costmap_qos)
 
         # TF buffer (non-blocking lookups; safe in single-threaded executor).
         self.tf_buffer = tf2_ros.Buffer()
@@ -127,6 +140,7 @@ class DuploApproach(Node):
         self.last_close_time = None
         self.lost_start_time = None
         self.approach_start_time = None   # for APPROACH_HARD_TIMEOUT_S
+        self.blocked_start_time = None    # for BLOCKED_APPROACH_TIMEOUT_S
 
         # Accel-limited output state
         self.cur_vx = 0.0
@@ -146,15 +160,15 @@ class DuploApproach(Node):
     def enable_duplo_collection(self, msg: Bool):
         self.enabled = msg.data
 
-    # Local costmap callback (rolling, republished at ~5-10 Hz).
+    # Global costmap callback (latched, republished at ~1 Hz).
     def on_costmap(self, msg: OccupancyGrid):
         self._costmap_map = msg
         self._costmap_data = np.asarray(msg.data, dtype=np.int16).reshape(
             msg.info.height, msg.info.width)
-        new_frame = msg.header.frame_id or 'odom'
+        new_frame = msg.header.frame_id or 'map'
         if new_frame != self._costmap_frame:
             self.get_logger().info(
-                f'local_costmap: {msg.info.width}x{msg.info.height} '
+                f'global_costmap: {msg.info.width}x{msg.info.height} '
                 f'@ {msg.info.resolution:.3f}m/cell, frame={new_frame}')
             self._costmap_frame = new_frame
 
@@ -243,6 +257,13 @@ class DuploApproach(Node):
         except Exception as e:
             self.get_logger().warn(f"transition '{event}' rejected: {e}")
 
+    def _reset_approach_timers(self):
+        """Clear all approach-state timers on exit (lost or to collect)."""
+        self.approach_start_time = None
+        self.blocked_start_time = None
+        self.last_close_time = None
+        self.lost_start_time = None
+
     # FSM transitions
     def update_fsm(self):
         state = self.machine.current_state
@@ -265,11 +286,27 @@ class DuploApproach(Node):
                 if approach_age > APPROACH_HARD_TIMEOUT_S:
                     self.get_logger().warn(
                         f'approach timeout after {approach_age:.1f}s — giving up target')
-                    self.approach_start_time = None
-                    self.last_close_time = None
-                    self.lost_start_time = None
+                    self._reset_approach_timers()
                     self._fire('lost')   # back to search
                     return
+
+            # Blocked-while-in-approach: faster abandon when the safety gate is
+            # firing continuously. Catches duplos that project onto carpet /
+            # keepout, where the FSM would otherwise burn the full hard timeout.
+            if self._last_blocked:
+                if self.blocked_start_time is None:
+                    self.blocked_start_time = now
+                else:
+                    blocked_age = (now - self.blocked_start_time).nanoseconds * 1e-9
+                    if blocked_age > BLOCKED_APPROACH_TIMEOUT_S:
+                        self.get_logger().warn(
+                            f'approach blocked for {blocked_age:.1f}s '
+                            f'(duplo likely in keepout) — giving up target')
+                        self._reset_approach_timers()
+                        self._fire('lost')
+                        return
+            else:
+                self.blocked_start_time = None
 
             # Track proximity when visible
             if self.duplo_visible and self.best_target is not None:
@@ -297,9 +334,7 @@ class DuploApproach(Node):
             # 1) Was close, then dropped out of the (narrow) frame → it went under
             #    the robot → commit to the scoop.
             if recently_close and lost_long_enough:
-                self.last_close_time = None
-                self.lost_start_time = None
-                self.approach_start_time = None
+                self._reset_approach_timers()
                 self._fire('approach_to_collect')
                 self.collect_start_time = now
 
@@ -307,7 +342,7 @@ class DuploApproach(Node):
             #    wasn't close — i.e. target_active has finally gone False. Until then we
             #    keep pursuing (dead-reckon in publish_control). "If we see it, we fetch it."
             elif not self.target_active and not recently_close:
-                self.approach_start_time = None
+                self._reset_approach_timers()
                 self._fire('lost')  # Approach -> search
 
         # Collect -> Search

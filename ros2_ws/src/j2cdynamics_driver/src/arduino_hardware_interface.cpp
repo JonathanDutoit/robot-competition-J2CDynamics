@@ -93,6 +93,7 @@ ArduinoHardwareInterface::on_activate(const rclcpp_lifecycle::State &)
   hw_vel_left_ = hw_vel_right_ = 0.0;
   hw_mode_state_ = hw_cmd_mode_ = 0.0;
   current_mode_ = last_send_mode_ = SweeperMode::Idle;
+  hw_duplo_count_ = 0.0;
   consecutive_failures_ = 0;
   RCLCPP_INFO(logger_, "Hardware activated");
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -133,6 +134,8 @@ ArduinoHardwareInterface::export_state_interfaces()
     info_.joints[right_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_pos_right_);
   state_interfaces.emplace_back(
     info_.joints[sweeper_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_mode_state_);
+  state_interfaces.emplace_back(
+    "tank_state", "duplo_count", &hw_duplo_count_);
 
   return state_interfaces;
 }
@@ -210,6 +213,24 @@ ArduinoHardwareInterface::read(const rclcpp::Time &, const rclcpp::Duration & pe
     }
     RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
       "Mode read failed (%d in a row) — reusing last value",
+      consecutive_failures_);
+  }
+
+  // ── DUPLO COUNT POLLING ─────────────────────
+  double duplo_count;
+
+  if (request_duplo_count(duplo_count)) {
+    hw_duplo_count_ = duplo_count;
+  } else {
+    ++consecutive_failures_;
+    if (consecutive_failures_ > failure_threshold_) {
+      RCLCPP_ERROR(logger_,
+        "Arduino unresponsive: %d consecutive failed reads — reporting fault",
+        consecutive_failures_);
+      return hardware_interface::return_type::ERROR;
+    }
+    RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
+      "Duplo count read failed (%d in a row) — reusing last value",
       consecutive_failures_);
   }
 
@@ -375,6 +396,42 @@ bool ArduinoHardwareInterface::parse_mode(
   }
 
   return false;
+}
+
+bool ArduinoHardwareInterface::request_duplo_count(double & count)
+{
+  try {
+    serial_.FlushInputBuffer();
+    serial_.Write("DUPLO_COUNT\n");
+    std::string line;
+
+    serial_.ReadLine(line, '\n', 50);
+
+    return parse_duplo_count(line, count);
+
+  } catch (const LibSerial::ReadTimeout &) {
+    return false;
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger_, "Serial read error: %s", e.what());
+    return false;
+  }
+}
+
+bool ArduinoHardwareInterface::parse_duplo_count(
+  const std::string & line, double & count)
+{
+  std::size_t start = line.find("DUPLO_COUNT:");
+  if (start == std::string::npos) return false;
+
+  int c = 0;
+  if (std::sscanf(line.c_str() + start, "DUPLO_COUNT: %d", &c) != 1) {
+    return false;
+  }
+
+  if (c < 0 || c > 255) return false;
+
+  count = static_cast<double>(c);
+  return true;
 }
 
 double ArduinoHardwareInterface::_ramp(double current, double target) const

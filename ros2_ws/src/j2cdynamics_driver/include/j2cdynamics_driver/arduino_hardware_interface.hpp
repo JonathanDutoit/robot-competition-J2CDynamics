@@ -60,6 +60,7 @@ private:
   bool send_command(const std::string & cmd);
   bool request_odometry(double & left_vel, double & right_vel);
   bool request_mode(SweeperMode & mode);
+  bool request_duplo_count(double & count);
 
   // Config (loaded from URDF <hardware> params)
   std::string port_;
@@ -76,6 +77,7 @@ private:
   double hw_pos_left_  {0.0};   // integrated position (rad)
   double hw_pos_right_ {0.0};
   double hw_mode_state_{0.0};
+  double hw_duplo_count_{0.0};
 
   // Command interfaces — what ros2_control writes TO hardware
   double hw_cmd_left_  {0.0};
@@ -105,16 +107,15 @@ private:
   SweeperMode decode_mode(double v) const;
   std::string encode_mode_command(SweeperMode mode) const;
 
+  // Parsing helpers
+  bool parse_odometry(const std::string & line, double & left_vel, double & right_vel);
+  bool parse_mode(const std::string & line, SweeperMode & mode);
+  bool parse_duplo_count(const std::string & line, double & count);
+
   // dt-spike warn throttle
   std::chrono::steady_clock::time_point last_dt_warn_{};
 
   rclcpp::Clock clock_{RCL_STEADY_TIME};
-
-  // odometry parse helper
-  bool parse_odometry(const std::string & line, double & left_vel, double & right_vel);
-
-  // mode parse helper
-  bool parse_mode(const std::string & line, SweeperMode & mode);
 
   rclcpp::Logger logger_ {rclcpp::get_logger("ArduinoHardwareInterface")};
 };

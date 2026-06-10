@@ -9,10 +9,8 @@ services:
     network_mode: host
     platform: linux/arm64
 
-    environment:
-      - ROBOT_NAME=${ROBOT_NAME}
-      - ROBOT_DESCRIPTION=${ROBOT_DESCRIPTION}
-      - CYCLONEDDS_URI=${CYCLONEDDS_URI}
+    env_file:
+      - ./robots/${ROBOT_NAME}/manifest.env
 
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
@@ -52,11 +50,8 @@ services:
     stdin_open: true
     tty: true
 
-    environment:
-      - CAMERA_CALIBRATION=${CAMERA_CALIBRATION}
-      - CYCLONEDDS_URI=${CYCLONEDDS_URI}
-      - HOME=/tmp
-      - UDEV=1
+    env_file:
+      - ./robots/${ROBOT_NAME}/manifest.env
 
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
@@ -93,8 +88,8 @@ services:
     platform: linux/arm64
     privileged: true
 
-    environment:
-      - CYCLONEDDS_URI=${CYCLONEDDS_URI}
+    env_file:
+      - ./robots/${ROBOT_NAME}/manifest.env
 
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
@@ -119,10 +114,8 @@ services:
     platform: linux/arm64
     privileged: true
 
-    environment:
-      - AMCL_PARAMS=${AMCL_PARAMS}
-      - NAV2_PARAMS=${NAV2_PARAMS}
-      - CYCLONEDDS_URI=${CYCLONEDDS_URI}
+    env_file:
+      - ./robots/${ROBOT_NAME}/manifest.env
 
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
@@ -146,6 +139,15 @@ services:
       map:=/maps/arena/map
       amcl_yaml:=${AMCL_PARAMS}
       nav2_yaml:=${NAV2_PARAMS}
+    
+    healthcheck:
+      test:
+        ["CMD-SHELL", ". /opt/ros/humble/setup.sh && \
+          ros2 service call /lifecycle_manager_navigation/is_active std_srvs/srv/Trigger \
+          {} | grep -q 'success=True'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
 
   mission:
@@ -157,9 +159,8 @@ services:
     platform: linux/arm64
     privileged: true
 
-    environment:
-      - ROBOT_NAME=${ROBOT_NAME}
-      - CYCLONEDDS_URI=${CYCLONEDDS_URI}
+    env_file:
+      - ./robots/${ROBOT_NAME}/manifest.env
 
     volumes:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml

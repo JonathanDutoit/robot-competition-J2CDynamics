@@ -1,0 +1,25 @@
+#pragma once
+
+#include <common/IUpdatable.hpp>
+#include <do2/drivers/dri0018_driver_channel.hpp>
+#include <do2/data/do2_command.hpp>
+
+class SweeperController: public IUpdatable
+{
+    public:
+        SweeperController(
+            DRI0018DriverChannel* leftController, 
+            DRI0018DriverChannel* rightController,
+            Do2Command& cmd
+        );
+        void init() override;
+        void update() override;
+
+    private:
+        void _startCollecting();
+        void _startDropoff();
+        void _stopBrushes();
+        DRI0018DriverChannel* _leftController;
+        DRI0018DriverChannel* _rightController;
+        Do2Command& _cmd;
+};

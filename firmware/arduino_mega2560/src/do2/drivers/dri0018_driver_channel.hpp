@@ -6,19 +6,15 @@
 
 class DRI0018DriverChannel : public ISpeedControllable {
     public:
-        static constexpr uint8_t INVALID_PIN = 255;
         DRI0018DriverChannel(
-            uint8_t pwmDigitalInputPin, uint8_t directionDigitalInputPin,
-            uint8_t currentSenseDigitalInputPin = INVALID_PIN
+            uint8_t pwmDigitalInputPin, uint8_t directionDigitalInputPin
         );
         void init();
         void setVelocity(float rad_per_sec) override;
         float getVelocity() const override {return 0.0f;} // Not implemented for DRI0018
-        float getCurrent() const;
     private:
-        uint8_t _pwmPin, _dirPin, _currPin;
-        uint8_t isReady() const;
         void configurePWM();
+        uint8_t _pwmPin, _dirPin;
 };
 
 #endif

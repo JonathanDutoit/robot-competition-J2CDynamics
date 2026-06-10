@@ -1,17 +1,24 @@
-#ifndef DIFFERENTIAL_DRIVE_CONTROLLER_HPP
-#define DIFFERENTIAL_DRIVE_CONTROLLER_HPP
+#pragma once
 
 #include <common/ISpeedControllable.hpp>
+#include <common/IUpdatable.hpp>
+#include <common/data/robot_command.hpp>
+#include <common/data/robot_state.hpp>
 
-class DifferentialDriveController {
+class DifferentialDriveController: public IUpdatable {
     public:
-        DifferentialDriveController(ISpeedControllable* leftController, 
-                                    ISpeedControllable* rightController);
-        void setVelocities(float leftRadPerSec, float rightRadPerSec);
-        void getVelocities(float& leftRadPerSec, float& rightRadPerSec);
+        DifferentialDriveController(
+            ISpeedControllable* leftController, ISpeedControllable* rightController,
+            RobotCommand& cmd, RobotState& state
+        );
+        void init() override;
+        void update() override;
+    protected:
+        void setVelocities();
+        void getVelocities();
+        ISpeedControllable* _leftController;
+        ISpeedControllable* _rightController;
     private:
-        ISpeedControllable* leftController;
-        ISpeedControllable* rightController;
+        RobotCommand& _cmd;
+        RobotState& _state;
 };
-
-#endif

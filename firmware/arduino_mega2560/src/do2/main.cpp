@@ -2,9 +2,29 @@
  * TODO: Add description
  */
 #include <Arduino.h>
+#include <do2/robot_config.hpp>
+#include <do2/drivers/dri0018_driver_channel.hpp>
+#include <do2/communication/sweeper_command_handler.hpp>
+#include <do2/controllers/sweeper_controller.hpp>
+#include <do2/data/do2_command.hpp>
 #include <common_config.hpp>
 #include <common/drivers/escon_driver.hpp>
 #include <common/controllers/differential_drive_controller.hpp>
+#include <common/sensors/duplo_counter.hpp>
+#include <common/scheduler/periodic_task.hpp>
+#include <common/communication/serial_bridge.hpp>
+#include <common/data/robot_command.hpp>
+#include <common/data/robot_state.hpp>
+#include <do2/controllers/plate_controller.hpp>
+
+// Global instances
+Do2Command cmd;
+RobotState state;
+uint8_t previousDuploCount = 0;
+
+
+SerialBridge serialBridge(cmd, state);
+SweeperCommandHandler sweeperHandler(cmd);
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -12,107 +32,76 @@ EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR,
 EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_DIR, 
                         PIN_RIGHT_MAXON_READY, PIN_RIGHT_MAXON_SPEED_ANA, 
                         PIN_RIGHT_MAXON_CURR_ANA);
+DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, state); // Example wheel diameter and gear ratio
 
-DifferentialDriveController driveController(&leftMotor, &rightMotor); // Example wheel diameter and gear ratio
+DRI0018DriverChannel leftSweeper(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
+DRI0018DriverChannel rightSweeper(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
+SweeperController sweepersController(&leftSweeper, &rightSweeper, cmd);
 
-struct Measurement {
-    float leftWheelRadPerSec;
-    float rightWheelRadPerSec;
-    float leftMotorCurrentA;
-    float rightMotorCurrentA;
-};
-Measurement measurement;
+PlateController plateController(cmd, state);
 
-void set_speed_command(float leftPWM, float rightPWM);
-void get_odometry();
-bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount);
+DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
+
+// Define tasks schedule
+PeriodicTask controlTask(20); // 20 ms period for control loop (50 Hz)
+PeriodicTask duploTask(100); // 100 ms period for duplo counter update (10 Hz)
+PeriodicTask sweepersTask(20); // 50 ms period for sweepers control loop (50 Hz)
+PeriodicTask plateTurningTask(0.1); // 0.1 ms period for plate control loop (10000 Hz)
 
 void setup()
 {
-  //initialize the serial port
-  Serial.begin(115200);
-
-  // initialize Escon motor drivers
+  // Initialize components
   leftMotor.init();
   rightMotor.init();
+  driveController.init();
+
+  leftSweeper.init();
+  rightSweeper.init();
+  sweepersController.init();
+
+  plateController.init();
+
+  duploCounter.init();
+
+  serialBridge.init();
+  if (!serialBridge.registerHandler(&sweeperHandler)) {
+    Serial.println("ERROR: Failed to register SWEEPER command handler");
+  }
+
+  Serial.println("Robot initialized");
 }
 
 void loop()
 {
-  if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-
-    char command[10];
-    float leftPWM = 0, rightPWM = 0;
-    int parsedCount = 0;
-
-    bool valid = parseInput(input, command, leftPWM, rightPWM, parsedCount);
-
-    if (!valid) {
-      return;
-    }
-
-    // ── SPEED command ─────────────────────────────
-    if (strcmp(command, "SPEED") == 0) {
-      if (parsedCount == 3) {
-        set_speed_command(leftPWM, rightPWM);
-    }
-
-    // ── ODOMETRY command ────────────────────────────
-    } else if (strcmp(command, "ODOMETRY") == 0) {
-      get_odometry();
-    }
-  }
-}
-
-void set_speed_command(float leftPWM, float rightPWM) {
-  driveController.setVelocities(leftPWM, rightPWM);
-}
-
-void get_odometry() {
-  float leftVel = 0, rightVel = 0;
-
-  driveController.getVelocities(leftVel, rightVel);
-
-  Serial.print("ODOMETRY: ");
-  Serial.print("L_vel=");
-  Serial.print(leftVel, 2);
-  Serial.print(" rad/s ");
-
-  Serial.print("R_vel=");
-  Serial.print(rightVel, 2);
-  Serial.println(" rad/s ");
-}
-
-bool parseInput(String input, char* command, float& leftPWM, float& rightPWM, int& parsedCount) {
-  input.trim();
-
-  char buffer[64];
-  input.toCharArray(buffer, sizeof(buffer));
-
-  parsedCount = 0;
-
-  // First token (command)
-  char* token = strtok(buffer, " \r\n");
-  if (!token) return false;
-
-  strncpy(command, token, 10);  // copy safely
-  command[9] = '\0';            // ensure null termination
-  parsedCount++;
-
-  // leftPWM
-  char* arg1 = strtok(nullptr, " \r\n");
-  if (arg1) {
-    leftPWM = atof(arg1);
-    parsedCount++;
+  if (controlTask.ready()){
+      driveController.update();
   }
 
-  // rightPWM
-  char* arg2 = strtok(nullptr, " \r\n");
-  if (arg2) {
-    rightPWM = atof(arg2);
-    parsedCount++;
+  if (duploTask.ready()){
+      duploCounter.update();
+      uint8_t currentCount = duploCounter.getCount();
+
+      if (currentCount > previousDuploCount) {
+            if (currentCount < MAX_DUPLO_COUNT) {
+                plateController.rotateQuarterTurn(); // Rotate the plate by a quarter turn for each new duplo detected
+            } else {
+                Serial.println("Warning: Duplo count exceeded maximum limit!");
+            }
+            Serial.print("Duplo count updated: ");
+            Serial.println(previousDuploCount);
+      }
+      
+      previousDuploCount = currentCount;
+      state.duploCount = currentCount;
   }
 
-  return true;
+  if (sweepersTask.ready()){
+      sweepersController.update();
+  }
+
+  if (plateTurningTask.ready()){
+      plateController.update();
+  }
+
+  serialBridge.update();
 }

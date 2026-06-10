@@ -23,6 +23,14 @@
 #define PIN_LEFT_MAXON_SPEED_ANA     A4
 #define PIN_LEFT_MAXON_CURR_ANA      A5
 
+// --- Sharp IR Sensor ---
+#define PIN_DUPLO_IR_SENSOR          A9
+
+// -----------------------------------
+// --- COMMUNICATION CONFIGURATION ---
+// -----------------------------------
+#define SERIAL_BAUD_RATE             115200
+
 
 // ------------------------------
 // ---------- ARDUINO -----------
@@ -70,5 +78,22 @@
 // ------------------------
 
 #define NOMINAL_BATTERY_VOLTAGE_V      11.1f // in volts
+
+// ---------------
+// --- SENSORS ---
+// ---------------
+
+#define BASELINE_MEASUREMENT_COUNT     50 // Number of readings to average for baseline
+
+// --- Duplo counter parameters ---
+#define DUPLO_DETECTION_DELTA          20.0f // ADC units above baseline to detect presence
+#define DUPLO_RELEASE_DETECTION_DELTA  10.0f // ADC units below baseline to release presence
+#define DUPLO_DETECTION_REFRACTORY_MS  1000 // Time to ignore further detections after a valid one (in milliseconds)
+
+// --------------------------
+// --- CONTROL PARAMETERS ---
+// --------------------------
+
+#define MAX_COMMAND_HANDLERS                   5
 
 #endif

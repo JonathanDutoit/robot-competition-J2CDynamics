@@ -13,12 +13,12 @@ class EsconDriver : public ISpeedControllable {
         void init();
         void setVelocity(float rad_per_sec) override;
         float getVelocity() const override;
+        uint8_t isReady() const;
         float getCurrent() const;
         float EsconDriver::measureZeroVoltage(int samples) const; 
         void setZeroVoltage(float v) { _zeroVoltage = v; }
     private:
         uint8_t _pwmPin, _enPin, _dirPin, _readyPin, _speedPin, _currPin;
-        uint8_t isReady() const;
         void configurePWM();
         float _zeroVoltage{ESCON_VELOCITY_ZERO_VOLTAGE};  // default, overridable
 };

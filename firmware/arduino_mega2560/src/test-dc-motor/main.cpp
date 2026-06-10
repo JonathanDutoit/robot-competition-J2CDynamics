@@ -2,14 +2,17 @@
 #include <do2/robot_config.hpp>
 #include <do2/drivers/dri0018_driver_channel.hpp>
 #include <common_config.hpp>
-#include <common/controllers/differential_drive_controller.hpp>
+#include <do2/controllers/sweeper_controller.hpp>
+#include <do2/data/do2_command.hpp>
+#include <common/scheduler/periodic_task.hpp>
 
-DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR, 
-							   PIN_LEFT_SWEEPER_CURR_SENSE);
-DRI0018DriverChannel rightMotor(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR, 
-								PIN_RIGHT_SWEEPER_CURR_SENSE);
+// Global instances
+Do2Command cmd;
 
-DifferentialDriveController sweepersController(&leftMotor, &rightMotor);
+DRI0018DriverChannel leftMotor(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
+DRI0018DriverChannel rightMotor(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
+
+SweeperController sweepersController(&leftMotor, &rightMotor, cmd);
 
 void setup(void)
 {
@@ -19,51 +22,42 @@ void setup(void)
 	// initialize DRI0018 motor driver channels
 	leftMotor.init();
 	rightMotor.init();
-	}
+
+	// initialize the differential drive controller
+	sweepersController.init();
+
+	Serial.println("Sweeper test bench started");
+}
 
 void loop(void)
 {
   if(Serial.available()){
     char val = Serial.read();
     if(val != -1){
-		static float leftSpeed = 0.0f;
-		static float rightSpeed = 0.0f;
 		
 		switch(val){
-			case 'w'://Move Forward
-				leftSpeed += DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
-				rightSpeed += DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
+			case 'c':
+				cmd.mode = SweeperMode::Collect;
 				break;
-			case 's'://Move Backward
-				leftSpeed -= DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
-				rightSpeed -= DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
+			case 'd':
+				cmd.mode = SweeperMode::Dropoff;
 				break;
-			case 'a'://Turn Left
-				leftSpeed -= DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
-				rightSpeed += DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
+			case 'i':
+				cmd.mode = SweeperMode::Idle;
 				break;
-			case 'd'://Turn Right
-				leftSpeed += DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
-				rightSpeed -= DC_MOTOR_MAX_VELOCITY_RAD_SEC/10.0f;
-				break;
-			case 'z':
+			case 'h':
 				Serial.println("Hello");
-				break;
-			case 'x':
-				leftSpeed = 0.0f;
-				rightSpeed = 0.0f;
 				break;
 		}
 
-		Serial.print("Left Speed (rad/s): ");
-		Serial.print(leftSpeed);
-		Serial.print(" | Right Speed (rad/s): ");
-		Serial.println(rightSpeed);
+		Serial.print("Sweeper Mode: ");
+		Serial.println(static_cast<int>(cmd.mode));
 
-		sweepersController.setVelocities(leftSpeed, rightSpeed);
+		sweepersController.update();
     } else {
 		Serial.println("Error reading serial input");
-		sweepersController.setVelocities(0.0f, 0.0f); // Stop the motors on error
+		cmd.mode = SweeperMode::Idle;
+		sweepersController.update();
 	}
   }
 }

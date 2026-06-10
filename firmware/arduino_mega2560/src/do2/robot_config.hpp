@@ -15,12 +15,10 @@
 // --- Right Sweeper Motor ---
 #define PIN_RIGHT_SWEEPER_PWM            9
 #define PIN_RIGHT_SWEEPER_DIR            8
-#define PIN_RIGHT_SWEEPER_CURR_SENSE     24
 
 // --- Left Sweeper Motor ---
 #define PIN_LEFT_SWEEPER_PWM           10
 #define PIN_LEFT_SWEEPER_DIR           11
-#define PIN_LEFT_SWEEPER_CURR_SENSE    25
 
 // --- Stepper Motor ---
 #define PIN_STEPPER_DIR                 30
@@ -31,7 +29,7 @@
 // --- DC MOTOR PARAMETERS ---
 // --------------------------------
 
-// --- MECHANICAL PARAMETERS ---
+// --- Mechanical properties ---
 #define DC_MOTOR_GEAR_RATIO             75.0f // gear ratio
 
 // --- Motor limits ---
@@ -42,7 +40,31 @@
 #define DC_MOTOR_MAX_VOLTAGE_V          6.0f // in volts
 #define DC_MOTOR_MAX_PWM_DUTY_CYCLE     (int)(ARDUINO_PWM_MAX_COUNT * DC_MOTOR_MAX_VOLTAGE_V / NOMINAL_BATTERY_VOLTAGE_V) // Max duty cycle for acceptable voltage to the motor (4-8V depending on battery level)
 
+// --- Driver limits ---
+#define DRI0018_MAX_CURRENT_A           15.0f // in amps
+#define DRI0018_MAX_OUTPUT_VOLTAGE      5.0f // in volts
+
 // --- Motor cruise speed ---
-#define DC_MOTOR_CRUISE_VELOCITY_RAD_SEC   11.0f // in rad/s (maintain ~6V to the motor)
+#define DC_MOTOR_CRUISE_VEL_RAD_SEC     11.0f // in rad/s (maintain ~6V to the motor)
+
+// --------------------------------
+// --- STEPPER MOTOR PARAMETERS ---
+// --------------------------------
+
+// --- Stepper motor parameters ---
+#define STEP_PER_REV                        200 // for a 1.8 degree stepper
+#define STEPPER_MICROSTEPPING               2 // microstepping factor (e.g., 16 for 1/16 microstepping)
+#define STEPPER_EFFECTIVE_STEPS_PER_REV     (STEP_PER_REV * STEPPER_MICROSTEPPING) // effective steps per revolution considering microstepping
+#define QUARTER_TURN_STEPS                  (STEPPER_EFFECTIVE_STEPS_PER_REV / 6) // steps for a quarter turn
+
+#define STEPPER_MAX_SPEED_STEPS_PER_SEC     100.0f // in steps per second
+#define DROP_OFF_SPEED                      10.0f // in steps per second (same as max speed for continuous rotation)
+
+#define STEPPER_ACCELERATION_STEPS_PER_SEC2 25.0f
+
+// --------------------------
+// --- MISSION PARAMETERS ---
+// --------------------------
+#define MAX_DUPLO_COUNT                     6
 
 #endif

@@ -2,20 +2,32 @@
 #include <common_config.hpp>
 
 DifferentialDriveController::DifferentialDriveController(
-    ISpeedControllable* leftController, 
-    ISpeedControllable* rightController
-): leftController(leftController), rightController(rightController) {}
+    ISpeedControllable* leftController, ISpeedControllable* rightController,
+    RobotCommand& cmd, RobotState& state
+): 
+_leftController(leftController), _rightController(rightController), 
+_cmd(cmd), _state(state) {}
 
-void DifferentialDriveController::setVelocities(
-    float leftRadPerSec, float rightRadPerSec
-) {
-    leftController->setVelocity(leftRadPerSec);
-    rightController->setVelocity(-rightRadPerSec);
+void DifferentialDriveController::init() {
+    // Initialize both controllers to zero velocity
+    _leftController->setVelocity(0);
+    _rightController->setVelocity(0);
 }
 
-void DifferentialDriveController::getVelocities(
-    float& leftRadPerSec, float& rightRadPerSec
-) {
-    leftRadPerSec = leftController->getVelocity();
-    rightRadPerSec = -rightController->getVelocity();
+void DifferentialDriveController::update() {
+    // Apply the velocities from the command to the controllers
+    setVelocities();
+
+    // Update the state with the current velocities from the controllers
+    getVelocities();
+}
+
+void DifferentialDriveController::getVelocities() {
+    _state.leftWheelVelocity = _leftController->getVelocity();
+    _state.rightWheelVelocity = _rightController->getVelocity();
+}
+
+void DifferentialDriveController::setVelocities() {
+    _leftController->setVelocity(_cmd.leftWheelVelocity);
+    _rightController->setVelocity(-_cmd.rightWheelVelocity);
 }

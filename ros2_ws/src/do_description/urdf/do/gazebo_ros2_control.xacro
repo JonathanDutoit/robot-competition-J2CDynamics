@@ -20,7 +20,7 @@
 
         <!-- REAL ROBOT: Arduino serial interface -->
         <xacro:unless value="$(arg use_sim)">
-            <plugin>j2cdynamics_driver/ArduinoHardwareInterface</plugin>
+            <plugin>j2cdynamics_driver/DoHardwareInterface</plugin>
             <param name="port">/dev/arduino</param>
             <param name="baudrate">115200</param>
             <param name="max_rad_s">7.0</param>

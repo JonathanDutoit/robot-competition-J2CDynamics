@@ -16,18 +16,10 @@
 namespace j2cdynamics_driver
 {
 
-enum class SweeperMode : int
-{
-  Idle = 0,
-  Collect = 1,
-  Dropoff = 2,
-  Fault = 3
-};
-
-class ArduinoHardwareInterface : public hardware_interface::SystemInterface
+class CommonHardwareInterface : public hardware_interface::SystemInterface
 {
 public:
-  RCLCPP_SHARED_PTR_DEFINITIONS(ArduinoHardwareInterface)
+  RCLCPP_SHARED_PTR_DEFINITIONS(CommonHardwareInterface)
 
   // Lifecycle callbacks
   hardware_interface::CallbackReturn on_init(
@@ -45,7 +37,7 @@ public:
   hardware_interface::CallbackReturn on_cleanup(
     const rclcpp_lifecycle::State & previous_state) override;
 
-  // ros2_control interface
+  // common ros2_control interface
   std::vector<hardware_interface::StateInterface>   export_state_interfaces()   override;
   std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
 
@@ -55,11 +47,32 @@ public:
   hardware_interface::return_type write(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
-private:
+protected:
+  hardware_interface::CallbackReturn joint_init_sanity_check(const hardware_interface::HardwareInfo & info);
+  virtual hardware_interface::CallbackReturn extra_joint_init_sanity_check(const hardware_interface::HardwareInfo & info
+  ) {
+    return hardware_interface::CallbackReturn::SUCCESS;
+  }
+
+  // robot specific ros2_control interfaces
+  virtual void export_extra_state_interfaces(std::vector<hardware_interface::StateInterface> & interfaces) {}
+  virtual void export_extra_command_interfaces(std::vector<hardware_interface::CommandInterface> & interfaces) {}
+
+  virtual hardware_interface::return_type read_extra(
+    const rclcpp::Time & time, const rclcpp::Duration & period
+  ) { 
+    return hardware_interface::return_type::OK; 
+  };
+
+  virtual hardware_interface::return_type write_extra(
+    const rclcpp::Time & time, const rclcpp::Duration & period
+  ) { 
+    return hardware_interface::return_type::OK; 
+  };
+
   // Serial helpers
   bool send_command(const std::string & cmd);
   bool request_odometry(double & left_vel, double & right_vel);
-  bool request_mode(SweeperMode & mode);
   bool request_duplo_count(double & count);
 
   // Config (loaded from URDF <hardware> params)
@@ -76,19 +89,16 @@ private:
   double hw_vel_right_ {0.0};
   double hw_pos_left_  {0.0};   // integrated position (rad)
   double hw_pos_right_ {0.0};
-  double hw_mode_state_{0.0};
   double hw_duplo_count_{0.0};
 
   // Command interfaces — what ros2_control writes TO hardware
   double hw_cmd_left_  {0.0};
   double hw_cmd_right_ {0.0};
-  double hw_cmd_mode_{0.0};
   double hw_cmd_duplo_count_{0.0};
 
   // resolved joint indices (set in on_init)
   int left_joint_idx_{-1};
   int right_joint_idx_{-1};
-  int sweeper_joint_idx_{-1};
   int duplo_counter_joint_idx_{-1};
 
   // fault escalation
@@ -99,20 +109,13 @@ private:
   double current_left_  {0.0};
   double current_right_ {0.0};
 
-  // Internal sweeper state tracking
-  SweeperMode current_mode_ {SweeperMode::Idle};
-  SweeperMode last_send_mode_    {SweeperMode::Idle};
-
   // Helper functions
   double _ramp(double current, double target) const;
   double _clamp(double value)                 const;
-  SweeperMode decode_mode(double v) const;
-  std::string encode_mode_command(SweeperMode mode) const;
   bool decode_duplo_count_request(double v) const;
 
   // Parsing helpers
   bool parse_odometry(const std::string & line, double & left_vel, double & right_vel);
-  bool parse_mode(const std::string & line, SweeperMode & mode);
   bool parse_duplo_count(const std::string & line, double & count);
 
   // dt-spike warn throttle
@@ -120,7 +123,7 @@ private:
 
   rclcpp::Clock clock_{RCL_STEADY_TIME};
 
-  rclcpp::Logger logger_ {rclcpp::get_logger("ArduinoHardwareInterface")};
+  rclcpp::Logger logger_ {rclcpp::get_logger("CommonHardwareInterface")};
 };
 
 } 

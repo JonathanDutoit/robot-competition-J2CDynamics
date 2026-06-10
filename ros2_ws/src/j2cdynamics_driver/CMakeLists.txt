@@ -24,25 +24,30 @@ find_library(LIBSERIAL_LIB serial REQUIRED)
 # ─────────────────────────────────────────────
 # 1. HARDWARE PLUGIN
 # ─────────────────────────────────────────────
-add_library(arduino_hardware_interface SHARED
-  src/arduino_hardware_interface.cpp)
-target_include_directories(arduino_hardware_interface PUBLIC
+add_library(common_hardware_interface SHARED
+  src/common_hardware_interface.cpp
+  src/da_hardware_interface.cpp
+  src/do_hardware_interface.cpp
+)
+target_include_directories(common_hardware_interface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(arduino_hardware_interface
+ament_target_dependencies(common_hardware_interface
   hardware_interface
   pluginlib
   rclcpp
   rclcpp_lifecycle)
 
-target_link_libraries(arduino_hardware_interface ${LIBSERIAL_LIB})
+target_link_libraries(common_hardware_interface ${LIBSERIAL_LIB})
 
 pluginlib_export_plugin_description_file(
-  hardware_interface arduino_hardware_interface.xml)
+  hardware_interface
+  common_hardware_interface.xml
+)
 
-install(TARGETS arduino_hardware_interface
+install(TARGETS common_hardware_interface
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
@@ -53,7 +58,7 @@ install(
 )
 
 install(
-  FILES arduino_hardware_interface.xml
+  FILES common_hardware_interface.xml
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -73,7 +78,7 @@ install(TARGETS joy_mode_mapper
 
 # ── Ament export ─────────────────────────────────────────────────────────────
 ament_export_include_directories(include)
-ament_export_libraries(arduino_hardware_interface)
+ament_export_libraries(common_hardware_interface)
 ament_export_dependencies(
   hardware_interface
   pluginlib

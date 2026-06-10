@@ -8,7 +8,7 @@ controller_manager:
     diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
 
-    sweeper_mode_controller:
+    sweeper_controller:
       type: forward_command_controller/ForwardCommandController
 
 diff_drive_controller:
@@ -56,7 +56,7 @@ diff_drive_controller:
     angular.z.max_jerk: 0.0
     angular.z.min_jerk: 0.0
 
-sweeper_mode_controller:
+sweeper_controller:
   ros__parameters:
     joints:
       - sweeper_mode

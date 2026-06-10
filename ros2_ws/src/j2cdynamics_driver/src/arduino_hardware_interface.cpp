@@ -408,16 +408,16 @@ std::string ArduinoHardwareInterface::encode_mode_command(SweeperMode mode) cons
   switch (mode)
   {
     case SweeperMode::Idle:
-      return "MODE IDLE\n";
+      return "IDLE\n";
 
     case SweeperMode::Collect:
-      return "MODE COLLECT\n";
+      return "COLLECT\n";
 
     case SweeperMode::Dropoff:
-      return "MODE DROPOFF\n";
+      return "DROPOFF\n";
   }
 
-  return "MODE IDLE\n";
+  return "IDLE\n";
 }
 
 }  // namespace j2cdynamics_driver

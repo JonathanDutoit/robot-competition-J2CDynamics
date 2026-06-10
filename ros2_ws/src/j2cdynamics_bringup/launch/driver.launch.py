@@ -113,6 +113,13 @@ def generate_launch_description():
         output='screen',
     )
 
+    sweeper_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['sweeper_controller', '--controller-manager', '/controller_manager'],
+        output='screen',
+    )
+
     delayed_joint_state_spawner = TimerAction(
         period=3.0,
         actions=[joint_state_broadcaster_spawner],
@@ -121,6 +128,11 @@ def generate_launch_description():
     delayed_diff_drive_spawner = TimerAction(
         period=4.0,
         actions=[diff_drive_controller_spawner],
+    )
+
+    delayed_sweeper_spawner = TimerAction(
+        period=5.0,
+        actions=[sweeper_controller_spawner],
     )
 
     # -------------------------
@@ -166,8 +178,10 @@ def generate_launch_description():
         controller_manager_node,
         joy_mode_mapper,
 
+
         delayed_joint_state_spawner,
         delayed_diff_drive_spawner,
+        delayed_sweeper_spawner,
 
         twist_mux,
         diagnostics,

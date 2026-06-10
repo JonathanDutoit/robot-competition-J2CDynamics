@@ -33,7 +33,7 @@ from j2cdynamics_mission.mission_ramp import RampMixin
 #  POSES & PATHS  (Duplo-Obliterator specific)
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE             = (0.25, 0.4, 3.14)
+BASE_POSE             = (0.05, 0.25, 3.14)
 DROPFF_FIRST_WAYPOINT = (1.5, 0.4, 3.14)
 START_POSE            = (1.25, 0.4, 0.02)
 # START_POSE          = (8.38, 5.88, 1.50)  # alt: start at ramp top for debugging
@@ -104,9 +104,8 @@ class DoMissionRunner(DuploMixin, RampMixin, MissionBase):
         self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
 
     def _step_ramp_approach(self) -> None:
-        if not self._go_to_with_recovery(RAMP_APPROACH, label='RAMP_APPROACH'):
-            self.get_logger().error(
-                f'RAMP_APPROACH {RAMP_APPROACH} failed after all attempts')
+        if not self._go_to_with_recovery(RAMP_APPROACH, label='RAMP_APPROACH', max_attempts=10, timeout_s=90, precise=True):
+            self.get_logger().error(f'RAMP_APPROACH {RAMP_APPROACH} failed after all attempts')
             raise MissionAbortException()
 
     def _step_ramp_top_reseed(self) -> None:

@@ -3,11 +3,11 @@ import rclpy
 import json
 import numpy as np
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import OccupancyGrid
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, String
+import tf2_ros
 
 from j2cdynamics_camera.config import MAIN_SIZE, LORES_SIZE, CONF_THRESH, CLASS_NAMES
 from j2cdynamics_camera.collection_fsm import DuploCollectionMachine
@@ -44,16 +44,17 @@ COLLECT_LOST_TIME   = 0.3    # s continuously lost (went under the robot) before
 RECENT_CLOSE_WINDOW = 0.7    # s; "was close very recently" memory for the scoop trigger
 CONTROL_HZ          = 10.0
 
-# ── Forward safety (lidar) ────────────────────────────────────────────────────
-# The visual servo has no obstacle awareness — it would happily drive into a
-# wall behind a duplo. We sample /scan in a forward cone and zero out forward
-# velocity when something is closer than SAFE_DIST. Rotation is unaffected so
-# the robot can still re-acquire / turn away while stopped.
-# NOTE: if the lidar sits below ~5cm it may see the duplo itself as an obstacle
-# and stop short of every pickup. Verify on the bench; narrow CONE_HALF_RAD or
-# raise SAFE_DIST if false-positives, the opposite if it bumps walls.
-SAFE_DIST_M     = 0.30   # forward stop distance (lidar frame)
-CONE_HALF_RAD   = 0.35   # ~20° each side of straight-ahead
+# ── Forward safety (local costmap) ────────────────────────────────────────────
+# Visual servo has no map awareness on its own. We trust Nav2's local costmap,
+# which is configured (see nav2_params.yaml) with voxel + inflation + keepout
+# filter — so a single subscription covers walls, scan-detected obstacles, AND
+# the painted "do not enter" zones (carpet/ramp) where odometry blows.
+# The grid arrives in its own frame (typically 'odom'); we read frame_id from
+# the header to stay correct if config changes. Check a few look-ahead points
+# along the robot's forward axis; block forward velocity if any are too costly.
+SAFETY_LOOKAHEAD_M  = [0.10, 0.25, 0.40]   # m ahead of base_link
+SAFETY_THRESHOLD    = 80                   # OccupancyGrid value: 100=lethal/keepout, 99=inscribed inflation
+SAFETY_BASE_FRAME   = 'base_link'
 
 # ── Anti-wander tuning ────────────────────────────────────────────────────────
 # When the target is lost mid-approach, distinguish "tracking cleanly, momentary
@@ -90,12 +91,19 @@ class DuploApproach(Node):
 
         self.state_pub = self.create_publisher(String, 'duplo_state', 10)
 
-        # Forward clearance (m) from the latest /scan, in the ±CONE_HALF_RAD cone.
-        # inf means "no scan yet" — we treat that as safe so we don't deadlock at
-        # startup if /scan is briefly late. The gate fires only on a real reading.
-        self.front_clearance = float('inf')
+        # Local costmap (voxel + inflation + keepout, per nav2_params.yaml).
+        # None means "not received yet" → treated as safe so startup doesn't
+        # deadlock before Nav2 is fully up. The gate fires only on a real grid.
+        self._costmap_map = None
+        self._costmap_data = None
+        self._costmap_frame = None
         self.create_subscription(
-            LaserScan, '/scan', self.on_scan, qos_profile_sensor_data)
+            OccupancyGrid, '/local_costmap/costmap', self.on_costmap, 10)
+
+        # TF buffer (non-blocking lookups; safe in single-threaded executor).
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self._last_blocked = False   # for dashboard
 
         self.dt = 1.0 / CONTROL_HZ
         self.timer = self.create_timer(self.dt, self.on_timer)
@@ -133,17 +141,45 @@ class DuploApproach(Node):
     def enable_duplo_collection(self, msg: Bool):
         self.enabled = msg.data
 
-    # Lidar callback — min range in forward cone, cached for the control loop.
-    def on_scan(self, msg: LaserScan):
-        n = len(msg.ranges)
-        if n == 0:
-            return
-        angles = msg.angle_min + np.arange(n) * msg.angle_increment
-        ranges = np.asarray(msg.ranges, dtype=np.float32)
-        valid = (np.abs(angles) <= CONE_HALF_RAD) & \
-                (ranges > msg.range_min) & (ranges < msg.range_max) & \
-                np.isfinite(ranges)
-        self.front_clearance = float(ranges[valid].min()) if valid.any() else float('inf')
+    # Local costmap callback (rolling, republished at ~5-10 Hz).
+    def on_costmap(self, msg: OccupancyGrid):
+        self._costmap_map = msg
+        self._costmap_data = np.asarray(msg.data, dtype=np.int16).reshape(
+            msg.info.height, msg.info.width)
+        new_frame = msg.header.frame_id or 'odom'
+        if new_frame != self._costmap_frame:
+            self.get_logger().info(
+                f'local_costmap: {msg.info.width}x{msg.info.height} '
+                f'@ {msg.info.resolution:.3f}m/cell, frame={new_frame}')
+            self._costmap_frame = new_frame
+
+    def _forward_blocked(self) -> bool:
+        """True if any forward look-ahead point lies in a costly cell of the
+        local costmap (which already merges static walls + scan obstacles +
+        keepout per nav2_params.yaml)."""
+        if self._costmap_map is None or self._costmap_frame is None:
+            return False  # not received yet — don't gate
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                self._costmap_frame, SAFETY_BASE_FRAME, rclpy.time.Time())
+        except Exception:
+            return False
+        rx = tf.transform.translation.x
+        ry = tf.transform.translation.y
+        q = tf.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        cx, cy = math.cos(yaw), math.sin(yaw)
+        info = self._costmap_map.info
+        for d in SAFETY_LOOKAHEAD_M:
+            x = rx + d * cx
+            y = ry + d * cy
+            col = int((x - info.origin.position.x) / info.resolution)
+            row = int((y - info.origin.position.y) / info.resolution)
+            if 0 <= col < info.width and 0 <= row < info.height:
+                if int(self._costmap_data[row, col]) >= SAFETY_THRESHOLD:
+                    return True
+        return False
 
     # Detection selection 
     def find_best_duplo(self, msg):
@@ -322,14 +358,16 @@ class DuploApproach(Node):
         elif state == self.machine.collect:
             des_vx = COLLECT_SPEED
 
-        # Forward safety gate: lidar says something's in our path → stop forward.
-        # Rotation is left intact so we can still steer away or re-acquire.
-        if des_vx > 0.0 and self.front_clearance < SAFE_DIST_M:
+        # Forward safety gate: local costmap (includes walls, scan obstacles,
+        # and keepout per nav2 config) says next cells are forbidden → stop
+        # forward. Rotation stays intact so we can still steer / re-acquire.
+        blocked = des_vx > 0.0 and self._forward_blocked()
+        if blocked:
             self.get_logger().warn(
-                f'front clearance {self.front_clearance:.2f}m < {SAFE_DIST_M}m '
-                f'(state={state.id}) — blocking forward',
+                f'forward look-ahead in costly costmap cell (state={state.id})',
                 throttle_duration_sec=1.0)
             des_vx = 0.0
+        self._last_blocked = blocked
 
         self._publish(des_vx, des_wz)
 
@@ -362,9 +400,8 @@ class DuploApproach(Node):
             "close_frac": CLOSE_ROW_FRAC,
             "vx": round(self.cur_vx, 3),
             "wz": round(self.cur_wz, 3),
-            "clearance": (round(self.front_clearance, 2)
-                          if math.isfinite(self.front_clearance) else None),
-            "safe_dist": SAFE_DIST_M,
+            "costmap_ready": self._costmap_map is not None,
+            "forward_blocked": self._last_blocked,
         }
         if self.best_target is not None:
             s["err_x"] = round(self.best_target[0], 3)

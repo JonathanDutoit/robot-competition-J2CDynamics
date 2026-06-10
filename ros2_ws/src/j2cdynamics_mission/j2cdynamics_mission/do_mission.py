@@ -479,8 +479,12 @@ class MissionRunner(BasicNavigator):
           3. The final reverse is the actual deposit motion — perform it whether
              nav succeeded or not, so we get a partial deposit at worst.
         """
-        # Align waypoint — non-critical, just for a clean straight approach
-        self.go_to(DROPFF_FIRST_WAYPOINT, precise=False, timeout_s=20)
+        # Align waypoint — recovery+retry too: failing here forces BASE_POSE to
+        # approach from the wrong direction, which often cascades into a fail.
+        if not self.go_to(DROPFF_FIRST_WAYPOINT, precise=False, timeout_s=20):
+            self.get_logger().warn('dropoff: DROPFF_FIRST_WAYPOINT failed — running recovery')
+            self._run_recovery('dropoff-align-recovery')
+            self.go_to(DROPFF_FIRST_WAYPOINT, precise=False, timeout_s=20)
 
         # Base pose with Nav2-recovery retry
         base_ok = self.go_to(BASE_POSE, precise=False, timeout_s=20)

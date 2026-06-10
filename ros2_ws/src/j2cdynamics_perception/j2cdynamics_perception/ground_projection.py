@@ -31,6 +31,7 @@ except ImportError:
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.time import Time
 
 import json
 
@@ -195,19 +196,48 @@ class GroundProjectionNode(Node):
         self.pub_debug.publish(String(data=json.dumps({"items": debug_items})))
             
 
+    # If lookup-at-stamp misses by less than this, accept latest TF instead.
+    # At 0.4 rad/s rotation, 100ms = ~2.3° = ~4cm error at 1m range — far smaller
+    # than the rotation drift the original "always latest" lookup was eating.
+    _TF_FALLBACK_MAX_GAP_S = 0.10
+
     def _to_map(self, g, stamp):
         ps = PointStamped()
         ps.header.frame_id = self.base_frame
         ps.header.stamp = stamp
         ps.point.x, ps.point.y = float(g[0]), float(g[1])
+
+        requested = Time.from_msg(stamp)
         try:
-            # latest transform (we detect while stationary, so latest ≈ detection time)
             tf = self.tf_buffer.lookup_transform(
-                self.map_frame, self.base_frame, rclpy.time.Time())
+                self.map_frame, self.base_frame, requested)
+        except Exception:
+            # Stamp typically races ~15-30ms ahead of latest TF (camera publish
+            # vs AMCL TF rate). Fall back to latest only if the gap is small —
+            # large gaps mean a real time-sync problem and the detection isn't
+            # trustworthy anyway.
+            try:
+                tf = self.tf_buffer.lookup_transform(
+                    self.map_frame, self.base_frame, Time())
+            except Exception as e:
+                self.get_logger().warn(
+                    f'tf {self.base_frame}->{self.map_frame} failed entirely ({e}); dropping',
+                    throttle_duration_sec=2.0)
+                return None
+            latest = Time.from_msg(tf.header.stamp)
+            gap_s = abs((requested - latest).nanoseconds) / 1e9
+            if gap_s > self._TF_FALLBACK_MAX_GAP_S:
+                self.get_logger().warn(
+                    f'tf stamp/latest gap {gap_s*1000:.0f}ms exceeds '
+                    f'{self._TF_FALLBACK_MAX_GAP_S*1000:.0f}ms — dropping detection',
+                    throttle_duration_sec=2.0)
+                return None
+
+        try:
             mp = do_transform_point(ps, tf)
             return mp.point.x, mp.point.y
         except Exception as e:
-            self.get_logger().warn(f'tf {self.base_frame}->{self.map_frame} failed: {e}',
+            self.get_logger().warn(f'do_transform_point failed ({e}); dropping',
                                    throttle_duration_sec=2.0)
             return None
 

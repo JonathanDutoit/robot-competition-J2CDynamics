@@ -1,10 +1,12 @@
 import time
-import rclpy
 import threading
+import rclpy
+
 from j2cdynamics_camera.config import INFER_FPS
 from j2cdynamics_camera.camera import Camera
 from j2cdynamics_camera.detector import Detector
 from j2cdynamics_camera.ros_node import init_ros
+
 
 # ── Inference loop ────────────────────────────────────────────────────────────
 def inference_loop(camera: Camera, detector: Detector, ros_node, stop_event: threading.Event):

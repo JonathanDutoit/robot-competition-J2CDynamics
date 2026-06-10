@@ -1,4 +1,7 @@
-MAIN_SIZE  = (3200, 2464)  # full IMX219 FOV (2x2 binned, 4:3); used for streaming + final bbox coord space
+MAIN_SIZE  = (3200, 2464)  # bbox coordinate space published on /detections — consumers
+                           # (duplo_approach, ground_projection) interpret bbox centers in
+                           # these pixel coords, so don't change without updating them.
+                           # The main stream is no longer encoded/streamed (see camera.py).
 LORES_SIZE = (640, 480)    # 4:3 lores fed to the detector (cheap to access; same FOV as MAIN)
 YOLO_INPUT = 640           # square model input (must match the imgsz= used at export)
 # YOLO output row layout. Ultralytics exports with `nms=True` give "xyxy"; the

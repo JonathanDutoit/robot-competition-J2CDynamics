@@ -1,3 +1,4 @@
+import math
 import rclpy
 import json
 from rclpy.node import Node
@@ -33,12 +34,22 @@ MAX_ANG_ACC    = 1.5
 # abandoning on the first lost frame. LOST_TIMEOUT = "fresh"; REACQUIRE_TIME =
 # how long we dead-reckon toward the last-known target before giving up.
 LOST_TIMEOUT        = 1.0    # s; detection counts as "fresh" within this window
-REACQUIRE_TIME      = 2.5    # s; keep driving toward the last-seen duplo before quitting
+REACQUIRE_TIME      = 2.5    # s; keep pursuing the last-seen duplo before quitting
 REACQUIRE_VX        = 0.10   # m/s; slow creep forward while reacquiring a lost duplo
 COLLECT_DURATION    = 5.0    # s; open-loop scoop duration
 COLLECT_LOST_TIME   = 0.3    # s continuously lost (went under the robot) before scooping
 RECENT_CLOSE_WINDOW = 0.7    # s; "was close very recently" memory for the scoop trigger
 CONTROL_HZ          = 10.0
+
+# ── Anti-wander tuning ────────────────────────────────────────────────────────
+# When the target is lost mid-approach, distinguish "tracking cleanly, momentary
+# dropout" (creep forward) from "lost at edge or far" (don't commit forward,
+# slow-rotate to re-acquire). Without this, blind forward + stale steering curves
+# the robot away from the duplo when it was last seen near the FOV edge.
+BLIND_FORWARD_BUDGET   = 1.0    # s; cap on continuous blind forward motion
+WANDER_OFFCENTER_THRESH = 0.4   # |err_x| above this → was at FOV edge, don't dead-reckon forward
+WANDER_FAR_THRESH       = 0.4   # last by below this → was far, don't dead-reckon forward
+REACQUIRE_ROTATE_RATE   = 0.3   # rad/s; in-place sweep toward last bearing while re-acquiring
 
 
 class DuploApproach(Node):
@@ -251,13 +262,28 @@ class DuploApproach(Node):
                 des_vx = COLLECT_SPEED
                 des_wz = -(KP_ANG * 0.6) * err_x
 
-        # Approach — momentarily lost but still active: DEAD-RECKON toward last bearing.
-        # Poor detection drops frames constantly; keep creeping toward where the duplo
-        # was instead of stopping/abandoning. This is what makes "always fetch" work.
+        # Approach — momentarily lost but still active. Two regimes:
+        #   (a) was tracking cleanly (centered + close-ish) → likely a real dropout,
+        #       creep forward briefly to re-find / scoop.
+        #   (b) was at FOV edge or far → blind forward would curve us into a wall;
+        #       stop forward, slow-rotate toward last bearing to re-acquire.
+        # In both, steering decays with time-since-last-seen (stale bearing → less input).
         elif state == self.machine.approach and self.target_active and self.best_target is not None:
-            err_x, _ = self.best_target
-            des_wz = -(KP_ANG * 0.6) * err_x   # gentle steer toward the last-known bearing
-            des_vx = REACQUIRE_VX              # slow creep forward to re-find / reach it
+            err_x, last_by = self.best_target
+            time_lost = (self.get_clock().now() - self.last_seen_time).nanoseconds * 1e-9
+            decay = max(0.0, 1.0 - time_lost / REACQUIRE_TIME)
+
+            was_offcenter = abs(err_x) > WANDER_OFFCENTER_THRESH
+            was_far       = last_by < WANDER_FAR_THRESH
+
+            if was_offcenter or was_far:
+                # (b) Re-acquire by sweeping toward last bearing — no forward commit.
+                des_vx = 0.0
+                des_wz = -REACQUIRE_ROTATE_RATE * math.copysign(1.0, err_x) * decay
+            else:
+                # (a) Clean dropout, creep forward, but cap blind distance.
+                des_vx = REACQUIRE_VX if time_lost < BLIND_FORWARD_BUDGET else 0.0
+                des_wz = -(KP_ANG * 0.6) * err_x * decay
 
         # COLLECT
         elif state == self.machine.collect:

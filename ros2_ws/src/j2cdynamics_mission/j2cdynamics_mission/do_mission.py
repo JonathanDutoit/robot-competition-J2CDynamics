@@ -14,18 +14,19 @@ Duplo-obliterator mission:
     12. Return to base (drop off)
 """
 
+import json
 import math
 import time
 import yaml
-import threading 
+import threading
 
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.qos import (QoSProfile, DurabilityPolicy,
                        ReliabilityPolicy, HistoryPolicy)
 
-from geometry_msgs.msg import PoseStamped, Twist, PoseArray
-from std_msgs.msg import String
+from geometry_msgs.msg import PoseStamped, Twist
+from std_msgs.msg import String, Bool
 from nav2_msgs.action import ComputePathToPose
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 
@@ -72,24 +73,15 @@ MAX_NODE_RETRIES   = 2
 
 DUPLO_COUNT_ZONE_4 = 6
 
-# ── scan-and-stop parameters ──
+# ── scan-and-collect parameters ──
+# At each waypoint we sweep in small rotation steps via ramp_vel. After each
+# step we dwell long enough for ramp_vel to time out (twist_mux: ramp=150 >
+# duplo=100) so duplo_approach can take over via duplo_vel if it sees a duplo.
 SCAN_STEP_RAD       = 0.4        # ~23° per step
 SCAN_STEP_RATE      = 0.4        # rad/s while moving
-SCAN_DWELL_S        = 0.6        # stand still and look between steps
-SCAN_FRESH_FRAMES   = 2          # require N consecutive detections to commit
-
-# ── duplo collection parameters ──
-DUPLO_OVERSHOOT_M           = 0.40   # how far past the duplo to aim (trailer reach)
-DUPLO_NAV_TIMEOUT_S         = 20.0
-DUPLO_MAX_PER_SCAN          = 4      # safety cap to avoid infinite loops
-DUPLO_COARSE_STANDOFF_M     = 0.8    # land this far short, then re-read for refinement
-DUPLO_REFINE_RADIUS_M       = 0.4    # accept refinement within this of original
-DUPLO_REFINE_DWELL_S        = 0.7    # let detector get clean frames after coarse approach
-COLLECTED_BLACKLIST_RADIUS_M = 0.4   # ignore future detections within this of collected
-
-COARSE_STANDOFF_M   = 0.6    # land this far short on stage 1 (generic, unused for now)
-FINE_TIMEOUT_S      = 20.0
-COARSE_TIMEOUT_S    = 25.0
+SCAN_DWELL_S        = 1.0        # > ramp_vel timeout (0.5s) so visual servo can grab control
+SCAN_MAX_FSM_CYCLES = 4          # cap approach cycles per waypoint to avoid stubborn-target loops
+FSM_WAIT_TIMEOUT_S  = 30.0       # max time to wait for a single FSM approach→collect→search cycle
 
 RAMP_VEL_TOPIC = 'ramp_vel'   # must match twist_mux.yaml at priority 150
 
@@ -134,14 +126,15 @@ class MissionRunner(BasicNavigator):
                             reliability=ReliabilityPolicy.RELIABLE)
         self._gc_pub = self.create_publisher(String, 'goal_checker_selector', gc_qos)
 
-        # duplo perception
-        self._duplo_map_cache = None
-        self.create_subscription(
-            PoseArray, '/duplo_map', self._on_duplo_map, 10
-        )
-
-        # persistent blacklist of collected (or attempted) duplos — survives across waypoints
-        self._collected_blacklist = []   # [(x, y), ...]
+        # Visual-servo collection handoff.
+        # duplo_approach.py runs the search/approach/collect FSM purely in image
+        # space (no map/TF/AMCL) and drives via duplo_vel (twist_mux priority 100).
+        # We toggle it on for the sweep at each waypoint and watch /duplo_state
+        # to know when the FSM is busy vs idle.
+        self._enable_collection_pub = self.create_publisher(
+            Bool, '/enable_duplo_collection', 10)
+        self._fsm_state = 'search'   # last seen state from /duplo_state
+        self.create_subscription(String, '/duplo_state', self._on_duplo_state, 10)
 
         # ComputePathToPose action client for reachability checks
         self._plan_client = ActionClient(self, ComputePathToPose, '/compute_path_to_pose')
@@ -320,212 +313,85 @@ class MissionRunner(BasicNavigator):
 
             idx += 1
 
-            # ── Scan phase: scan-and-stop until duplo or full revolution ──
-            self.get_logger().info(f"{label}: scanning at {k}")
-            found = self._scan_rotate_until_duplo()
-
-            if found:
-                duplos = self._read_duplos()
-                self.get_logger().info(
-                    f"{label}: detected {len(duplos)} duplos mid-scan → collecting")
-                n = self._collect_visible_duplos(label)
-                self.get_logger().info(f'{label}: collected {n} duplos this scan')
-                # don't advance idx — re-scan from current pose next iteration?
-                # current behavior: move to next waypoint. Change if you want re-scan.
+            # ── Sweep + collect: visual-servo FSM does the actual fetching ──
+            # Enable only for the sweep so Nav2 transit between waypoints is not
+            # hijacked by an opportunistic detection.
+            self.get_logger().info(f"{label}: sweeping at {k}")
+            self._enable_collection(True)
+            try:
+                n_cycles = self._sweep_and_collect(label)
+            finally:
+                self._enable_collection(False)
+            self.get_logger().info(
+                f'{label}: {n_cycles} FSM cycle(s) at {k}')
 
         self.get_logger().info(
             f'{label}: ended  visited={idx} / {len(grid)}  '
             f'time_left={max(0.0, deadline - time.time()):.0f}s')
 
-    # ── scanning ──────────────────────────────────────────────────────────────
+    # ── Visual-servo collection handoff ───────────────────────────────────────
 
-    def _scan_rotate_until_duplo(self, total_yaw: float = 2 * math.pi) -> bool:
+    def _on_duplo_state(self, msg: String) -> None:
+        try:
+            self._fsm_state = json.loads(msg.data).get('state', self._fsm_state)
+        except Exception:
+            pass
+
+    def _enable_collection(self, on: bool) -> None:
+        self._enable_collection_pub.publish(Bool(data=bool(on)))
+
+    def _wait_until_fsm_idle(self, timeout_s: float) -> bool:
+        """Spin until /duplo_state reports 'search' (FSM idle) or timeout.
+        Returns True if FSM returned to idle, False on timeout/abort."""
+        t_end = time.time() + timeout_s
+        while time.time() < t_end:
+            if self.abort_event.is_set():
+                return False
+            rclpy.spin_once(self, timeout_sec=0.05)
+            if self._fsm_state == 'search':
+                return True
+        self.get_logger().warn(
+            f'FSM stuck in "{self._fsm_state}" for {timeout_s:.0f}s — moving on')
+        return False
+
+    def _sweep_and_collect(self, label: str,
+                           total_yaw: float = 2 * math.pi) -> int:
         """
-        Rotate in small steps with dwell periods. Polls /duplo_map during dwell.
-        Returns True as soon as a duplo is seen on >= SCAN_FRESH_FRAMES consecutive
-        polls (debounced to reject flicker). Returns False if a full revolution
-        completes without detection.
+        Rotate in small steps via ramp_vel. After each step we dwell long enough
+        for ramp_vel to time out so duplo_approach (twist_mux priority 100) can
+        take over via duplo_vel. If /duplo_state shows the FSM left 'search'
+        during the dwell, we wait for it to come back before rotating again.
+
+        Returns the number of approach cycles observed at this waypoint.
+        Capped by SCAN_MAX_FSM_CYCLES to avoid stubborn-target loops.
         """
         step_time = SCAN_STEP_RAD / SCAN_STEP_RATE
         n_steps = max(1, int(math.ceil(total_yaw / SCAN_STEP_RAD)))
+        cycles = 0
 
-        # require fresh data — drop any cache from before the scan started
-        self._duplo_map_cache = None
-
-        consecutive_hits = 0
         for i in range(n_steps):
             if self.abort_event.is_set():
-                return False
+                return cycles
+            if cycles >= SCAN_MAX_FSM_CYCLES:
+                self.get_logger().info(
+                    f'{label}: hit FSM-cycle cap ({SCAN_MAX_FSM_CYCLES}) — moving on')
+                return cycles
 
-            # rotate one step
             self._open_loop_rotate(SCAN_STEP_RATE, step_time)
 
-            # dwell: stand still and let the detector get clean frames
+            # Dwell: ramp_vel times out (~0.5s) → duplo_vel can drive.
             t_end = time.time() + SCAN_DWELL_S
             while time.time() < t_end:
                 rclpy.spin_once(self, timeout_sec=0.05)
-                if self._read_duplos():
-                    consecutive_hits += 1
-                    if consecutive_hits >= SCAN_FRESH_FRAMES:
-                        self.get_logger().info(
-                            f'scan: duplo detected after step {i+1}/{n_steps}')
-                        return True
-                else:
-                    consecutive_hits = 0
 
-        return False
-
-    # ── Duplos ────────────────────────────────────────────────────────────────
-
-    def _on_duplo_map(self, msg: PoseArray) -> None:
-        self._duplo_map_cache = msg
-
-    def _is_blacklisted(self, xy) -> bool:
-        x, y = xy
-        return any(math.hypot(x - bx, y - by) < COLLECTED_BLACKLIST_RADIUS_M
-                   for bx, by in self._collected_blacklist)
-
-    def _read_duplos(self):
-        """
-        Returns currently-tracked duplos in map frame, with the persistent
-        collected-blacklist filtered out.
-        """
-        msg = getattr(self, '_duplo_map_cache', None)
-        if msg is None:
-            return []
-        raw = [(p.position.x, p.position.y) for p in msg.poses]
-        return [d for d in raw if not self._is_blacklisted(d)]
-
-    def _drive_through_duplo(self, duplo_xy) -> bool:
-        """
-        Single-shot Nav2: goal placed OVERSHOOT_M past the duplo along the
-        approach vector from the current pose, yawed toward the duplo. The
-        trailer drags through the duplo as the wheelbase passes over it.
-        """
-        dx, dy = duplo_xy
-        rx, ry = self._current_xy()
-
-        vx, vy = dx - rx, dy - ry
-        dist = math.hypot(vx, vy)
-        if dist < 1e-3:
-            self.get_logger().warn(f'duplo at current pose? {duplo_xy} — skipping')
-            return False
-
-        ux, uy = vx / dist, vy / dist
-        yaw = math.atan2(vy, vx)
-        goal = (dx + DUPLO_OVERSHOOT_M * ux,
-                dy + DUPLO_OVERSHOOT_M * uy,
-                yaw)
-
-        if not self._is_reachable(goal):
-            self.get_logger().warn(
-                f'duplo at {duplo_xy} unreachable (goal {goal})')
-            return False
-
-        self.get_logger().info(f'driving through duplo at {duplo_xy} via goal {goal}')
-        return self.go_to(goal, timeout_s=DUPLO_NAV_TIMEOUT_S, precise=False)
-
-    def _go_collect_duplo(self, duplo_xy) -> bool:
-        """
-        Two-stage collection to mitigate parallax error on far targets:
-          1. Coarse approach to DUPLO_COARSE_STANDOFF_M short of the duplo.
-          2. Re-read /duplo_map for a sharper position estimate.
-          3. Drive through the (possibly refined) duplo position.
-        Short-range targets skip stage 1 and go direct.
-        """
-        dx, dy = duplo_xy
-        rx, ry = self._current_xy()
-        dist = math.hypot(dx - rx, dy - ry)
-
-        # Short-range: just go
-        if dist < DUPLO_COARSE_STANDOFF_M + 0.2:
-            return self._drive_through_duplo(duplo_xy)
-
-        # Stage 1: coarse approach to standoff
-        ux, uy = (dx - rx) / dist, (dy - ry) / dist
-        yaw = math.atan2(dy - ry, dx - rx)
-        coarse = (dx - DUPLO_COARSE_STANDOFF_M * ux,
-                  dy - DUPLO_COARSE_STANDOFF_M * uy,
-                  yaw)
-
-        if not self._is_reachable(coarse):
-            self.get_logger().warn(
-                f'duplo {duplo_xy}: coarse pose unreachable, going direct')
-            return self._drive_through_duplo(duplo_xy)
-
-        self.get_logger().info(f'duplo {duplo_xy}: coarse stage to {coarse}')
-        if not self.go_to(coarse, timeout_s=DUPLO_NAV_TIMEOUT_S, precise=False):
-            return False
-
-        # Refinement window: let detector produce clean frames from the new vantage
-        self._duplo_map_cache = None
-        t_end = time.time() + DUPLO_REFINE_DWELL_S
-        while time.time() < t_end:
-            rclpy.spin_once(self, timeout_sec=0.05)
-
-        # Snap to nearest fresh detection within radius of the original target
-        fresh = self._read_duplos()
-        refined = duplo_xy
-        if fresh:
-            candidates = [(d, math.hypot(d[0] - dx, d[1] - dy)) for d in fresh]
-            candidates = [(d, e) for d, e in candidates if e < DUPLO_REFINE_RADIUS_M]
-            if candidates:
-                refined, err = min(candidates, key=lambda x: x[1])
+            # If the visual servo grabbed control, wait for it to release.
+            if self._fsm_state != 'search':
                 self.get_logger().info(
-                    f'duplo refined {duplo_xy} -> {refined} (Δ {err:.2f}m)')
-            else:
-                self.get_logger().info(
-                    f'duplo {duplo_xy}: no refinement within {DUPLO_REFINE_RADIUS_M}m, '
-                    f'using original')
+                    f'{label}: FSM entered "{self._fsm_state}" — waiting for cycle')
+                self._wait_until_fsm_idle(FSM_WAIT_TIMEOUT_S)
+                cycles += 1
 
-        # Stage 2: drive through the (possibly refined) position
-        return self._drive_through_duplo(refined)
-
-    def _collect_visible_duplos(self, label: str) -> int:
-        """
-        Greedy nearest-first collection loop. Returns count attempted (succeeded
-        or otherwise marked off). Re-reads duplo_map after each pickup so the
-        next pick reflects reality, and uses the persistent blacklist to skip
-        already-collected positions.
-        """
-        collected = 0
-
-        for _ in range(DUPLO_MAX_PER_SCAN):
-            if self.abort_event.is_set():
-                break
-
-            duplos = self._read_duplos()   # blacklist filtering happens inside
-            if not duplos:
-                break
-
-            rx, ry = self._current_xy()
-            target = min(duplos, key=lambda d: math.hypot(d[0] - rx, d[1] - ry))
-
-            if self._go_collect_duplo(target):
-                collected += 1
-                self._collected_blacklist.append(target)
-                self.get_logger().info(
-                    f'{label}: collected duplo #{collected} at {target} '
-                    f'(blacklist size {len(self._collected_blacklist)})')
-            else:
-                # Blacklist failed attempts too, otherwise we'd loop forever
-                # on an unreachable/missed duplo.
-                self._collected_blacklist.append(target)
-                self.get_logger().warn(
-                    f'{label}: failed at {target} — blacklisted')
-
-        return collected
-
-    def _current_xy(self):
-        """
-        Best-effort current robot XY from AMCL via BasicNavigator's _amcl_pose
-        cache. Falls back to (0,0) if unset.
-        """
-        pose = getattr(self, '_amcl_pose', None)
-        if pose is None:
-            return (0.0, 0.0)
-        return (pose.pose.pose.position.x, pose.pose.pose.position.y)
-
+        return cycles
 
     def dropoff(self): 
         # Go to safe waypoint to align correctly
@@ -557,6 +423,11 @@ class MissionRunner(BasicNavigator):
 
         # extra half-second for costmap settle
         time.sleep(0.5)
+
+        # duplo_approach defaults to enabled — explicitly disable so the visual
+        # servo can't fire during nav-between-waypoints or ramp/dropoff. Each
+        # waypoint sweep re-enables briefly via _sweep_and_collect.
+        self._enable_collection(False)
 
         try:
             #1. Explore Zone 1 via reachability-checked waypoint grid 

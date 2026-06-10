@@ -27,10 +27,17 @@ def generate_launch_description():
         }]
     )
 
-    duplo_map = diagnostics = Node(
-        package='j2cdynamics_perception', 
+    duplo_map = Node(
+        package='j2cdynamics_perception',
         executable='duplo_map',
-        name='duplo_map', 
+        name='duplo_map',
+        output='screen'
+    )
+
+    duplo_approach = Node(
+        package='j2cdynamics_camera',
+        executable='duplo_approach',
+        name='duplo_approach',
         output='screen'
     )
 
@@ -38,5 +45,6 @@ def generate_launch_description():
         DeclareLaunchArgument('calibration_file', default_value='camera_calibration_do.yaml', description='Camera calibration file'),
         camera_node,
         duplo_map,
-        ground_projection
+        ground_projection,
+        duplo_approach,
     ])

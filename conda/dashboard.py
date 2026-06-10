@@ -50,8 +50,6 @@ from sensor_msgs.msg import LaserScan, Image, CompressedImage
 from nav_msgs.msg import Odometry, OccupancyGrid, Path
 
 import tf2_ros
-from lifecycle_msgs.srv import ChangeState
-from lifecycle_msgs.msg import Transition
 from std_srvs.srv import Empty
 
 try:
@@ -71,7 +69,6 @@ ODOM_TOPIC       = "/odom"
 CMD_OUT_TOPIC    = "/cmd_vel_muxed"      # twist_mux output
 ESTOP_TOPIC      = "/e_stop"
 DETECTIONS_TOPIC = "/detections"
-COLLISION_POLY   = "/collision_approach"
 # detections arrive in MAIN_SIZE pixel space (1640x1232); the dashboard renders
 # the camera image at whatever size /camera/image_raw is published in, then scales
 # bboxes by w/DETECTION_REF_W. If the published image is 1640x1232 these factors
@@ -192,17 +189,20 @@ class Monitor(Node):
         self.pub_initpose = self.create_publisher(
             PoseWithCovarianceStamped, INITIALPOSE_TOPIC, 10)
         self.pub_goal = self.create_publisher(PoseStamped, GOAL_TOPIC, 10)
+        # Mission lifecycle: do_mission / da_mission listen for "start" / "reset"
+        # on this topic. See mission_base.MISSION_COMMAND_TOPIC.
+        self.pub_mission = self.create_publisher(String, '/mission_command', 10)
 
         self.create_timer(1.0, self._tick)
         self.create_timer(2.0, self._ensure_camera_sub)
         self.get_logger().info("dashboard_monitor started")
 
-        self._collision_enabled = True
-        self._cs_client = self.create_client(
-            ChangeState, '/collision_monitor/change_state')
-
         # AMCL global re-localization (kidnapped-robot recovery)
         self._reloc_client = self.create_client(Empty, RELOCALIZE_SRV)
+
+    def publish_mission_command(self, cmd: str) -> None:
+        """Publish 'start' or 'reset' on /mission_command."""
+        self.pub_mission.publish(String(data=str(cmd)))
 
     def _amcl_cb(self, msg):
         # position std-dev from the covariance diagonal (x, y); lower = more confident
@@ -492,39 +492,35 @@ class Monitor(Node):
         per = [
             row("detections", "ok" if det_recent else "idle",
                 f"{self.det_n} obj" if det_recent else "—", hz(DETECTIONS_TOPIC)),
-            row("collision monitor", "ok" if hz(COLLISION_POLY) else "idle",
-                "active" if hz(COLLISION_POLY) else "—", hz(COLLISION_POLY)),
         ]
+
+        # Robot pose group — small, always-visible "where am I" estimate from
+        # the same TF lookup used elsewhere in the dashboard.
+        pose_rows = []
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                MAP_FRAME, ROBOT_FRAME, rclpy.time.Time())
+            x = tf.transform.translation.x
+            y = tf.transform.translation.y
+            yaw_deg = quat_to_yaw(tf.transform.rotation) * 180.0 / math.pi
+            pose_rows = [
+                row("x", "ok", f"{x:+.2f} m"),
+                row("y", "ok", f"{y:+.2f} m"),
+                row("yaw", "ok", f"{yaw_deg:+.0f}°"),
+            ]
+            if self.amcl_sigma is not None:
+                pose_rows.append(
+                    row("amcl σ", "ok" if self.amcl_sigma < 0.25 else "bad",
+                        f"{self.amcl_sigma:.2f} m"))
+        except Exception:
+            pose_rows = [row("tf map->base", "bad", "no transform")]
+
         return [
+            {"name": "robot pose", "rows": pose_rows},
             {"name": "localization", "rows": loc},
             {"name": "velocity pipeline", "rows": vel},
-            {"name": "perception / safety", "rows": per},
+            {"name": "perception", "rows": per},
         ]
-
-    def set_collision_enabled(self, enable: bool) -> bool:
-        if not self._cs_client.service_is_ready():
-            return False
-        req = ChangeState.Request()
-        req.transition.id = (
-            Transition.TRANSITION_ACTIVATE if enable
-            else Transition.TRANSITION_DEACTIVATE
-        )
-        done = threading.Event()
-        result_box = [False]
-
-        def _cb(fut):
-            try:
-                result_box[0] = fut.result().success
-            except Exception:
-                pass
-            done.set()
-
-        self._cs_client.call_async(req).add_done_callback(_cb)
-        done.wait(timeout=3.0)
-        if result_box[0]:
-            with self.lock:
-                self._collision_enabled = enable
-        return result_box[0]
 
     def reinitialize_global_localization(self) -> bool:
         """Disperse AMCL particles across the whole map (kidnapped-robot recovery).
@@ -649,12 +645,7 @@ class Monitor(Node):
         if scan is not None:
             self._draw_scan(img, scan, to_px)
 
-        # ── duplo cluster centres (orange = uncollected, confirmed) ──────────
-        if self.duplo_map_msg is not None:
-            for p in self.duplo_map_msg.poses:
-                px, py = to_px(p.position.x, p.position.y)
-                cv2.circle(img, (px, py), 6, (0, 0, 0), -1, cv2.LINE_AA)
-                cv2.circle(img, (px, py), 5, (40, 150, 255), -1, cv2.LINE_AA)
+        # (Duplo cluster overlay removed by request — was cluttering the map.)
 
         try:
             tf = self.tf_buffer.lookup_transform(MAP_FRAME, ROBOT_FRAME, rclpy.time.Time())
@@ -835,6 +826,17 @@ def api_relocalize():
     return jsonify({"ok": ok})
 
 
+@app.route("/api/mission", methods=["POST"])
+def api_mission():
+    """Publish 'start' or 'reset' on /mission_command. Anything else rejected."""
+    d = request.get_json(force=True)
+    cmd = (d.get("cmd") or "").strip().lower()
+    if cmd not in ("start", "reset"):
+        return jsonify({"ok": False, "err": f"unknown cmd '{cmd}'"}), 400
+    monitor.publish_mission_command(cmd)
+    return jsonify({"ok": True, "cmd": cmd})
+
+
 @app.route("/camera.mjpg")
 def camera():
     return Response(mjpeg(monitor.latest_camera, CAMERA_FPS),
@@ -867,8 +869,20 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.idle{background:var(--idle)}
   #conn{background:var(--bad)} #conn.live{background:var(--ok)}
   .wrap{display:flex;flex-direction:column;gap:12px;padding:12px}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch}
+  /* second row: three equal columns (signals / resources / duplo FSM) */
+  .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-items:start}
+  @media (max-width: 900px) { .row3{grid-template-columns:1fr} }
   .col{display:flex;flex-direction:column;gap:12px;min-width:0}
+  /* Start / Reset buttons in the header */
+  .hbtn{background:#0a0d12;border:1px solid var(--line);color:var(--fg);border-radius:5px;
+        padding:5px 14px;font:inherit;cursor:pointer;letter-spacing:.5px;text-transform:uppercase;
+        font-size:11px}
+  .hbtn:hover{border-color:var(--mut)}
+  .hbtn.start{border-color:var(--ok);color:var(--ok)}
+  .hbtn.start:hover{background:#0d1f12}
+  .hbtn.reset{border-color:var(--bad);color:var(--bad)}
+  .hbtn.reset:hover{background:#1f0d12}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .panel>h2{margin:0;padding:8px 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;
             color:var(--mut);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
@@ -929,15 +943,18 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .track .mk.bad{background:var(--bad)}
 </style></head><body>
 <header><span class="dot" id="conn"></span><b>ROBOT DASHBOARD</b>
-  <span class="mut" id="counts"></span></header>
+  <span class="mut" id="counts"></span>
+  <span style="flex:1"></span>
+  <button class="hbtn start" id="btnmstart" title="Publish 'start' on /mission_command">Start</button>
+  <button class="hbtn reset" id="btnmreset" title="Publish 'reset' on /mission_command">Reset</button>
+</header>
 <div class="wrap">
+  <!-- Row 1: Camera | Map (side by side) -->
   <div class="row">
-    <div class="panel"><h2>Key signals</h2><div id="signals"></div></div>
-    <div class="panel"><h2>Resources</h2><div id="res"></div></div>
-  </div>
-  <div class="row">
-    <div class="panel"><h2>Camera</h2><img class="stream" src="/camera.mjpg" alt="camera"
-         onerror="this.style.opacity=.3"></div>
+    <div class="panel"><h2>Camera</h2>
+      <img class="stream" src="/camera.mjpg" alt="camera"
+           onerror="this.style.opacity=.3">
+    </div>
     <div class="panel">
       <h2>Map / costmaps / scan / plan
         <span style="flex:1"></span>
@@ -952,13 +969,11 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       <div class="mut" id="maptip"></div>
     </div>
   </div>
-  <div class="panel">
-    <h2>Duplo collection FSM</h2>
-    <div id="duplo"></div>
-  </div>
-  <div class="panel">
-    <h2>Duplos — robot &amp; detected positions</h2>
-    <div id="duplos"></div>
+  <!-- Row 2: Key signals | Resources | Duplo FSM (3 columns) -->
+  <div class="row3">
+    <div class="panel"><h2>Key signals</h2><div id="signals"></div></div>
+    <div class="panel"><h2>Resources</h2><div id="res"></div></div>
+    <div class="panel"><h2>Duplo collection FSM</h2><div id="duplo"></div></div>
   </div>
   <div class="panel">
     <details><summary>Nodes (<span id="nnodes">0</span>)</summary>
@@ -1179,6 +1194,31 @@ async function tick(){
 }
 document.getElementById('tfilter').addEventListener('input', renderTopics);
 document.getElementById('showinfra').addEventListener('change', renderTopics);
+
+// Mission lifecycle buttons: POST { cmd: 'start' | 'reset' } to /api/mission.
+function flashBtn(b, ok){
+  const orig = b.style.background;
+  b.style.background = ok ? 'rgba(63,185,80,.25)' : 'rgba(248,81,73,.25)';
+  setTimeout(() => { b.style.background = orig; }, 600);
+}
+async function sendMissionCmd(cmd){
+  const btn = document.getElementById(cmd === 'start' ? 'btnmstart' : 'btnmreset');
+  try{
+    const r = await fetch('/api/mission', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cmd})
+    });
+    const j = await r.json();
+    flashBtn(btn, j && j.ok);
+  } catch(e){ flashBtn(btn, false); }
+}
+document.getElementById('btnmstart').onclick = () => sendMissionCmd('start');
+document.getElementById('btnmreset').onclick = () => {
+  if (confirm('Send RESET? This restarts the mission from the failed step.')) {
+    sendMissionCmd('reset');
+  }
+};
+
 tick(); setInterval(tick, 700);
 </script></body></html>"""
 

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>
 #include <iomanip>      
+#include <iomanip>      
 #include <sstream>
 #include <stdexcept>
 
@@ -144,6 +145,8 @@ CommonHardwareInterface::read(const rclcpp::Time & time, const rclcpp::Duration 
     hw_vel_left_  = left_vel;
     hw_vel_right_ = right_vel;
     consecutive_failures_ = 0;
+    
+    //RCLCPP_INFO(logger_, "Left wheel=%f - Right wheel=%f", hw_vel_left_, hw_vel_right_);
     
     //RCLCPP_INFO(logger_, "Left wheel=%f - Right wheel=%f", hw_vel_left_, hw_vel_right_);
   } else {

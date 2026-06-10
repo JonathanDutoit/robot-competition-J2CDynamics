@@ -28,14 +28,18 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 
 class Cluster:
-    __slots__ = ('x', 'y', 'n', 'collected')
+    __slots__ = ('x', 'y', 'n', 'collected', 'frozen')
 
     def __init__(self, x, y):
-        self.x, self.y, self.n, self.collected = x, y, 1, False
+        self.x, self.y, self.n, self.collected, self.frozen = x, y, 1, False, False
 
     def add(self, x, y):
-        # running mean — pulls the centre toward the accumulating evidence
+        # Running mean while tentative; freezes once confirmed so post-rotation
+        # drifted observations can't walk a known-good centre away from truth.
+        # Always increment n — it's the "still visible" signal.
         self.n += 1
+        if self.frozen:
+            return
         self.x += (x - self.x) / self.n
         self.y += (y - self.y) / self.n
 
@@ -43,8 +47,8 @@ class Cluster:
 class DuploMap(Node):
     def __init__(self):
         super().__init__('duplo_map')
-        self.declare_parameter('merge_dist', 0.35)      # m; points closer than this fuse
-        self.declare_parameter('min_obs', 5)            # detections before a cluster is "confirmed"
+        self.declare_parameter('merge_dist', 0.55)      # m; points closer than this fuse
+        self.declare_parameter('min_obs', 3)            # detections before a cluster is "confirmed"
         self.declare_parameter('collect_radius', 0.30)  # m; /duplo_collected → nearest within this
         self.declare_parameter('map_frame', 'map')
 
@@ -76,6 +80,10 @@ class DuploMap(Node):
             c, d = self._nearest(x, y)
             if c is not None and d <= self.merge_dist:
                 c.add(x, y)
+                if not c.frozen and c.n >= self.min_obs:
+                    c.frozen = True
+                    self.get_logger().info(
+                        f'cluster confirmed & frozen @ ({c.x:.2f}, {c.y:.2f}) after {c.n} obs')
             else:
                 self.clusters.append(Cluster(x, y))
 

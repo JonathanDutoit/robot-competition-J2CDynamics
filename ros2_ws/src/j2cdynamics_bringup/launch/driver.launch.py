@@ -1,6 +1,15 @@
 import os
 
+
 from launch import LaunchDescription
+from launch.actions import TimerAction, DeclareLaunchArgument, LogInfo
+from launch.substitutions import (
+    Command,
+    LaunchConfiguration,
+    FindExecutable,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch.actions import TimerAction, DeclareLaunchArgument, LogInfo
 from launch.substitutions import (
     Command,
@@ -15,6 +24,7 @@ from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
+
 
     bringup_dir = get_package_share_directory('j2cdynamics_bringup')
 
@@ -37,7 +47,27 @@ def generate_launch_description():
         "str('", robot_name, "') + '.urdf.xacro'"
     ])
 
+    # -------------------------
+    # Robot name (da / do)
+    # -------------------------
+    robot_name = LaunchConfiguration('robot_name', default='do')
+
+    # -------------------------
+    # Dynamic package name: da_description / do_description
+    # -------------------------
+    description_pkg = PythonExpression([
+        "str('", robot_name, "') + '_description'"
+    ])
+
+    # -------------------------
+    # Dynamic xacro filename: da.urdf.xacro / do.urdf.xacro
+    # -------------------------
+    xacro_file = PythonExpression([
+        "str('", robot_name, "') + '.urdf.xacro'"
+    ])
+
     robot_description_content = Command([
+        FindExecutable(name='xacro'),
         FindExecutable(name='xacro'),
         ' ',
         PathJoinSubstitution([
@@ -45,12 +75,32 @@ def generate_launch_description():
             'urdf',
             robot_name,
             xacro_file
+            FindPackageShare(description_pkg),
+            'urdf',
+            robot_name,
+            xacro_file
         ]),
+        ' use_sim:=false use_ros2_control:=true'
         ' use_sim:=false use_ros2_control:=true'
     ])
 
+
     robot_description = {'robot_description': robot_description_content}
 
+    # -------------------------
+    # Controller YAML: da_diff_drive_controller.yaml / do_...
+    # -------------------------
+    controller_params = PathJoinSubstitution([
+        bringup_dir,
+        'config',
+        PythonExpression([
+            "str('", robot_name, "') + '_diff_drive_controller.yaml'"
+        ])
+    ])
+
+    # -------------------------
+    # Robot state publisher
+    # -------------------------
     # -------------------------
     # Controller YAML: da_diff_drive_controller.yaml / do_...
     # -------------------------
@@ -72,6 +122,9 @@ def generate_launch_description():
         parameters=[robot_description],
     )
 
+    # -------------------------
+    # ros2_control node
+    # -------------------------
     # -------------------------
     # ros2_control node
     # -------------------------
@@ -161,6 +214,13 @@ def generate_launch_description():
                 'twist_mux.yaml'
             ])
         ],
+        parameters=[
+            PathJoinSubstitution([
+                bringup_dir,
+                'config',
+                'twist_mux.yaml'
+            ])
+        ],
         remappings=[
             ('cmd_vel_out', '/cmd_vel'),
         ],
@@ -169,9 +229,14 @@ def generate_launch_description():
     # -------------------------
     # Diagnostics
     # -------------------------
+    # -------------------------
+    # Diagnostics
+    # -------------------------
     diagnostics = Node(
         package='j2cdynamics_diagnostics',
+        package='j2cdynamics_diagnostics',
         executable='robot_stats_publisher',
+        name='robot_stats_publisher',
         name='robot_stats_publisher',
         output='screen'
     )
@@ -179,7 +244,16 @@ def generate_launch_description():
     # -------------------------
     # Launch description
     # -------------------------
+    # -------------------------
+    # Launch description
+    # -------------------------
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'robot_name',
+            default_value='do',
+            description='Name of the robot (da or do)',
+        ),
+
         DeclareLaunchArgument(
             'robot_name',
             default_value='do',

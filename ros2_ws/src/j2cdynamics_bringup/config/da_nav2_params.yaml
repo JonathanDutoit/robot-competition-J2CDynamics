@@ -262,7 +262,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.0
-        inflation_radius: 0.26
+        inflation_radius: 0.20
       filters: ["keepout_filter"]
       keepout_filter:
         plugin: "nav2_costmap_2d::KeepoutFilter"
@@ -326,7 +326,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.0
-        inflation_radius: 0.26   # m - 23 robot radius + 2cm margin that sums to 50cm
+        inflation_radius: 0.25   # m - 23 robot radius + 2cm margin that sums to 50cm
       # Keepout zones — danger areas painted black into map_keepout.pgm. Fed by
       # filter_mask_server + costmap_filter_info_server (launched in localization
       # mode). With the default all-free mask this adds zero cost.

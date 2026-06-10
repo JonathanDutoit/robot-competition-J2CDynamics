@@ -88,11 +88,11 @@ REACQUIRE_ROTATE_RATE   = 0.4   # rad/s; in-place sweep toward last bearing whil
 #   by = 0.30 → ~0.70 m
 #   by = 0.10 → ~1.20 m
 _BY_DIST_REF = [
-    (1.00, 0.00),
-    (0.75, 0.12),
-    (0.50, 0.35),
-    (0.30, 0.70),
-    (0.10, 1.20),
+    (1.00, 0.05),
+    (0.75, 0.15),
+    (0.50, 0.40),
+    (0.30, 0.75),
+    (0.10, 1.25),
 ]
 
 class DuploApproach(Node):

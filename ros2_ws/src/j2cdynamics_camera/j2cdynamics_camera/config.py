@@ -16,7 +16,7 @@ CLASS_NAMES  = ["duplo"]
 # ~80-100% of one core. 6 FPS is enough for the visual-servo loop (running at
 # CONTROL_HZ=10 in duplo_approach.py) since the controller uses last_seen_time +
 # REACQUIRE_TIME for persistence between detections. Drop further if needed.
-INFER_FPS    = 6
+INFER_FPS    =  2
 # Image publishing decimation: skip /camera/image_raw on most detection cycles.
 # Dashboard MJPEG only needs a few FPS. 3 = publish every 3rd frame (2 FPS at
 # INFER_FPS=6). 1 = publish every frame. Detections always go out at full rate.

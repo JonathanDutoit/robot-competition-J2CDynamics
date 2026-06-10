@@ -1,7 +1,7 @@
 import threading
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import SingleThreadedExecutor
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
 from cv_bridge import CvBridge
@@ -48,9 +48,11 @@ class CameraROSNode(Node):
 def init_ros() -> CameraROSNode:
     rclpy.init()
     node = CameraROSNode()
-    
-    executor = MultiThreadedExecutor()
+
+    # SingleThreadedExecutor: this node has 2 publishers and no subscribers, so
+    # MultiThreaded adds context-switching overhead without parallelism benefit.
+    executor = SingleThreadedExecutor()
     executor.add_node(node)
-    
+
     threading.Thread(target=executor.spin, daemon=True).start()
     return node

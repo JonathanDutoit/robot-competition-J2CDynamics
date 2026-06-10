@@ -393,14 +393,31 @@ class MissionRunner(BasicNavigator):
 
         return cycles
 
-    def dropoff(self): 
-        # Go to safe waypoint to align correctly
-        self.go_to(DROPFF_FIRST_WAYPOINT, precise=True)
+    def dropoff(self):
+        """Critical: this is the deposit. Cascade for robustness:
+          1. Align waypoint (best-effort) and base pose use general_goal_checker
+             so tight tolerances don't cause Nav2 to refuse/abort.
+          2. Single retry of BASE_POSE after a brief pause — costmap is often
+             only momentarily blocked by stale scan or a dynamic obstacle.
+          3. The final reverse is the actual deposit motion — perform it whether
+             nav succeeded or not, so we get a partial deposit at worst.
+        """
+        # Align waypoint — non-critical, just for a clean straight approach
+        self.go_to(DROPFF_FIRST_WAYPOINT, precise=False, timeout_s=20)
 
-        # Go to base position
-        self.go_to(BASE_POSE, precise=True)
-        
-        # Go backwards for a bit
+        # Base pose with retry
+        base_ok = self.go_to(BASE_POSE, precise=False, timeout_s=20)
+        if not base_ok:
+            self.get_logger().warn('dropoff: BASE_POSE attempt 1 failed; pausing 1s and retrying')
+            time.sleep(1.0)
+            base_ok = self.go_to(BASE_POSE, precise=False, timeout_s=20)
+
+        if not base_ok:
+            self.get_logger().error(
+                'dropoff: Nav2 could not reach BASE_POSE after retry — '
+                'performing reverse from current pose (deposit may be incomplete)')
+
+        # Always reverse — this is the actual deposit motion
         self._open_loop_drive(DROPOFF_SPEED, DROPOFF_TIME)
     
     # ── mission ───────────────────────────────────────────────────────────────

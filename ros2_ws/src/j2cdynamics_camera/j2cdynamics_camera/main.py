@@ -1,38 +1,33 @@
 import time
-import rclpy
 import threading
-from j2cdynamics_camera.config import INFER_FPS
+import rclpy
+
+from j2cdynamics_camera.config import INFER_FPS, IMAGE_PUB_EVERY_N
 from j2cdynamics_camera.camera import Camera
 from j2cdynamics_camera.detector import Detector
 from j2cdynamics_camera.ros_node import init_ros
-from j2cdynamics_camera.streamer import app, init_streamer
 
-# ── Shared state ──────────────────────────────────────────────────────────────
-import threading
-latest_detections = []
-det_lock = threading.Lock()
-
-def get_detections():
-    with det_lock:
-        return list(latest_detections)
 
 # ── Inference loop ────────────────────────────────────────────────────────────
-def inference_loop(camera: Camera, detector: Detector, ros_node):
-    global latest_detections
+def inference_loop(camera: Camera, detector: Detector, ros_node, stop_event: threading.Event):
     target_dt = 1.0 / INFER_FPS
-    print("[inference] Thread started")
+    print(f"[inference] Thread started ({INFER_FPS} FPS, image every {IMAGE_PUB_EVERY_N})")
+    frame_idx = 0
 
-    while True:
+    while not stop_event.is_set():
         t0 = time.time()
         try:
             frame = camera.capture_lores()
             dets = detector.detect(frame)
 
-            with det_lock:
-                latest_detections = dets
-
-            ros_node.publish_frame(frame)
+            # Detections always go out at full rate (they're cheap and small).
             ros_node.publish_detections(dets)
+            # Image publishing is decimated — the dashboard MJPEG doesn't need
+            # 10 FPS, and serializing a 640x480 BGR8 message each tick is real
+            # CPU on the Pi. publish_frame() also skips when no subscribers.
+            if IMAGE_PUB_EVERY_N <= 1 or (frame_idx % IMAGE_PUB_EVERY_N) == 0:
+                ros_node.publish_frame(frame)
+            frame_idx += 1
 
         except Exception as e:
             print(f"[inference] Error: {e}")
@@ -49,17 +44,21 @@ def main():
 
     camera.start()
 
-    init_streamer(camera.output, get_detections, ros_node)
-
-    threading.Thread(
+    stop_event = threading.Event()
+    inference_thread = threading.Thread(
         target=inference_loop,
-        args=(camera, detector, ros_node),
-        daemon=True
-    ).start()
+        args=(camera, detector, ros_node, stop_event),
+        daemon=True,
+    )
+    inference_thread.start()
 
     try:
-        app.run(host="0.0.0.0", port=7123, threaded=True, use_reloader=False)
+        # Block forever; ROS executor runs in its own thread (see init_ros).
+        stop_event.wait()
+    except KeyboardInterrupt:
+        pass
     finally:
+        stop_event.set()
         camera.stop()
         rclpy.shutdown()
 

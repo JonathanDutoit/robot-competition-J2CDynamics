@@ -1,19 +1,20 @@
 """
-Duplo-Aspiration mission — step sequence only.
+Duplo-Obliterator mission — step sequence only.
 
 All shared infrastructure lives in mixin/base files:
   mission_base.py    — nav primitives, recovery, dropoff, /mission_command lifecycle
   mission_duplo.py   — visual-servo handoff, sweep, opportunistic collect, explore_zone
-  mission_button.py  — button press + door probe
+  mission_ramp.py    — ramp climb sequence
 
 Sequence:
-    1. Nav2 to button approach pose (CRITICAL, precise heading)
-    2. Open-loop push the button, retry-and-probe for door to open
-    3. Traverse the door (CRITICAL)
-    4. Explore Zone 3 — visual-servo collection
-    5. Return to button area, then base — dropoff
-    6. Explore Zone 1
-    7. Dropoff again
+    1. Explore Zone 1 (waypoints_zone1_do.yaml) — visual-servo collection
+    2. Return to base — dropoff
+    3. Nav2 to low ramp pose (CRITICAL, multi-attempt recovery)
+    4. Open-loop climb the ramp
+    5. setInitialPose for upper-zone AMCL seed
+    6. Explore Zone 4 (waypoints_zone4.yaml)
+    7. Nav2 to ramp exit
+    8-10. (Descent + second dropoff currently commented; future work)
 """
 
 import time
@@ -25,35 +26,37 @@ from j2cdynamics_mission.mission_base import (
     MissionBase, MissionAbortException, make_pose,
 )
 from j2cdynamics_mission.mission_duplo import DuploMixin
-from j2cdynamics_mission.mission_button import ButtonMixin, DOOR_PROBE_POSE
+from j2cdynamics_mission.mission_ramp import RampMixin
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-#  POSES & PATHS  (Duplo-Aspiration specific)
+#  POSES & PATHS  (Duplo-Obliterator specific)
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE             = (0.45, 0.45, 1.57)
-DROPFF_FIRST_WAYPOINT = (1.0, 0.45, 1.57)   # rough alignment waypoint
-START_POSE            = (0.557, 0.626, 1.57)
-# START_POSE          = (4.255, 5.228, 1.50)  # alt: start mid-arena for debugging
+BASE_POSE             = (0.05, 0.25, 3.14)
+DROPFF_FIRST_WAYPOINT = (1.5, 0.4, 3.14)
+START_POSE            = (1.25, 0.4, 0.02)
+# START_POSE          = (8.38, 5.88, 1.50)  # alt: start at ramp top for debugging
 
-BUTTON_APPROACH = (4.45, 7.40, 1.57)   # Nav2 stops here, precise heading
+RAMP_APPROACH = (8.0, 4.0, 0.02)
+RAMP_TOP      = (8.22, 5.88, 1.50)
+RAMP_EXIT     = (8.0, 6.0, -1.50)
 
-WAYPOINTS_ZONE_3 = '/maps/arena/waypoints_zone3.yaml'
-WAYPOINTS_ZONE_1 = '/maps/arena/waypoints_zone1_da.yaml'
+WAYPOINTS_ZONE_1 = '/maps/arena/waypoints_zone1_do.yaml'
+WAYPOINTS_ZONE_4 = '/maps/arena/waypoints_zone4.yaml'
 
-TIMEOUT_ZONE_3 = 200.0
-TIMEOUT_ZONE_1 = 160.0
+TIMEOUT_ZONE_1 = 200.0
+TIMEOUT_ZONE_4 = 240.0
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  MISSION RUNNER  —  compose mixins, define run()
 # ──────────────────────────────────────────────────────────────────────────────
 
-class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
-    """DA mission = Duplo collection behind a button-controlled door. Mix in
-    DuploMixin (visual-servo + explore_zone) and ButtonMixin (push button +
-    probe door). The MRO ensures cooperative __init__ via super() chain."""
+class DoMissionRunner(DuploMixin, RampMixin, MissionBase):
+    """DO mission = Duplo collection + ramp traversal. Mix in DuploMixin
+    (visual-servo + explore_zone) and RampMixin (go_up_ramp / go_down_ramp).
+    The MRO ensures cooperative __init__ via super() chain."""
 
     # Class attributes consumed by MissionBase.dropoff() and main_loop():
     BASE_POSE             = BASE_POSE
@@ -66,17 +69,18 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
 
     def _build_steps(self):
         """Step list driven by MissionBase.run(). On RESET, the same step is
-        re-tried — completed steps keep their _next_step advance."""
+        re-tried — completed steps keep their _next_step advance. Operator is
+        responsible for placing the robot in a sane state before resetting
+        (e.g. back at START_POSE if SETUP needs to re-seed AMCL)."""
         return [
-            ('SETUP',           self._step_setup),
-            ('BUTTON_APPROACH', self._step_button_approach),
-            ('PUSH_BUTTON',     self._step_push_button),
-            ('DOOR_TRAVERSE',   self._step_door_traverse),
-            ('ZONE_3',          self._step_zone_3),
-            ('RETURN_TO_BTN',   self._step_return_to_button),
-            ('DROPOFF_1',       self.dropoff),
-            ('ZONE_1',          self._step_zone_1),
-            ('DROPOFF_2',       self.dropoff),
+            ('SETUP',          self._step_setup),
+            ('ZONE_1',         self._step_zone_1),
+            ('DROPOFF_1',      self.dropoff),
+            ('RAMP_APPROACH',  self._step_ramp_approach),
+            ('RAMP_CLIMB',     self.go_up_ramp),
+            ('RAMP_TOP_RESEED', self._step_ramp_top_reseed),
+            ('ZONE_4',         self._step_zone_4),
+            ('RAMP_EXIT',      self._step_ramp_exit),
         ]
 
     # ── Per-step helpers ─────────────────────────────────────────────────────
@@ -91,40 +95,32 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
             if getattr(self, '_amcl_pose', None) is not None:
                 break
         time.sleep(0.5)
+        # Visual servo defaults to enabled on startup; disable here so
+        # mission-step transit isn't hijacked. explore_zone re-enables it
+        # for sweeps and opportunistic collect.
         self._enable_collection(False)
-
-    def _step_button_approach(self) -> None:
-        if not self._go_to_with_recovery(
-                BUTTON_APPROACH, label='BUTTON_APPROACH', precise=True):
-            self.get_logger().error('Aborting — could not reach button approach')
-            raise MissionAbortException()
-
-    def _step_push_button(self) -> None:
-        if not self.push_button_and_wait_for_door():
-            self.get_logger().error('Aborting — could not open door')
-            # Door failure is unrecoverable; raise so we don't try the subsequent
-            # door-traverse step (which would just fail).
-            raise MissionAbortException()
-
-    def _step_door_traverse(self) -> None:
-        if not self._go_to_with_recovery(
-                DOOR_PROBE_POSE, label='DOOR_TRAVERSE', precise=True):
-            self.get_logger().error('Aborting — could not traverse door')
-            raise MissionAbortException()
-
-    def _step_zone_3(self) -> None:
-        self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3')
-
-    def _step_return_to_button(self) -> None:
-        self.go_to(BUTTON_APPROACH, precise=True)
 
     def _step_zone_1(self) -> None:
         self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
 
+    def _step_ramp_approach(self) -> None:
+        if not self._go_to_with_recovery(RAMP_APPROACH, label='RAMP_APPROACH', max_attempts=10, timeout_s=90, precise=True):
+            self.get_logger().error(f'RAMP_APPROACH {RAMP_APPROACH} failed after all attempts')
+            raise MissionAbortException()
+
+    def _step_ramp_top_reseed(self) -> None:
+        self.setInitialPose(make_pose(*RAMP_TOP))
+
+    def _step_zone_4(self) -> None:
+        self.explore_zone(WAYPOINTS_ZONE_4, TIMEOUT_ZONE_4, label='ZONE_4')
+
+    def _step_ramp_exit(self) -> None:
+        self.go_to(RAMP_EXIT, precise=True)
+
 
 def main() -> None:
     rclpy.init()
-    runner = DaMissionRunner()
+    runner = DoMissionRunner()
     try:
         runner.main_loop()
     except KeyboardInterrupt:

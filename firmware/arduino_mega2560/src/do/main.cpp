@@ -41,6 +41,11 @@ void setup()
   serialBridge.init();
 
   Serial.println("Robot initialized");
+
+  // Offset handling
+  delay(100);  // let ADC settle, motors disabled
+  leftMotor.setZeroVoltage(leftMotor.measureZeroVoltage(250));
+  rightMotor.setZeroVoltage(rightMotor.measureZeroVoltage(250));
 }
 
 void loop()

@@ -23,7 +23,7 @@ services:
     group_add:
       - "dialout"
     privileged: true
-    command: ros2 launch j2cdynamics_bringup driver.launch.py
+    command: ros2 launch j2cdynamics_bringup driver.launch.py robot_name:=do 
     
     healthcheck:
       test: [
@@ -55,13 +55,19 @@ services:
       - /run/udev:/run/udev:ro
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_camera:/ros2_ws/src/j2cdynamics_camera
+      - ./ros2_ws/src/j2cdynamics_perception:/ros2_ws/src/j2cdynamics_perception
       - ./camera/model/best_int8.onnx:/ros2_ws/model/best_int8.onnx
+      - ./ros2_ws/src/j2cdynamics_perception/config:/calibration_files/
     group_add:
       - "video"
     depends_on:
       driver:
         condition: service_healthy
-    command: ros2 launch j2cdynamics_bringup camera.launch.py
+      lidar:
+        condition: service_healthy
+      navigation:
+        condition: service_healthy
+    command: ros2 launch j2cdynamics_bringup camera.launch.py calibration_file:=camera_calibration_do.yaml
 
   lidar: 
     build:
@@ -143,10 +149,14 @@ services:
       - ./dds/cyclonedds_robot.xml:/dds/cyclonedds_robot.xml
       - ./ros2_ws/src/j2cdynamics_bringup:/ros2_ws/src/j2cdynamics_bringup
       - ./ros2_ws/src/j2cdynamics_mission:/ros2_ws/src/j2cdynamics_mission
+      - ./ros2_ws/src/j2cdynamics_bringup/maps:/maps
     depends_on:
       navigation:
         condition: service_healthy
-    command: ros2 launch j2cdynamics_bringup mission.launch.py 
+      camera:
+        condition: service_started
+        
+    command: ros2 launch j2cdynamics_bringup do_mission.launch.py 
 
   simulation:
     build: 

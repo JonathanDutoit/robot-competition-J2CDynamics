@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 50   
+    update_rate: 30   
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -10,17 +10,15 @@ controller_manager:
 
 diff_drive_controller:
   ros__parameters:
+    publish_rate: 50.0
+
     # Joints
     left_wheel_names: ["left_wheel_joint"]
     right_wheel_names: ["right_wheel_joint"]
 
     # Kinematics
-    wheel_separation: 0.4147
+    wheel_separation: 0.384
     wheel_radius: 0.0555
-
-    wheel_separation_multiplier: 1.0
-    left_wheel_radius_multiplier: 1.0
-    right_wheel_radius_multiplier: 1.0 
 
     # Odometry output
     odom_frame_id: odom
@@ -29,35 +27,34 @@ diff_drive_controller:
     use_stamped_vel: false
 
     # Odometry config
-    position_feedback: false
-    open_loop: true
+    position_feedback: true
+    open_loop: false
 
-    pose_covariance_diagonal: [0.01, 0.01, 0.0, 0.0, 0.0, 0.05]
-    twist_covariance_diagonal: [0.01, 0.0, 0.0, 0.0, 0.0, 0.04]
+    pose_covariance_diagonal: [0.1, 0.1, 0.0, 0.0, 0.0, 0.2]
+    twist_covariance_diagonal: [0.05, 0.05, 0.0, 0.0, 0.0, 1.0]
 
-    # Safety
-    cmd_vel_timeout: 0.5 # seconds
-    publish_limited_velocity: true
-    velocity_rolling_window_size: 10
 
-    # Velocity/accel limits
-    linear.x.max_velocity: .NAN
-    linear.x.min_velocity: .NAN
-    linear.x.max_acceleration: .NAN
-    linear.x.max_deceleration: .NAN
-    linear.x.max_acceleration_reverse: .NAN
-    linear.x.max_deceleration_reverse: .NAN
-    linear.x.max_jerk: .NAN
-    linear.x.min_jerk: .NAN
+    # Velocity and acceleration limits
+    linear.x.has_velocity_limits: true
+    linear.x.has_acceleration_limits: true
+    linear.x.has_jerk_limits: false
+    linear.x.max_velocity: 1.0
+    linear.x.min_velocity: -1.0
+    linear.x.max_acceleration: 1.0
+    linear.x.max_jerk: 0.0
+    linear.x.min_jerk: 0.0
 
-    angular.z.max_velocity: .NAN
-    angular.z.min_velocity: .NAN
-    angular.z.max_acceleration: .NAN
-    angular.z.max_deceleration: .NAN
-    angular.z.max_acceleration_reverse: .NAN
-    angular.z.max_deceleration_reverse: .NAN
-    angular.z.max_jerk: .NAN
-    angular.z.min_jerk: .NAN
+    angular.z.has_velocity_limits: true
+    angular.z.has_acceleration_limits: true
+    angular.z.has_jerk_limits: false
+    angular.z.max_velocity: 1.0
+    angular.z.min_velocity: -1.0
+    angular.z.max_acceleration: 1.0
+    angular.z.min_acceleration: -1.0
+    angular.z.max_jerk: 0.0
+    angular.z.min_jerk: 0.0
+
+
 
 
 

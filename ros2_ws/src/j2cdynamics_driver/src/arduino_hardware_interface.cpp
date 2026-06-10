@@ -28,20 +28,21 @@ ArduinoHardwareInterface::on_init(const hardware_interface::HardwareInfo & info)
   max_rad_s_ = std::stod(info_.hardware_parameters.at("max_rad_s"));
   ramp_step_ = std::stod(info_.hardware_parameters.at("ramp_step"));
 
-  // Validate joint count — expect exactly 3 (left + right wheel + sweeper mode)
-  if (info_.joints.size() != 3) {
-    RCLCPP_FATAL(logger_, "Expected 3 joints, got %zu", info_.joints.size());
+  // Validate joint count — expect exactly 4 (left + right wheel + sweeper mode + duplo counter)
+  if (info_.joints.size() != 4) {
+    RCLCPP_FATAL(logger_, "Expected 4 joints, got %zu", info_.joints.size());
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  left_joint_idx_ = right_joint_idx_ = sweeper_joint_idx_ = -1;
+  left_joint_idx_ = right_joint_idx_ = sweeper_joint_idx_ = duplo_counter_joint_idx_ = -1;
   for (size_t i = 0; i < info_.joints.size(); ++i) {
     const std::string & name = info_.joints[i].name;
     if (name.find("left")  != std::string::npos) left_joint_idx_  = static_cast<int>(i);
     if (name.find("right") != std::string::npos) right_joint_idx_ = static_cast<int>(i);
     if (name.find("sweeper") != std::string::npos) sweeper_joint_idx_ = static_cast<int>(i);
+    if (name.find("duplo") != std::string::npos) duplo_counter_joint_idx_ = static_cast<int>(i);
   }
-  if (left_joint_idx_ < 0 || right_joint_idx_ < 0 || sweeper_joint_idx_ < 0 ||
+  if (left_joint_idx_ < 0 || right_joint_idx_ < 0 || sweeper_joint_idx_ < 0 || duplo_counter_joint_idx_ < 0 ||
       left_joint_idx_ == right_joint_idx_ || left_joint_idx_ == sweeper_joint_idx_ || right_joint_idx_ == sweeper_joint_idx_)
   {
     RCLCPP_FATAL(logger_,
@@ -51,11 +52,12 @@ ArduinoHardwareInterface::on_init(const hardware_interface::HardwareInfo & info)
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  RCLCPP_INFO(logger_, "on_init OK — port=%s baud=%d (left=%s right=%s sweeper=%s)",
+  RCLCPP_INFO(logger_, "on_init OK — port=%s baud=%d (left=%s right=%s sweeper=%s duplo=%s)",
     port_.c_str(), baudrate_,
     info_.joints[left_joint_idx_].name.c_str(),
     info_.joints[right_joint_idx_].name.c_str(),
-    info_.joints[sweeper_joint_idx_].name.c_str());
+    info_.joints[sweeper_joint_idx_].name.c_str(),
+    info_.joints[duplo_counter_joint_idx_].name.c_str());
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -135,7 +137,7 @@ ArduinoHardwareInterface::export_state_interfaces()
   state_interfaces.emplace_back(
     info_.joints[sweeper_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_mode_state_);
   state_interfaces.emplace_back(
-    "tank_state", "duplo_count", &hw_duplo_count_);
+    info_.joints[duplo_counter_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_duplo_count_);
 
   return state_interfaces;
 }
@@ -151,6 +153,8 @@ ArduinoHardwareInterface::export_command_interfaces()
     info_.joints[right_joint_idx_].name, hardware_interface::HW_IF_VELOCITY, &hw_cmd_right_);
   command_interfaces.emplace_back(
     info_.joints[sweeper_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_cmd_mode_);
+  command_interfaces.emplace_back(
+    info_.joints[duplo_counter_joint_idx_].name, hardware_interface::HW_IF_POSITION, &hw_cmd_duplo_count_);
 
   return command_interfaces;
 }
@@ -279,6 +283,20 @@ ArduinoHardwareInterface::write(const rclcpp::Time &, const rclcpp::Duration &)
         "Failed to send MODE command (%d in a row)", consecutive_failures_);
     } else {
       last_send_mode_ = desired_mode;
+    }
+  }
+
+  bool duplo_count_requested = decode_duplo_count_request(hw_cmd_duplo_count_);
+
+  if (duplo_count_requested) {
+    if (!send_command("DUPLO_COUNT\n")) {
+      ++consecutive_failures_;
+      if (consecutive_failures_ > failure_threshold_) {
+        RCLCPP_ERROR(logger_, "Repeated DUPLO_COUNT write failures — reporting fault");
+        return hardware_interface::return_type::ERROR;
+      }
+      RCLCPP_WARN_THROTTLE(logger_, clock_, 1000,
+        "Failed to send DUPLO_COUNT command (%d in a row)", consecutive_failures_);
     }
   }
 
@@ -475,6 +493,12 @@ std::string ArduinoHardwareInterface::encode_mode_command(SweeperMode mode) cons
   }
 
   return "IDLE\n";
+}
+
+bool ArduinoHardwareInterface::decode_duplo_count_request(double v) const
+{
+  int is_requested = static_cast<int>(std::round(v));
+  return is_requested == 1;  // Only "Collect" mode requests duplo count updates
 }
 
 }  // namespace j2cdynamics_driver

@@ -21,12 +21,16 @@ public:
 
     mode_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
       "/sweeper_controller/commands", 10);
+
+    duplo_count_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/duplo_counter_controller/commands", 10);
   }
 
 private:
   void onJoy(const sensor_msgs::msg::Joy::SharedPtr msg)
   {
     SweeperMode mode = SweeperMode::Idle;
+    bool duplo_count_requested = false;
 
     if (msg->buttons[0]) {
       mode = SweeperMode::Collect;
@@ -35,9 +39,17 @@ private:
       mode = SweeperMode::Dropoff;
     }
     else if (msg->buttons[2]) {
-      mode = SweeperMode::Idle;
+      duplo_count_requested = true;
     }
 
+    // Publish duplo count request
+    double duplo_count_value = duplo_count_requested ? 1.0 : 0.0;
+    
+    std_msgs::msg::Float64MultiArray duplo_msg;
+    duplo_msg.data = {duplo_count_value};
+    duplo_count_pub_->publish(duplo_msg);
+
+    // Publish sweeper mode request
     double mode_value = static_cast<double>(mode);
 
     if (mode_value == last_mode_) {
@@ -55,6 +67,7 @@ private:
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr mode_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr duplo_count_pub_;
 };
 
 int main(int argc, char ** argv)

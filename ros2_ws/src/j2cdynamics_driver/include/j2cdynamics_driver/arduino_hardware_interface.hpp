@@ -83,11 +83,13 @@ private:
   double hw_cmd_left_  {0.0};
   double hw_cmd_right_ {0.0};
   double hw_cmd_mode_{0.0};
+  double hw_cmd_duplo_count_{0.0};
 
   // resolved joint indices (set in on_init)
   int left_joint_idx_{-1};
   int right_joint_idx_{-1};
   int sweeper_joint_idx_{-1};
+  int duplo_counter_joint_idx_{-1};
 
   // fault escalation
   int consecutive_failures_{0};
@@ -106,6 +108,7 @@ private:
   double _clamp(double value)                 const;
   SweeperMode decode_mode(double v) const;
   std::string encode_mode_command(SweeperMode mode) const;
+  bool decode_duplo_count_request(double v) const;
 
   // Parsing helpers
   bool parse_odometry(const std::string & line, double & left_vel, double & right_vel);

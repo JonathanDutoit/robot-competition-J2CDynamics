@@ -120,6 +120,13 @@ def generate_launch_description():
         output='screen',
     )
 
+    duplo_counter_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['duplo_counter_controller', '--controller-manager', '/controller_manager'],
+        output='screen',
+    )
+
     delayed_joint_state_spawner = TimerAction(
         period=3.0,
         actions=[joint_state_broadcaster_spawner],
@@ -133,6 +140,11 @@ def generate_launch_description():
     delayed_sweeper_spawner = TimerAction(
         period=5.0,
         actions=[sweeper_controller_spawner],
+    )
+
+    delayed_duplo_counter_spawner = TimerAction(
+        period=6.0,
+        actions=[duplo_counter_controller_spawner],
     )
 
     # -------------------------
@@ -182,7 +194,7 @@ def generate_launch_description():
         delayed_joint_state_spawner,
         delayed_diff_drive_spawner,
         delayed_sweeper_spawner,
-
+        delayed_duplo_counter_spawner,
         twist_mux,
         diagnostics,
     ])

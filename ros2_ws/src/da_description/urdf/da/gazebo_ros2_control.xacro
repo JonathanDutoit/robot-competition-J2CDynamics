@@ -48,5 +48,10 @@
             <command_interface name="position"/>
             <state_interface name="position"/>
         </joint>
+
+        <joint name="duplo_counter">
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+        </joint>
     </ros2_control>
 </robot>

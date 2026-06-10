@@ -10,6 +10,9 @@ controller_manager:
 
     sweeper_controller:
       type: forward_command_controller/ForwardCommandController
+    
+    duplo_counter_controller:
+      type: forward_command_controller/ForwardCommandController
 
 diff_drive_controller:
   ros__parameters:
@@ -60,4 +63,10 @@ sweeper_controller:
   ros__parameters:
     joints:
       - sweeper_mode
+    interface_name: position
+
+duplo_counter_controller:
+  ros__parameters:
+    joints:
+      - duplo_counter
     interface_name: position

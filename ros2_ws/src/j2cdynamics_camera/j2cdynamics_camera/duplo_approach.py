@@ -68,6 +68,14 @@ SAFETY_BASE_FRAME   = 'base_link'
 # Abandon faster than the 10s hard timeout so we don't burn 40s/waypoint.
 BLOCKED_APPROACH_TIMEOUT_S = 3.0
 
+# No-progress timer: track bbox-bottom (by) over time while in approach. If by
+# hasn't grown by NO_PROGRESS_BY_DELTA within NO_PROGRESS_TIMEOUT_S, we're not
+# closing on the target (visual-servo oscillation, geometry preventing a clean
+# line, or duplo just out of reach in image space). Abandon and let the mission
+# rotate past it. Cheaper than waiting for APPROACH_HARD_TIMEOUT_S.
+NO_PROGRESS_TIMEOUT_S = 3.0
+NO_PROGRESS_BY_DELTA  = 0.05   # normalized image fraction; ~5% growth in by
+
 # ── Anti-wander tuning ────────────────────────────────────────────────────────
 # When the target is lost mid-approach, distinguish "tracking cleanly, momentary
 # dropout" (creep forward) from "lost at edge or far" (don't commit forward,
@@ -141,6 +149,8 @@ class DuploApproach(Node):
         self.lost_start_time = None
         self.approach_start_time = None   # for APPROACH_HARD_TIMEOUT_S
         self.blocked_start_time = None    # for BLOCKED_APPROACH_TIMEOUT_S
+        self.progress_best_by = None      # for NO_PROGRESS_TIMEOUT_S
+        self.progress_time = None
 
         # Accel-limited output state
         self.cur_vx = 0.0
@@ -263,6 +273,8 @@ class DuploApproach(Node):
         self.blocked_start_time = None
         self.last_close_time = None
         self.lost_start_time = None
+        self.progress_best_by = None
+        self.progress_time = None
 
     # FSM transitions
     def update_fsm(self):
@@ -307,6 +319,28 @@ class DuploApproach(Node):
                         return
             else:
                 self.blocked_start_time = None
+
+            # No-progress: if we're "approaching" but bbox-bottom (by) isn't
+            # growing, we're not getting closer. Covers oscillation / unreachable
+            # duplos that don't trigger the costmap gate. Independent of blocked
+            # state because the failure mode here is moving without progress.
+            if self.duplo_visible and self.best_target is not None:
+                by_now = self.best_target[1]
+                if self.progress_best_by is None:
+                    self.progress_best_by = by_now
+                    self.progress_time = now
+                elif by_now > self.progress_best_by + NO_PROGRESS_BY_DELTA:
+                    self.progress_best_by = by_now
+                    self.progress_time = now
+                else:
+                    no_progress_age = (now - self.progress_time).nanoseconds * 1e-9
+                    if no_progress_age > NO_PROGRESS_TIMEOUT_S:
+                        self.get_logger().warn(
+                            f'no approach progress for {no_progress_age:.1f}s '
+                            f'(by stuck at {by_now:.2f}) — giving up target')
+                        self._reset_approach_timers()
+                        self._fire('lost')
+                        return
 
             # Track proximity when visible
             if self.duplo_visible and self.best_target is not None:

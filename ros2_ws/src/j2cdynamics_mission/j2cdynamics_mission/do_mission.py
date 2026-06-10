@@ -73,6 +73,16 @@ NAV_GOAL_TIMEOUT_S = 60.0
 PLAN_TIMEOUT_S     = 8.0
 MAX_NODE_RETRIES   = 1   # single attempt per waypoint — retries rarely succeed and double the wasted time
 
+# ── Nav2 recovery (clear costmaps + back up) ──
+# When Nav2 returns FAILED instantly, the robot is usually parked in inflation
+# and the planner refuses to start. Clearing costmaps + a small backup often
+# unsticks it. We trigger after a streak in regular nav, and explicitly between
+# attempts on critical operations (dropoff, ramp approach).
+RECOVERY_FAILURE_STREAK   = 3      # consecutive go_to failures before auto recovery
+RECOVERY_BACKUP_DIST_M    = 0.15
+RECOVERY_BACKUP_SPEED_M_S = 0.10
+RECOVERY_TIMEOUT_S        = 10.0
+
 DUPLO_COUNT_ZONE_4 = 6
 
 # ── scan-and-collect parameters ──
@@ -142,9 +152,14 @@ class MissionRunner(BasicNavigator):
         # ComputePathToPose action client for reachability checks
         self._plan_client = ActionClient(self, ComputePathToPose, '/compute_path_to_pose')
 
-        # Watchdog for end of mission time handling 
+        # Watchdog for end of mission time handling
         self.abort_event = threading.Event()
         self.mission_start = 0.0
+
+        # Auto-recovery: count consecutive go_to failures so we can run a Nav2
+        # recovery (clear costmaps + back up) when a streak suggests the robot
+        # is stuck in inflation rather than just failing for transient reasons.
+        self._consecutive_nav_failures = 0
 
     def _supervisor(self):
         while rclpy.ok():
@@ -172,16 +187,64 @@ class MissionRunner(BasicNavigator):
         self.goToPose(make_pose(*pose_tuple))
 
         t0 = time.time()
+        ok = False
         while not self.isTaskComplete():
             if time.time() - t0 > timeout_s:
                 self.cancelTask()
                 self.get_logger().warn(f'go_to timeout — {pose_tuple}')
-                return False
-        ok = self.getResult() == TaskResult.SUCCEEDED
-        if not ok:
-            self.get_logger().warn(
-                f'go_to {self.getResult().name} — {pose_tuple}')
+                break
+        else:
+            ok = self.getResult() == TaskResult.SUCCEEDED
+            if not ok:
+                self.get_logger().warn(
+                    f'go_to {self.getResult().name} — {pose_tuple}')
+
+        # Track streak and auto-run recovery when it looks like the robot is
+        # stuck in inflation (planner returns FAILED instantly for everything).
+        if ok:
+            self._consecutive_nav_failures = 0
+        else:
+            self._consecutive_nav_failures += 1
+            if self._consecutive_nav_failures >= RECOVERY_FAILURE_STREAK:
+                self.get_logger().warn(
+                    f'{self._consecutive_nav_failures} consecutive nav failures '
+                    f'— running Nav2 recovery')
+                self._run_recovery('auto-recovery')
+                self._consecutive_nav_failures = 0
         return ok
+
+    def _run_recovery(self, label: str = 'recovery') -> None:
+        """Best-effort Nav2 recovery: clear both costmaps + small backup via the
+        behavior server. Each step is wrapped in try/except so a single failure
+        doesn't poison the whole sequence."""
+        if self.abort_event.is_set():
+            return
+        try:
+            self.get_logger().info(f'{label}: clearAllCostmaps')
+            self.clearAllCostmaps()
+        except Exception as e:
+            self.get_logger().warn(f'{label}: clearAllCostmaps failed ({e})')
+
+        if self.abort_event.is_set():
+            return
+        try:
+            self.get_logger().info(
+                f'{label}: backup {RECOVERY_BACKUP_DIST_M}m '
+                f'@ {RECOVERY_BACKUP_SPEED_M_S}m/s')
+            self.backup(backup_dist=RECOVERY_BACKUP_DIST_M,
+                        backup_speed=RECOVERY_BACKUP_SPEED_M_S,
+                        time_allowance=int(RECOVERY_TIMEOUT_S))
+            t0 = time.time()
+            while not self.isTaskComplete():
+                if time.time() - t0 > RECOVERY_TIMEOUT_S:
+                    self.cancelTask()
+                    self.get_logger().warn(f'{label}: backup timed out')
+                    break
+        except Exception as e:
+            self.get_logger().warn(f'{label}: backup failed ({e})')
+
+        # Brief settle so cleared costmaps repopulate from /scan before next nav.
+        time.sleep(0.5)
 
     def _open_loop_drive(self, speed_m_s: float, duration_s: float,
                          hz: float = 20.0) -> None:
@@ -410,24 +473,25 @@ class MissionRunner(BasicNavigator):
         """Critical: this is the deposit. Cascade for robustness:
           1. Align waypoint (best-effort) and base pose use general_goal_checker
              so tight tolerances don't cause Nav2 to refuse/abort.
-          2. Single retry of BASE_POSE after a brief pause — costmap is often
-             only momentarily blocked by stale scan or a dynamic obstacle.
+          2. On BASE_POSE failure, run a Nav2 recovery (clear costmaps + backup)
+             before retry — the usual cause of fast FAILEDs here is the robot
+             ending up in inflation after the last leg.
           3. The final reverse is the actual deposit motion — perform it whether
              nav succeeded or not, so we get a partial deposit at worst.
         """
         # Align waypoint — non-critical, just for a clean straight approach
         self.go_to(DROPFF_FIRST_WAYPOINT, precise=False, timeout_s=20)
 
-        # Base pose with retry
+        # Base pose with Nav2-recovery retry
         base_ok = self.go_to(BASE_POSE, precise=False, timeout_s=20)
         if not base_ok:
-            self.get_logger().warn('dropoff: BASE_POSE attempt 1 failed; pausing 1s and retrying')
-            time.sleep(1.0)
+            self.get_logger().warn('dropoff: BASE_POSE attempt 1 failed — running recovery')
+            self._run_recovery('dropoff-recovery')
             base_ok = self.go_to(BASE_POSE, precise=False, timeout_s=20)
 
         if not base_ok:
             self.get_logger().error(
-                'dropoff: Nav2 could not reach BASE_POSE after retry — '
+                'dropoff: Nav2 could not reach BASE_POSE after recovery — '
                 'performing reverse from current pose (deposit may be incomplete)')
 
         # Always reverse — this is the actual deposit motion
@@ -466,9 +530,15 @@ class MissionRunner(BasicNavigator):
             #2. Return to base (drop off)
             self.dropoff()
 
-            #3. Nav2 to low ramp pose
-            if not self.go_to(RAMP_APPROACH, precise=False):
-                self.get_logger().error(f'RAMP_APPROACH {RAMP_APPROACH} failed')
+            #3. Nav2 to low ramp pose — critical, retry once via recovery
+            ramp_ok = self.go_to(RAMP_APPROACH, precise=False)
+            if not ramp_ok:
+                self.get_logger().warn(
+                    f'RAMP_APPROACH {RAMP_APPROACH} failed — running recovery and retrying')
+                self._run_recovery('ramp-recovery')
+                ramp_ok = self.go_to(RAMP_APPROACH, precise=False)
+            if not ramp_ok:
+                self.get_logger().error(f'RAMP_APPROACH {RAMP_APPROACH} failed after recovery')
                 raise MissionAbortException()
             else:
                 #4. Open-loop to go up the ramp

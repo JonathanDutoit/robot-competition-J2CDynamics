@@ -31,6 +31,7 @@ import yaml
 
 import rclpy
 from std_msgs.msg import Bool, String
+from nav2_simple_commander.robot_navigator import TaskResult
 
 from j2cdynamics_mission.mission_base import (
     NAV_GOAL_TIMEOUT_S, make_pose, node_key, MissionAbortException,
@@ -50,7 +51,7 @@ FSM_WAIT_TIMEOUT_S  = 12.0    # max wait for a single FSM approach→collect→s
 # then re-issue the same goal. Cap interruptions to avoid stuck loops on
 # unreachable duplos.
 OPPORTUNISTIC_MAX_INTERRUPTIONS = 2
-OPPORTUNISTIC_NAV_TIMEOUT_S     = 90.0
+OPPORTUNISTIC_NAV_TIMEOUT_S     = 60.0
 
 
 class DuploMixin:
@@ -146,8 +147,6 @@ class DuploMixin:
         owns the toggle for its lifetime. Disabled in finally."""
         if self.abort_event.is_set():
             raise MissionAbortException()
-
-        from nav2_simple_commander.robot_navigator import TaskResult
 
         self._enable_collection(True)
         interruptions = 0

@@ -9,7 +9,7 @@ YOLO_INPUT = 640           # square model input (must match the imgsz= used at e
 # every bbox glued to the top-left of the image. Watch the detector log line at
 # startup — it prints the model's output shape + a sample row so you can verify.
 YOLO_OUTPUT_FORMAT = "xyxy"   # "xyxy"  OR  "xywh"
-CONF_THRESH  = 0.6
+CONF_THRESH  = 0.8
 MODEL_PATH   = "model/best_int8.onnx"
 CLASS_NAMES  = ["duplo"]
 INFER_FPS    = 10

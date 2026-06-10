@@ -33,8 +33,8 @@ from j2cdynamics_mission.mission_ramp import RampMixin
 #  POSES & PATHS  (Duplo-Obliterator specific)
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE             = (0.35, 0.3, -1.57)
-DROPFF_FIRST_WAYPOINT = (1.5, 0.3, 3.14)
+BASE_POSE             = (0.25, 0.4, 3.14)
+DROPFF_FIRST_WAYPOINT = (1.5, 0.4, 3.14)
 START_POSE            = (1.25, 0.4, 0.02)
 # START_POSE          = (8.38, 5.88, 1.50)  # alt: start at ramp top for debugging
 

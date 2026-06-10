@@ -60,8 +60,8 @@ CONTROL_HZ          = 10.0
 # inflated (robot footprint would touch). Lower thresholds catch soft inflation
 # and stop the robot well before the wall, which was preventing pickups of
 # wall-near duplos. 99 = "stop only when about to actually intersect something".
-SAFETY_LOOKAHEAD_M  = [0.15, 0.30]         # m ahead of base_link; shorter = less cautious near walls
-SAFETY_THRESHOLD    = 99                   # 100=lethal/keepout, 99=inscribed (footprint touches)
+SAFETY_LOOKAHEAD_M  = [0.05, 0.50]         # m ahead of base_link; shorter = less cautious near walls
+SAFETY_THRESHOLD    = 100                  # 100=lethal/keepout, 99=inscribed (footprint touches)
 SAFETY_BASE_FRAME   = 'base_link'
 # Blocked-while-in-approach timer: if the gate has been firing continuously for
 # this long while we're in approach, the target is unreachable (e.g. on carpet).

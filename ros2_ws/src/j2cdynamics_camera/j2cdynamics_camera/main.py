@@ -5,31 +5,17 @@ from j2cdynamics_camera.config import INFER_FPS
 from j2cdynamics_camera.camera import Camera
 from j2cdynamics_camera.detector import Detector
 from j2cdynamics_camera.ros_node import init_ros
-from j2cdynamics_camera.streamer import app, init_streamer
-
-# ── Shared state ──────────────────────────────────────────────────────────────
-import threading
-latest_detections = []
-det_lock = threading.Lock()
-
-def get_detections():
-    with det_lock:
-        return list(latest_detections)
 
 # ── Inference loop ────────────────────────────────────────────────────────────
-def inference_loop(camera: Camera, detector: Detector, ros_node):
-    global latest_detections
+def inference_loop(camera: Camera, detector: Detector, ros_node, stop_event: threading.Event):
     target_dt = 1.0 / INFER_FPS
     print("[inference] Thread started")
 
-    while True:
+    while not stop_event.is_set():
         t0 = time.time()
         try:
             frame = camera.capture_lores()
             dets = detector.detect(frame)
-
-            with det_lock:
-                latest_detections = dets
 
             ros_node.publish_frame(frame)
             ros_node.publish_detections(dets)
@@ -49,17 +35,21 @@ def main():
 
     camera.start()
 
-    init_streamer(camera.output, get_detections, ros_node)
-
-    threading.Thread(
+    stop_event = threading.Event()
+    inference_thread = threading.Thread(
         target=inference_loop,
-        args=(camera, detector, ros_node),
-        daemon=True
-    ).start()
+        args=(camera, detector, ros_node, stop_event),
+        daemon=True,
+    )
+    inference_thread.start()
 
     try:
-        app.run(host="0.0.0.0", port=7123, threaded=True, use_reloader=False)
+        # Block forever; ROS executor runs in its own thread (see init_ros).
+        stop_event.wait()
+    except KeyboardInterrupt:
+        pass
     finally:
+        stop_event.set()
         camera.stop()
         rclpy.shutdown()
 

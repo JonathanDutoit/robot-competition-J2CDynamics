@@ -16,8 +16,8 @@ amcl:
     robot_model_type: "nav2_amcl::DifferentialMotionModel"
 
     # ── Particle filter ──────────────────────────────────────────────────────
-    min_particles: 100     # 500
-    max_particles: 2000
+    min_particles: 1000     # 500
+    max_particles: 5000
     pf_err: 0.05
     pf_z: 0.99
 

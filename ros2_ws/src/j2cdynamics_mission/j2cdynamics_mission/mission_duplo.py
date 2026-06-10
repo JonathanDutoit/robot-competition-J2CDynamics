@@ -34,6 +34,7 @@ from std_msgs.msg import Bool, String
 
 from j2cdynamics_mission.mission_base import (
     NAV_GOAL_TIMEOUT_S, make_pose, node_key, MissionAbortException,
+    STUCK_TIMEOUT_S, STUCK_MOTION_M,
 )
 
 
@@ -165,9 +166,14 @@ class DuploMixin:
                 self.goToPose(make_pose(*pose_tuple))
 
                 t_attempt = time.time()
+                # Stuck-detection state — reset for each (re-)issued goal.
+                last_pos = self._current_xy()
+                last_motion_t = t_attempt
+                stuck = False
                 interrupted = False
                 while not self.isTaskComplete():
-                    if time.time() - t_attempt > timeout_s:
+                    now = time.time()
+                    if now - t_attempt > timeout_s:
                         self.cancelTask()
                         self.get_logger().warn(f'{label}: per-attempt timeout')
                         return False
@@ -178,7 +184,29 @@ class DuploMixin:
                         self.cancelTask()
                         interrupted = True
                         break
+                    # Stuck-detection
+                    cur_pos = self._current_xy()
+                    if cur_pos is not None:
+                        if last_pos is None:
+                            last_pos = cur_pos
+                            last_motion_t = now
+                        else:
+                            dx = cur_pos[0] - last_pos[0]
+                            dy = cur_pos[1] - last_pos[1]
+                            if (dx * dx + dy * dy) ** 0.5 > STUCK_MOTION_M:
+                                last_pos = cur_pos
+                                last_motion_t = now
+                            elif now - last_motion_t > STUCK_TIMEOUT_S:
+                                self.get_logger().warn(
+                                    f'{label}: robot stuck (<{STUCK_MOTION_M}m) for '
+                                    f'{STUCK_TIMEOUT_S}s — deblocking')
+                                stuck = True
+                                break
                     rclpy.spin_once(self, timeout_sec=0.05)
+
+                if stuck:
+                    self._deblock(f'{label}-deblock')
+                    return False
 
                 if interrupted:
                     self._wait_until_fsm_idle(FSM_WAIT_TIMEOUT_S)

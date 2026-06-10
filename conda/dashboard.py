@@ -192,6 +192,9 @@ class Monitor(Node):
         self.pub_initpose = self.create_publisher(
             PoseWithCovarianceStamped, INITIALPOSE_TOPIC, 10)
         self.pub_goal = self.create_publisher(PoseStamped, GOAL_TOPIC, 10)
+        # Mission lifecycle: do_mission / da_mission listen for "start" / "reset"
+        # on this topic. See mission_base.MISSION_COMMAND_TOPIC.
+        self.pub_mission = self.create_publisher(String, '/mission_command', 10)
 
         self.create_timer(1.0, self._tick)
         self.create_timer(2.0, self._ensure_camera_sub)
@@ -203,6 +206,10 @@ class Monitor(Node):
 
         # AMCL global re-localization (kidnapped-robot recovery)
         self._reloc_client = self.create_client(Empty, RELOCALIZE_SRV)
+
+    def publish_mission_command(self, cmd: str) -> None:
+        """Publish 'start' or 'reset' on /mission_command."""
+        self.pub_mission.publish(String(data=str(cmd)))
 
     def _amcl_cb(self, msg):
         # position std-dev from the covariance diagonal (x, y); lower = more confident
@@ -649,12 +656,7 @@ class Monitor(Node):
         if scan is not None:
             self._draw_scan(img, scan, to_px)
 
-        # ── duplo cluster centres (orange = uncollected, confirmed) ──────────
-        if self.duplo_map_msg is not None:
-            for p in self.duplo_map_msg.poses:
-                px, py = to_px(p.position.x, p.position.y)
-                cv2.circle(img, (px, py), 6, (0, 0, 0), -1, cv2.LINE_AA)
-                cv2.circle(img, (px, py), 5, (40, 150, 255), -1, cv2.LINE_AA)
+        # (Duplo cluster overlay removed by request — was cluttering the map.)
 
         try:
             tf = self.tf_buffer.lookup_transform(MAP_FRAME, ROBOT_FRAME, rclpy.time.Time())
@@ -835,6 +837,17 @@ def api_relocalize():
     return jsonify({"ok": ok})
 
 
+@app.route("/api/mission", methods=["POST"])
+def api_mission():
+    """Publish 'start' or 'reset' on /mission_command. Anything else rejected."""
+    d = request.get_json(force=True)
+    cmd = (d.get("cmd") or "").strip().lower()
+    if cmd not in ("start", "reset"):
+        return jsonify({"ok": False, "err": f"unknown cmd '{cmd}'"}), 400
+    monitor.publish_mission_command(cmd)
+    return jsonify({"ok": True, "cmd": cmd})
+
+
 @app.route("/camera.mjpg")
 def camera():
     return Response(mjpeg(monitor.latest_camera, CAMERA_FPS),
@@ -868,7 +881,19 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   #conn{background:var(--bad)} #conn.live{background:var(--ok)}
   .wrap{display:flex;flex-direction:column;gap:12px;padding:12px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  /* horizontal panel rail under the camera */
+  .rowH{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+        gap:12px;align-items:stretch}
   .col{display:flex;flex-direction:column;gap:12px;min-width:0}
+  /* Start / Reset buttons in the header */
+  .hbtn{background:#0a0d12;border:1px solid var(--line);color:var(--fg);border-radius:5px;
+        padding:5px 14px;font:inherit;cursor:pointer;letter-spacing:.5px;text-transform:uppercase;
+        font-size:11px}
+  .hbtn:hover{border-color:var(--mut)}
+  .hbtn.start{border-color:var(--ok);color:var(--ok)}
+  .hbtn.start:hover{background:#0d1f12}
+  .hbtn.reset{border-color:var(--bad);color:var(--bad)}
+  .hbtn.reset:hover{background:#1f0d12}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .panel>h2{margin:0;padding:8px 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;
             color:var(--mut);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
@@ -929,15 +954,22 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
   .track .mk.bad{background:var(--bad)}
 </style></head><body>
 <header><span class="dot" id="conn"></span><b>ROBOT DASHBOARD</b>
-  <span class="mut" id="counts"></span></header>
+  <span class="mut" id="counts"></span>
+  <span style="flex:1"></span>
+  <button class="hbtn start" id="btnmstart" title="Publish 'start' on /mission_command">Start</button>
+  <button class="hbtn reset" id="btnmreset" title="Publish 'reset' on /mission_command">Reset</button>
+</header>
 <div class="wrap">
-  <div class="row">
+  <!-- Camera always at the top, full width -->
+  <div class="panel"><h2>Camera</h2>
+    <img class="stream" src="/camera.mjpg" alt="camera"
+         onerror="this.style.opacity=.3">
+  </div>
+  <!-- Everything else horizontally below -->
+  <div class="rowH">
     <div class="panel"><h2>Key signals</h2><div id="signals"></div></div>
     <div class="panel"><h2>Resources</h2><div id="res"></div></div>
-  </div>
-  <div class="row">
-    <div class="panel"><h2>Camera</h2><img class="stream" src="/camera.mjpg" alt="camera"
-         onerror="this.style.opacity=.3"></div>
+    <div class="panel"><h2>Duplo collection FSM</h2><div id="duplo"></div></div>
     <div class="panel">
       <h2>Map / costmaps / scan / plan
         <span style="flex:1"></span>
@@ -951,14 +983,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8">
       </div>
       <div class="mut" id="maptip"></div>
     </div>
-  </div>
-  <div class="panel">
-    <h2>Duplo collection FSM</h2>
-    <div id="duplo"></div>
-  </div>
-  <div class="panel">
-    <h2>Duplos — robot &amp; detected positions</h2>
-    <div id="duplos"></div>
   </div>
   <div class="panel">
     <details><summary>Nodes (<span id="nnodes">0</span>)</summary>
@@ -1169,7 +1193,6 @@ async function tick(){
       '<div class="grp"><div class="gh">'+g.name+'</div>'+g.rows.map(sigRow).join('')+'</div>').join('');
     document.getElementById('res').innerHTML = resBlock('ROBOT', s.robot);
     renderDuplo(s.duplo);
-    renderDuplos(s.robot_pose, s.duplos, s.duplo_debug);
     document.getElementById('nnodes').textContent = s.nodes.length;
     document.getElementById('ntopics').textContent = s.topics.length;
     document.getElementById('counts').textContent = s.nodes.length+' nodes  '+s.topics.length+' topics';
@@ -1179,6 +1202,31 @@ async function tick(){
 }
 document.getElementById('tfilter').addEventListener('input', renderTopics);
 document.getElementById('showinfra').addEventListener('change', renderTopics);
+
+// Mission lifecycle buttons: POST { cmd: 'start' | 'reset' } to /api/mission.
+function flashBtn(b, ok){
+  const orig = b.style.background;
+  b.style.background = ok ? 'rgba(63,185,80,.25)' : 'rgba(248,81,73,.25)';
+  setTimeout(() => { b.style.background = orig; }, 600);
+}
+async function sendMissionCmd(cmd){
+  const btn = document.getElementById(cmd === 'start' ? 'btnmstart' : 'btnmreset');
+  try{
+    const r = await fetch('/api/mission', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cmd})
+    });
+    const j = await r.json();
+    flashBtn(btn, j && j.ok);
+  } catch(e){ flashBtn(btn, false); }
+}
+document.getElementById('btnmstart').onclick = () => sendMissionCmd('start');
+document.getElementById('btnmreset').onclick = () => {
+  if (confirm('Send RESET? This restarts the mission from the failed step.')) {
+    sendMissionCmd('reset');
+  }
+};
+
 tick(); setInterval(tick, 700);
 </script></body></html>"""
 

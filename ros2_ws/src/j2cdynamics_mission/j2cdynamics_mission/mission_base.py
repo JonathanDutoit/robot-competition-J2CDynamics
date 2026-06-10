@@ -62,6 +62,15 @@ RECOVERY_BACKUP_SPEED_M_S = 0.10
 RECOVERY_TIMEOUT_S        = 10.0
 CRITICAL_NAV_ATTEMPTS     = 4      # max retries for go_to_with_recovery
 
+# Stuck-detection: while a Nav2 goal is supposedly active, track AMCL pose.
+# If the robot hasn't moved more than STUCK_MOTION_M in STUCK_TIMEOUT_S, the
+# robot is stuck (BT churn, costmap blocked by duplos visible in scan, etc.).
+# Cancel the goal + run a stronger recovery (clear costmaps + backup + spin)
+# and return failure so the caller can move on.
+STUCK_TIMEOUT_S    = 8.0
+STUCK_MOTION_M     = 0.05      # m; below this counts as "didn't move"
+STUCK_SPIN_RAD     = 1.0       # rad spin during deblock to rebuild local costmap
+
 # Mission lifecycle
 MISSION_TIMEOUT       = 600.0   # total mission budget (seconds)
 MISSION_CLOSING_TIME  =  60.0   # supervisor aborts when ≤ this remains
@@ -212,16 +221,43 @@ class MissionBase(BasicNavigator):
         self.goToPose(make_pose(*pose_tuple))
 
         t0 = time.time()
+        # Stuck-detection state: track the last position we saw motion at.
+        last_pos = self._current_xy()
+        last_motion_t = t0
+        stuck = False
         ok = False
         while not self.isTaskComplete():
-            if time.time() - t0 > timeout_s:
+            now = time.time()
+            if now - t0 > timeout_s:
                 self.cancelTask()
                 self.get_logger().warn(f'go_to timeout — {pose_tuple}')
                 break
+            # Stuck check: did the robot move since last sample?
+            cur_pos = self._current_xy()
+            if cur_pos is not None:
+                if last_pos is None:
+                    last_pos = cur_pos
+                    last_motion_t = now
+                else:
+                    dx = cur_pos[0] - last_pos[0]
+                    dy = cur_pos[1] - last_pos[1]
+                    if (dx * dx + dy * dy) ** 0.5 > STUCK_MOTION_M:
+                        last_pos = cur_pos
+                        last_motion_t = now
+                    elif now - last_motion_t > STUCK_TIMEOUT_S:
+                        self.get_logger().warn(
+                            f'go_to: robot stuck (<{STUCK_MOTION_M}m) for '
+                            f'{STUCK_TIMEOUT_S}s — deblocking')
+                        stuck = True
+                        break
         else:
             ok = self.getResult() == TaskResult.SUCCEEDED
             if not ok:
                 self.get_logger().warn(f'go_to {self.getResult().name} — {pose_tuple}')
+
+        if stuck:
+            self._deblock('go_to-deblock')
+            ok = False
 
         if ok:
             self._consecutive_nav_failures = 0
@@ -322,6 +358,37 @@ class MissionBase(BasicNavigator):
             self.clearAllCostmaps()
         except Exception as e:
             self.get_logger().warn(f'{label}: clearAllCostmaps failed ({e})')
+
+    def _current_xy(self):
+        """Best-effort current robot XY from BasicNavigator's _amcl_pose cache.
+        Returns None if AMCL hasn't published yet."""
+        pose = getattr(self, '_amcl_pose', None)
+        if pose is None:
+            return None
+        return (pose.pose.pose.position.x, pose.pose.pose.position.y)
+
+    def _deblock(self, label: str = 'deblock') -> None:
+        """Heavier recovery used when stuck-detection fires: cancel active task,
+        clear costmaps, backup, then spin to rebuild the local costmap from a
+        new angle. Best-effort, all wrapped in try/except."""
+        try:
+            self.cancelTask()
+        except Exception:
+            pass
+        self._run_recovery(label)
+        if self.abort_event.is_set():
+            return
+        try:
+            self.get_logger().info(f'{label}: spin {STUCK_SPIN_RAD:.2f} rad')
+            self.spin(spin_dist=STUCK_SPIN_RAD,
+                      time_allowance=int(RECOVERY_TIMEOUT_S))
+            t0 = time.time()
+            while not self.isTaskComplete():
+                if time.time() - t0 > RECOVERY_TIMEOUT_S:
+                    self.cancelTask()
+                    break
+        except Exception as e:
+            self.get_logger().warn(f'{label}: spin failed ({e})')
 
     def _go_to_with_recovery(self, pose_tuple, label: str,
                              max_attempts: int = CRITICAL_NAV_ATTEMPTS,

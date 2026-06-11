@@ -62,13 +62,13 @@ protected:
     const rclcpp::Time & time, const rclcpp::Duration & period
   ) { 
     return hardware_interface::return_type::OK; 
-  };
+  }
 
   virtual hardware_interface::return_type write_extra(
     const rclcpp::Time & time, const rclcpp::Duration & period
   ) { 
     return hardware_interface::return_type::OK; 
-  };
+  }
 
   // Serial helpers
   bool send_command(const std::string & cmd);

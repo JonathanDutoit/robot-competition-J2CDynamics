@@ -1,6 +1,7 @@
 import os
 
 from launch import LaunchDescription
+from launch.conditions import IfCondition
 from launch.actions import TimerAction, DeclareLaunchArgument, LogInfo
 from launch.substitutions import (
     Command,
@@ -113,18 +114,23 @@ def generate_launch_description():
         output='screen',
     )
 
-    sweeper_controller_spawner = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=['sweeper_controller', '--controller-manager', '/controller_manager'],
-        output='screen',
-    )
-
     duplo_counter_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
         arguments=['duplo_counter_controller', '--controller-manager', '/controller_manager'],
         output='screen',
+    )
+
+    sweeper_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['sweeper_controller', '--controller-manager', '/controller_manager'],
+        output='screen',
+        condition=IfCondition(
+            PythonExpression([
+                "'", robot_name, "' == 'da'"
+            ])
+        ),
     )
 
     delayed_joint_state_spawner = TimerAction(
@@ -137,14 +143,19 @@ def generate_launch_description():
         actions=[diff_drive_controller_spawner],
     )
 
-    delayed_sweeper_spawner = TimerAction(
+    delayed_duplo_counter_spawner = TimerAction(
         period=5.0,
-        actions=[sweeper_controller_spawner],
+        actions=[duplo_counter_controller_spawner],
     )
 
-    delayed_duplo_counter_spawner = TimerAction(
+    delayed_sweeper_spawner = TimerAction(
         period=6.0,
-        actions=[duplo_counter_controller_spawner],
+        actions=[sweeper_controller_spawner],
+        condition=IfCondition(
+            PythonExpression([
+                "'", robot_name, "' == 'da'"
+            ])
+        ),
     )
 
     # -------------------------
@@ -169,9 +180,6 @@ def generate_launch_description():
     # -------------------------
     # Diagnostics
     # -------------------------
-    # -------------------------
-    # Diagnostics
-    # -------------------------
     diagnostics = Node(
         package='j2cdynamics_diagnostics',
         executable='robot_stats_publisher',
@@ -182,16 +190,7 @@ def generate_launch_description():
     # -------------------------
     # Launch description
     # -------------------------
-    # -------------------------
-    # Launch description
-    # -------------------------
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'robot_name',
-            default_value='do',
-            description='Name of the robot (da or do)',
-        ),
-
         DeclareLaunchArgument(
             'robot_name',
             default_value='do',
@@ -202,11 +201,11 @@ def generate_launch_description():
         controller_manager_node,
         joy_mode_mapper,
 
-
         delayed_joint_state_spawner,
         delayed_diff_drive_spawner,
-        delayed_sweeper_spawner,
         delayed_duplo_counter_spawner,
+        delayed_sweeper_spawner,
+
         twist_mux,
         diagnostics,
     ])

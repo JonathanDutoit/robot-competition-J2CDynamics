@@ -8,9 +8,12 @@ controller_manager:
     diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
 
+    duplo_counter_controller:
+      type: forward_command_controller/ForwardCommandController
+
 diff_drive_controller:
   ros__parameters:
-    publish_rate: 50
+    publish_rate: 30.0
 
     # Joints
     left_wheel_names: ["left_wheel_joint"]
@@ -53,6 +56,12 @@ diff_drive_controller:
     angular.z.min_acceleration: -1.0
     angular.z.max_jerk: 0.0
     angular.z.min_jerk: 0.0
+
+duplo_counter_controller:
+  ros__parameters:
+    joints:
+      - duplo_counter
+    interface_name: position
 
 
 

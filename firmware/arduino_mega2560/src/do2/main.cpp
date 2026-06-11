@@ -16,9 +16,11 @@
 #include <common/data/robot_command.hpp>
 #include <common/data/robot_state.hpp>
 #include <do2/controllers/plate_controller.hpp>
+#include <do2/communication/reset_command_handler.hpp>
 
 // Global instances
 SweeperState sweeperState;
+SweeperMode previousMode = SweeperMode::Idle;
 RobotCommand cmd;
 RobotState robotState;
 uint8_t previousDuploCount = 0;
@@ -26,6 +28,7 @@ uint8_t previousDuploCount = 0;
 
 SerialBridge serialBridge(cmd, robotState);
 SweeperCommandHandler sweeperHandler(sweeperState);
+ResetCommandHandler resetHandler;
 
 EsconDriver leftMotor(PIN_LEFT_MAXON_PWM, PIN_LEFT_MAXON_EN, PIN_LEFT_MAXON_DIR, 
                         PIN_LEFT_MAXON_READY, PIN_LEFT_MAXON_SPEED_ANA, 
@@ -68,12 +71,16 @@ void setup()
   if (!serialBridge.registerHandler(&sweeperHandler)) {
     Serial.println("ERROR: Failed to register SWEEPER command handler");
   }
+  if (!serialBridge.registerHandler(&resetHandler)) {
+    Serial.println("ERROR: Failed to register RESET command handler");
+  }
 
   Serial.println("Robot initialized");
 }
 
 void loop()
 {
+  // Update tasks
   if (controlTask.ready()){
       driveController.update();
   }
@@ -101,4 +108,15 @@ void loop()
   }
 
   serialBridge.update();
+
+
+  // FSM logic
+  if (sweeperState.mode == SweeperMode::Dropoff &&
+    previousMode != SweeperMode::Dropoff) {
+    duploCounter.reset();
+  } else if (sweeperState.mode != SweeperMode::Dropoff &&
+    previousMode == SweeperMode::Dropoff) {
+    duploCounter.reset();
+  }
+  previousMode = sweeperState.mode;
 }

@@ -249,8 +249,8 @@ local_costmap:
   local_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency:   10.0    # Hz
-      publish_frequency:  5.0    # Hz
+      update_frequency:   30.0   # Hz
+      publish_frequency:  10.0 # Hz
       global_frame: odom
       robot_base_frame: base_link
       rolling_window: true

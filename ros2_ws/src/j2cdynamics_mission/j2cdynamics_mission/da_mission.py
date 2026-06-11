@@ -41,10 +41,17 @@ START_POSE            = (0.557, 0.626, 1.57)
 BUTTON_APPROACH       = (4.45, 7.40, 1.57)
 
 WAYPOINTS_ZONE_3 = '/maps/arena/waypoints_zone3.yaml'
-TIMEOUT_ZONE_3   = 200.0
+WAYPOINTS_ZONE_1 = '/maps/arena/waypoints_zone1_da.yaml'
+
+
+TIMEOUT_ZONE_3   = 240.0
+TIMEOUT_ZONE_1   = 200.0
 
 ZONE_3_TOTAL_DUPLOS = 6
 MAX_CAPACITY        = 5     # interrupt collection when tank hits this
+
+DOOR_MAX_ATTEMPTS  = 5       # full (approach + press) cycles before giving up
+DOOR_TIME_BUDGET_S = 150.0   # cap on total time in _step_open_door
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -107,13 +114,13 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
     # ── Step sequence ────────────────────────────────────────────────────────
 
     def _build_steps(self):
-        # Collapsed from 9 → 4. The fill/dropoff loop lives inside
-        # COLLECT_ZONE_3 so it can iterate naturally.
         return [
             ('SETUP',          self._step_setup),
             ('OPEN_DOOR',      self._step_open_door),
             ('COLLECT_ZONE_3', self._step_collect_zone_3),
-            ('FINAL_DROPOFF',  self._step_dropoff),
+            ('DROPOFF',  self._step_dropoff),
+            ('COLLECT_ZONE_1', self._step_collect_zone_1),
+            ('DROPOFF', self._step_dropoff)
         ]
 
     # ── Step implementations ─────────────────────────────────────────────────
@@ -139,28 +146,83 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
             self._step_dropoff()
 
     def _step_open_door(self) -> None:
-        """Press the button — but only the first time. Subsequent entries to
-        zone 3 (after a fill-up dropoff) skip this entirely."""
+        """Critical: open the door.Retries within a time budget, escalating
+        recovery between attempts.
+        Never raises except when abort_event fires (supervisor timeout / RESET).
+        On exhaustion, logs loud and returns; _step_collect_zone_3 will no-op and
+        the mission completes the FINAL_DROPOFF gracefully instead of crashing."""
         if self._door_opened:
             self.get_logger().info('door already open — skipping button press')
             return
 
-        self.set_sweeper_mode(SweeperMode.COLLECT)
-        # Drive to the button. If we somehow already have duplos, dump them.
-        while not self._go_to_with_recovery(
-                BUTTON_APPROACH, label='BUTTON_APPROACH', precise=True):
-            if self.get_duplo_count() > 0:
-                self._step_dropoff()
-            else:
-                self.go_to(self.BASE_POSE, precise=False, timeout_s=20)
+        t_start = time.time()
 
-        self.set_sweeper_mode(SweeperMode.IDLE)
-        if not self.push_button_and_wait_for_door():
-            self.get_logger().error('Aborting — could not open door')
-            raise MissionAbortException()
+        for attempt in range(1, DOOR_MAX_ATTEMPTS + 1):
+            # ONLY abort_event short-circuits us — supervisor (time-up) or RESET.
+            if self.abort_event.is_set():
+                raise MissionAbortException()
+            if time.time() - t_start > DOOR_TIME_BUDGET_S:
+                self.get_logger().error(
+                    f'door budget exceeded ({DOOR_TIME_BUDGET_S:.0f}s) after '
+                    f'{attempt - 1} attempts; continuing without door')
+                return
 
-        self._door_opened = True
-        self.get_logger().info('door opened — flag set for the rest of the mission')
+            self.get_logger().info(
+                f'═══ Open door, attempt {attempt}/{DOOR_MAX_ATTEMPTS} ═══')
+
+            # Phase A — reach button (escalating strategies inside).
+            if not self._reach_button_for_press():
+                self.get_logger().warn(
+                    f'door attempt {attempt}: could not reach button — recovery + retry')
+                self._run_recovery(f'open-door-reach-r{attempt}')
+                continue
+
+            # press cycle (internal 3-retry probe is in ButtonMixin).
+            # Sweeper IDLE so it doesn't drive into the button while we back into it.
+            self.set_sweeper_mode(SweeperMode.IDLE)
+            if self.push_button_and_wait_for_door():
+                self._door_opened = True
+                self.get_logger().info(f'door opened   (attempt {attempt}, 'f'{time.time() - t_start:.0f}s elapsed)')
+                return
+
+            
+            self.get_logger().warn(f'door attempt {attempt}: press cycle failed — recovery + re-approach')
+            self._run_recovery(f'open-door-press-r{attempt}')
+
+        self.get_logger().error(
+            f'COULD NOT OPEN DOOR after {DOOR_MAX_ATTEMPTS} attempts / '
+            f'{time.time() - t_start:.0f}s — zone 3 will be skipped. '
+            f'Operator: RESET to retry from this step.')
+
+    def _reach_button_for_press(self) -> bool:
+        """Drive to BUTTON_APPROACH with an escalating ladder of strategies.
+
+        Rung 1: precise heading, full 4-attempt recovery cascade.
+        Rung 2: if hopper near full, drop off then re-approach.
+        Rung 3: looser tolerance (general_goal_checker). The button press is
+                forgiving — we don't NEED 5cm precision to reach it.
+        Returns True on first success."""
+        # Rung 1
+        if self._go_to_with_recovery(BUTTON_APPROACH, label='BUTTON_APPROACH', precise=True):
+            return True
+
+        # Rung 2 — full hopper? Sometimes the dropoff motion frees up the approach.
+        if self.get_duplo_count() >= MAX_CAPACITY - 1:
+            self.get_logger().warn(
+                f'full tank ({self.get_duplo_count()}) — dumping before re-approach')
+            self._step_dropoff()
+            if self._go_to_with_recovery(
+                    BUTTON_APPROACH, label='BUTTON_APPROACH-postdump', precise=True):
+                return True
+
+        # Rung 3 — looser tolerance. The button-press dance has its own backoff +
+        # alignment; we don't need a precise nav goal here.
+        self.get_logger().warn('precise reach failed — trying with loose tolerance')
+        if self._go_to_with_recovery(
+                BUTTON_APPROACH, label='BUTTON_APPROACH-loose', precise=False):
+            return True
+
+        return False
 
     def _step_collect_zone_3(self) -> None:
         """Main objective loop:
@@ -171,6 +233,9 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
 
         Note that (a) does NOT re-push the button — _door_opened gated that.
         """
+        if not self._door_opened:
+            self.get_logger().warn('door never opened — skipping zone 3 collection')
+            return
         while self._zone3_remaining > 0:
             # (a) Door traverse — door is already open, this is just a Nav2 goal.
             if not self._go_to_with_recovery(
@@ -217,10 +282,33 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
                 return True
             return False
 
-        # NOTE: this requires explore_zone() in mission_duplo.py to accept a
-        # `stop_condition` callable that's polled between waypoints (and ideally
-        # during visual-servo handoffs). See the note below the file.
-        self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3')
+        self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3', stop_condition=stop_condition)
+
+        picked_up = max(0, self.get_duplo_count() - count_before)
+        # Clamp in case opportunistic pickups en route inflated the count.
+        picked_up = min(picked_up, self._zone3_remaining)
+        self._zone3_remaining -= picked_up
+
+        self.get_logger().info(
+            f'zone 3 pass: picked up {picked_up}, '
+            f'{self._zone3_remaining}/{ZONE_3_TOTAL_DUPLOS} remaining '
+            f'(tank: {self.get_duplo_count()}/{MAX_CAPACITY}, '
+            f'stopped_for_full={stopped_for_full[0]})')
+        return stopped_for_full[0]
+
+    def _step_collect_zone_1(self) -> None:
+        self.set_sweeper_mode(SweeperMode.COLLECT)
+        count_before = self.get_duplo_count()
+
+        # Stash hit in a mutable so the closure can flip it.
+        stopped_for_full = [False]
+        def condition() -> bool:
+            if self.get_duplo_count() >= MAX_CAPACITY:
+                stopped_for_full[0] = True
+                return True
+            return False
+
+        self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_3', stop_condition=condition)
 
         picked_up = max(0, self.get_duplo_count() - count_before)
         # Clamp in case opportunistic pickups en route inflated the count.

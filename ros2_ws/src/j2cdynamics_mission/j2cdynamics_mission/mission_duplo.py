@@ -233,19 +233,24 @@ class DuploMixin:
     # ── Generic waypoint exploration ────────────────────────────────────────
 
     def explore_zone(self, waypoints_file: str, duration_s: float,
-                     label: str = 'ZONE',
-                     opportunistic_collect: bool = True,
-                     max_node_retries: int = 1) -> None:
+                 label: str = 'ZONE',
+                 opportunistic_collect: bool = True,
+                 max_node_retries: int = 1,
+                 stop_condition = None
+                 ) -> bool:
         """Sparse waypoint exploration with per-waypoint sweep + collect.
 
-        At each waypoint:
-          1. Reachability gate (cheap planner check).
-          2. Navigate to it — opportunistic_collect lets visual servo pause
-             nav mid-transit to pick up duplos seen en route.
-          3. Sweep on arrival — rotate in steps, visual servo collects.
-          4. Clear costmaps before next nav (stale marks from rotation).
+        Args:
+        stop_condition: optional callable() -> bool. If provided and returns True,
+            exploration ends early. Checked at the top of each waypoint iteration
+            AND immediately after each sweep, so a condition that becomes true
+            mid-sweep is caught at the next boundary.
 
-        Waypoints visited in YAML order. Failure → skip after max_node_retries."""
+        Returns:
+        True  — stopped early because stop_condition fired.
+        False — natural completion (deadline elapsed, all waypoints visited, or
+                all remaining unreachable).
+        """
         with open(waypoints_file) as f:
             grid = list(yaml.safe_load(f)['waypoints'])
 
@@ -253,10 +258,27 @@ class DuploMixin:
         deadline = time.time() + duration_s
         idx = 0
 
+        def _stop():
+            """Wrap so a bad lambda can't kill the explorer."""
+            if stop_condition is None:
+                return False
+            try:
+                return bool(stop_condition())
+            except Exception as e:
+                self.get_logger().warn(f'{label}: stop_condition raised ({e}); ignoring')
+                return False
+
         self.get_logger().info(f'{label}: {len(grid)} waypoints, budget {duration_s:.0f}s')
         self._select_goal_checker('general_goal_checker')
 
         while rclpy.ok() and time.time() < deadline and idx < len(grid):
+            # Early-stop check — before reachability / nav / anything.
+            if _stop():
+                self.get_logger().info(
+                    f'{label}: stop_condition met before waypoint {idx + 1}/{len(grid)} — '
+                    f'ending early')
+                return True
+
             wp = grid[idx]
             k = node_key(wp)
 
@@ -302,8 +324,15 @@ class DuploMixin:
                 self._enable_collection(False)
             self.get_logger().info(f'{label}: {n_cycles} FSM cycle(s) at {k}')
 
+            # After-sweep check — catches "tank just filled this cycle".
+            if _stop():
+                self.get_logger().info(
+                    f'{label}: stop_condition met after sweep at {k} — ending early')
+                return True
+
             self._clear_costmaps(f'{label}-post-sweep')
 
         self.get_logger().info(
             f'{label}: ended  visited={idx} / {len(grid)}  '
             f'time_left={max(0.0, deadline - time.time()):.0f}s')
+        return False

@@ -1,17 +1,10 @@
 controller_manager:
   ros__parameters:
-    update_rate: 50.0
-controller_manager:
-  ros__parameters:
-    update_rate: 50.0
+    update_rate: 50
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
-    joint_state_broadcaster:
-      type: joint_state_broadcaster/JointStateBroadcaster
 
-    diff_drive_controller:
-      type: diff_drive_controller/DiffDriveController
     diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
 
@@ -23,7 +16,7 @@ controller_manager:
 
 diff_drive_controller:
   ros__parameters:
-    publish_rate: 50.0
+    publish_rate: 50
 
     # Joints
     left_wheel_names: ["left_wheel_joint"]
@@ -32,15 +25,7 @@ diff_drive_controller:
     # Kinematics
     wheel_separation: 0.4216
     wheel_radius: 0.0555
-    # Kinematics
-    wheel_separation: 0.4216
-    wheel_radius: 0.0555
-
-    # Odometry output
-    odom_frame_id: odom
-    base_frame_id: base_link
-    enable_odom_tf: true
-    use_stamped_vel: false
+  
     # Odometry output
     odom_frame_id: odom
     base_frame_id: base_link

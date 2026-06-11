@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 50.0
+    update_rate: 50
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -10,7 +10,7 @@ controller_manager:
 
 diff_drive_controller:
   ros__parameters:
-    publish_rate: 50.0
+    publish_rate: 50
 
     # Joints
     left_wheel_names: ["left_wheel_joint"]

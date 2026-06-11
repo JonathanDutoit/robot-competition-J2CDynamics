@@ -13,7 +13,7 @@ controller_manager:
 
 diff_drive_controller:
   ros__parameters:
-    publish_rate: 30.0
+    publish_rate: 50.0
 
     # Joints
     left_wheel_names: ["left_wheel_joint"]

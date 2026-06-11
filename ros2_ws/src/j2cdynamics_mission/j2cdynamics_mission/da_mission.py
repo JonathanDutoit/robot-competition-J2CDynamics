@@ -138,13 +138,6 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
         self._enable_collection(False)
         self.set_sweeper_mode(SweeperMode.IDLE)
 
-        # If we started carrying duplos (RESET mid-mission), dump them first
-        # so we don't press the button with a full hopper.
-        if self.get_duplo_count() > 0:
-            self.get_logger().info(
-                f'starting with {self.get_duplo_count()} duplos — dumping first')
-            self._step_dropoff()
-
     def _step_open_door(self) -> None:
         """Critical: open the door.Retries within a time budget, escalating
         recovery between attempts.
@@ -202,11 +195,11 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
         Rung 3: looser tolerance (general_goal_checker). The button press is
                 forgiving — we don't NEED 5cm precision to reach it.
         Returns True on first success."""
-        # Rung 1
+
+        self.set_sweeper_mode(SweeperMode.COLLECT)
         if self._go_to_with_recovery(BUTTON_APPROACH, label='BUTTON_APPROACH', precise=True):
             return True
 
-        # Rung 2 — full hopper? Sometimes the dropoff motion frees up the approach.
         if self.get_duplo_count() >= MAX_CAPACITY - 1:
             self.get_logger().warn(
                 f'full tank ({self.get_duplo_count()}) — dumping before re-approach')

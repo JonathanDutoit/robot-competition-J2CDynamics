@@ -31,7 +31,7 @@ BUTTON_ROTATE_TIME   = math.pi / BUTTON_ROTATE_SPEED   # = π s for 180°
 
 DOOR_DWELL_S         = 0.5     # how long we hold the button down
 DOOR_WAIT_S          = 3.0     # how long we wait after release before probing
-DOOR_PROBE_POSE      = (2.21, 7.60, 3.14)   # a point on the OTHER side of the door
+DOOR_PROBE_POSE      = (2.11, 7.70, 3.14)   # a point on the OTHER side of the door
 MAX_BUTTON_RETRIES   = 3
 
 

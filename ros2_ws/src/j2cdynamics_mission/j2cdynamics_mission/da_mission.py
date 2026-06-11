@@ -1,27 +1,8 @@
 """
-Duplo-Aspiration mission — step sequence + DA-only hardware (sweeper).
+Duplo-Aspiration mission — zone-3 focused.
 
-Shared infrastructure lives in mixin/base files:
-  mission_base.py    — nav primitives, recovery, dropoff, /mission_command lifecycle
-  mission_duplo.py   — visual-servo handoff, sweep, opportunistic collect, explore_zone
-  mission_button.py  — button press + door probe
-
-DA-specific (kept inline below since the sweeper is on this robot only):
-  • SweeperMode enum
-  • _on_joint_states / set_sweeper_mode / get_duplo_count / etc.
-  • _step_dropoff wrapper that toggles sweeper mode around MissionBase.dropoff()
-
-Sequence:
-    1.  SETUP                 — initial pose + Nav2, sweeper to IDLE
-    2.  DROPOFF_IF_CARRYING   — if duplo_counter > 0 (e.g. RESET mid-mission), dump first
-    3.  BUTTON_APPROACH       — Nav2 to button approach pose (critical, precise)
-    4.  PUSH_BUTTON           — open-loop press, retry-and-probe for door open
-    5.  DOOR_TRAVERSE         — Nav2 through the door (critical, precise)
-    6.  ZONE_3                — visual-servo collection behind the door
-    7.  RETURN_TO_BTN         — Nav2 back to button approach pose
-    8.  DROPOFF_1             — sweeper DROPOFF + reverse + IDLE
-    9.  ZONE_1                — visual-servo collection in the starting arena
-    10. DROPOFF_2             — final dropoff
+Objective: collect all 6 duplos in zone 3. Robot carries max 5, so expect at
+least one mid-mission dropoff and re-entry through the (already open) door.
 """
 
 import time
@@ -39,7 +20,6 @@ from j2cdynamics_mission.mission_duplo import DuploMixin
 from j2cdynamics_mission.mission_button import ButtonMixin, DOOR_PROBE_POSE
 
 
-# ── Sweeper FSM (mirrors enum in j2cdynamics_driver/src/joy_mode_mapper.cpp) ──
 class SweeperMode(IntEnum):
     IDLE    = 0
     COLLECT = 1
@@ -47,28 +27,24 @@ class SweeperMode(IntEnum):
     FAULT   = 3
 
 
-# Joint names exposed by the Arduino-bridged ros2_control hardware interface
-# (see da_description/urdf/da/gazebo_ros2_control.xacro).
 _SWEEPER_MODE_JOINT  = 'sweeper_mode'
 _DUPLO_COUNTER_JOINT = 'duplo_counter'
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-#  POSES & PATHS  (Duplo-Aspiration specific)
+#  POSES & MISSION CONSTANTS
 # ──────────────────────────────────────────────────────────────────────────────
 
 BASE_POSE             = (0.45, 0.45, 1.57)
-DROPFF_FIRST_WAYPOINT = (1.0, 0.45, 1.57)   # rough alignment waypoint
+DROPFF_FIRST_WAYPOINT = (1.0, 0.45, 1.57)
 START_POSE            = (0.557, 0.626, 1.57)
-# START_POSE          = (4.255, 5.228, 1.50)  # alt: start mid-arena for debugging
-
-BUTTON_APPROACH = (4.45, 7.40, 1.57)   # Nav2 stops here, precise heading
+BUTTON_APPROACH       = (4.45, 7.40, 1.57)
 
 WAYPOINTS_ZONE_3 = '/maps/arena/waypoints_zone3.yaml'
-WAYPOINTS_ZONE_1 = '/maps/arena/waypoints_zone1_da.yaml'
+TIMEOUT_ZONE_3   = 200.0
 
-TIMEOUT_ZONE_3 = 200.0
-TIMEOUT_ZONE_1 = 160.0
+ZONE_3_TOTAL_DUPLOS = 6
+MAX_CAPACITY        = 5     # interrupt collection when tank hits this
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -76,25 +52,21 @@ TIMEOUT_ZONE_1 = 160.0
 # ──────────────────────────────────────────────────────────────────────────────
 
 class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
-    """DA mission = visual-servo collection behind a button-controlled door."""
-
-    # Class attributes consumed by MissionBase.dropoff() and main_loop():
     BASE_POSE             = BASE_POSE
     DROPFF_FIRST_WAYPOINT = DROPFF_FIRST_WAYPOINT
     START_POSE            = START_POSE
     DROPOFF_SPEED         = -0.3
     DROPOFF_TIME          = 3.0
 
-    # ── Init: cooperative chain + DA-specific sweeper setup ─────────────────
-
     def __init__(self, *args, **kwargs):
-        # MUST forward via super() so DuploMixin / ButtonMixin / MissionBase
-        # __init__ chain runs and creates their pubs/subs.
         super().__init__(*args, **kwargs)
 
-        # Sweeper hardware state (None until first /joint_states arrives).
-        self._sweeper_mode = None    # SweeperMode | None
-        self._duplo_count  = 0       # int
+        self._sweeper_mode = None
+        self._duplo_count  = 0
+
+        # Persistent mission state — survives RESET (instance lives across resets).
+        self._door_opened     = False
+        self._zone3_remaining = ZONE_3_TOTAL_DUPLOS
 
         self._sweeper_pub = self.create_publisher(
             Float64MultiArray, '/sweeper_controller/commands', 10)
@@ -103,11 +75,9 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
         self.create_subscription(
             JointState, '/joint_states', self._on_joint_states, 10)
 
-    # ── Sweeper FSM + counter (DA hardware only) ─────────────────────────────
+    # ── Sweeper FSM + counter (unchanged) ────────────────────────────────────
 
     def _on_joint_states(self, msg: JointState) -> None:
-        """Pull our two joints by name. /joint_states arrives at ~50 Hz from
-        ros2_control; mutating self.* here is safe (single executor)."""
         for name, pos in zip(msg.name, msg.position):
             if name == _SWEEPER_MODE_JOINT:
                 try:
@@ -118,13 +88,10 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
                 self._duplo_count = int(round(pos))
 
     def set_sweeper_mode(self, mode: SweeperMode) -> None:
-        """Publish a new FSM target to the Arduino-bridged controller.
-        Idempotent — duplicate commands are echoed back via /joint_states either way."""
         self._sweeper_pub.publish(Float64MultiArray(data=[float(int(mode))]))
         self.get_logger().info(f'sweeper → {mode.name}')
 
     def request_duplo_count_refresh(self) -> None:
-        """Trigger the firmware to refresh the duplo counter (see joy_mode_mapper.cpp)."""
         self._duplo_count_pub.publish(Float64MultiArray(data=[1.0]))
 
     def get_sweeper_mode(self):
@@ -133,25 +100,23 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
     def get_duplo_count(self) -> int:
         return self._duplo_count
 
-    # ── Mission step sequence ────────────────────────────────────────────────
+    @property
+    def zone3_remaining(self) -> int:
+        return self._zone3_remaining
+
+    # ── Step sequence ────────────────────────────────────────────────────────
 
     def _build_steps(self):
-        """Step list driven by MissionBase.run(). On RESET, the same step is
-        re-tried; completed steps keep their _next_step advance."""
+        # Collapsed from 9 → 4. The fill/dropoff loop lives inside
+        # COLLECT_ZONE_3 so it can iterate naturally.
         return [
-            ('SETUP',               self._step_setup),
-            ('DROPOFF_IF_CARRYING', self._step_dropoff_if_carrying),
-            ('BUTTON_APPROACH',     self._step_button_approach),
-            ('PUSH_BUTTON',         self._step_push_button),
-            ('DOOR_TRAVERSE',       self._step_door_traverse),
-            ('ZONE_3',              self._step_zone_3),
-            ('RETURN_TO_BTN',       self._step_return_to_button),
-            ('DROPOFF_1',           self._step_dropoff),
-            ('ZONE_1',              self._step_zone_1),
-            ('DROPOFF_2',           self._step_dropoff),
+            ('SETUP',          self._step_setup),
+            ('OPEN_DOOR',      self._step_open_door),
+            ('COLLECT_ZONE_3', self._step_collect_zone_3),
+            ('FINAL_DROPOFF',  self._step_dropoff),
         ]
 
-    # ── Per-step helpers ─────────────────────────────────────────────────────
+    # ── Step implementations ─────────────────────────────────────────────────
 
     def _step_setup(self) -> None:
         self.setInitialPose(make_pose(*self.START_POSE))
@@ -166,62 +131,113 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
         self._enable_collection(False)
         self.set_sweeper_mode(SweeperMode.IDLE)
 
-    def _step_dropoff_if_carrying(self) -> None:
-        """No-op if empty. If RESET fired mid-mission (or the robot was started
-        with duplos already loaded), dump them before the button-press dance so
-        we don't try to press the button with a full hopper."""
-        n = self.get_duplo_count()
-        if n > 0:
-            self.get_logger().info(f'carrying {n} duplos at startup — dropping off first')
+        # If we started carrying duplos (RESET mid-mission), dump them first
+        # so we don't press the button with a full hopper.
+        if self.get_duplo_count() > 0:
+            self.get_logger().info(
+                f'starting with {self.get_duplo_count()} duplos — dumping first')
             self._step_dropoff()
-        else:
-            self.get_logger().info('starting empty — proceeding')
 
-    def _step_button_approach(self) -> None:
-        # COLLECT en route so the sweeper grabs anything spotted on the way.
+    def _step_open_door(self) -> None:
+        """Press the button — but only the first time. Subsequent entries to
+        zone 3 (after a fill-up dropoff) skip this entirely."""
+        if self._door_opened:
+            self.get_logger().info('door already open — skipping button press')
+            return
+
         self.set_sweeper_mode(SweeperMode.COLLECT)
-        if not self._go_to_with_recovery(
+        # Drive to the button. If we somehow already have duplos, dump them.
+        while not self._go_to_with_recovery(
                 BUTTON_APPROACH, label='BUTTON_APPROACH', precise=True):
-            self.get_logger().error('Aborting — could not reach button approach')
-            raise MissionAbortException()
+            if self.get_duplo_count() > 0:
+                self._step_dropoff()
+            else:
+                self.go_to(self.BASE_POSE, precise=False, timeout_s=20)
 
-    def _step_push_button(self) -> None:
-        # IDLE during the button press — don't want the sweeper running
-        # backwards into the button.
         self.set_sweeper_mode(SweeperMode.IDLE)
         if not self.push_button_and_wait_for_door():
             self.get_logger().error('Aborting — could not open door')
             raise MissionAbortException()
 
-    def _step_door_traverse(self) -> None:
-        if not self._go_to_with_recovery(
-                DOOR_PROBE_POSE, label='DOOR_TRAVERSE', precise=True):
-            self.get_logger().error('Aborting — could not traverse door')
-            raise MissionAbortException()
+        self._door_opened = True
+        self.get_logger().info('door opened — flag set for the rest of the mission')
 
-    def _step_zone_3(self) -> None:
+    def _step_collect_zone_3(self) -> None:
+        """Main objective loop:
+          (a) traverse the door into zone 3
+          (b) collect until tank hits MAX_CAPACITY or zone is exhausted
+          (c) if zone exhausted → done
+          (d) else → return to button approach, dropoff, go back to (a)
+
+        Note that (a) does NOT re-push the button — _door_opened gated that.
+        """
+        while self._zone3_remaining > 0:
+            # (a) Door traverse — door is already open, this is just a Nav2 goal.
+            if not self._go_to_with_recovery(
+                    DOOR_PROBE_POSE, label='DOOR_TRAVERSE', precise=True):
+                self.get_logger().error('could not traverse door')
+                raise MissionAbortException()
+
+            # (b) Collect with mid-zone tank-full interrupt.
+            stopped_for_full = self._collect_zone_3_pass()
+
+            # (c) Zone exhausted (  finished its waypoint list).
+            if not stopped_for_full:
+                self.get_logger().info(
+                    f'zone 3 exploration complete; assuming clear '
+                    f'(belief: {self._zone3_remaining} remaining)')
+                self._zone3_remaining = 0
+                break
+
+            if self._zone3_remaining == 0:
+                self.get_logger().info('zone 3 cleared!')
+                break
+
+            # (d) Tank full but duplos remain — return and dump.
+            self.get_logger().info(
+                f'tank full ({self.get_duplo_count()}), '
+                f'{self._zone3_remaining} duplos still in zone 3 — returning to dropoff')
+            self.set_sweeper_mode(SweeperMode.COLLECT)  # opportunistic en route
+            self.go_to(BUTTON_APPROACH, precise=True)
+            self._step_dropoff()
+            # loop continues; OPEN_DOOR is NOT re-run since we're inside one step
+
+    def _collect_zone_3_pass(self) -> bool:
+        """One pass through zone 3 waypoints. Returns True if we stopped because
+        the tank hit MAX_CAPACITY, False if explore_zone completed its waypoint
+        list (i.e. zone is effectively exhausted)."""
         self.set_sweeper_mode(SweeperMode.COLLECT)
+        count_before = self.get_duplo_count()
+
+        # Stash hit in a mutable so the closure can flip it.
+        stopped_for_full = [False]
+        def stop_condition() -> bool:
+            if self.get_duplo_count() >= MAX_CAPACITY:
+                stopped_for_full[0] = True
+                return True
+            return False
+
+        # NOTE: this requires explore_zone() in mission_duplo.py to accept a
+        # `stop_condition` callable that's polled between waypoints (and ideally
+        # during visual-servo handoffs). See the note below the file.
         self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3')
-        self.get_logger().info(f'count after ZONE_3: {self.get_duplo_count()}')
 
-    def _step_return_to_button(self) -> None:
-        # Stay in COLLECT during the return — opportunistic pickups en route.
-        self.set_sweeper_mode(SweeperMode.COLLECT)
-        self.go_to(BUTTON_APPROACH, precise=True)
+        picked_up = max(0, self.get_duplo_count() - count_before)
+        # Clamp in case opportunistic pickups en route inflated the count.
+        picked_up = min(picked_up, self._zone3_remaining)
+        self._zone3_remaining -= picked_up
 
-    def _step_zone_1(self) -> None:
-        self.set_sweeper_mode(SweeperMode.COLLECT)
-        self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_1')
-        self.get_logger().info(f'count after ZONE_1: {self.get_duplo_count()}')
+        self.get_logger().info(
+            f'zone 3 pass: picked up {picked_up}, '
+            f'{self._zone3_remaining}/{ZONE_3_TOTAL_DUPLOS} remaining '
+            f'(tank: {self.get_duplo_count()}/{MAX_CAPACITY}, '
+            f'stopped_for_full={stopped_for_full[0]})')
+        return stopped_for_full[0]
 
     def _step_dropoff(self) -> None:
-        """The canonical dropoff for this mission: nav to base, toggle sweeper
-        into DROPOFF for the reverse motion, then back to IDLE. Use this
-        everywhere instead of bare self.dropoff() so the firmware always knows
-        when to dump."""
         n_before = self.get_duplo_count()
         self.set_sweeper_mode(SweeperMode.DROPOFF)
-        self.dropoff()                       # nav to base + open-loop reverse
+        self.dropoff()
         self.set_sweeper_mode(SweeperMode.IDLE)
         n_after = self.get_duplo_count()
         msg = f'dropoff complete: count {n_before} → {n_after}'

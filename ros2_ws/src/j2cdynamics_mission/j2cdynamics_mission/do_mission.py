@@ -75,12 +75,12 @@ class DoMissionRunner(DuploMixin, RampMixin, MissionBase):
         (e.g. back at START_POSE if SETUP needs to re-seed AMCL)."""
         return [
             ('SETUP',          self._step_setup),
-            #('ZONE_1',         self._step_zone_1),
-            #('DROPOFF_1',      self.dropoff),
+            ('ZONE_1',         self._step_zone_1),
+            ('DROPOFF_1',      self.dropoff),
             ('RAMP_APPROACH',  self._step_ramp_approach),
             ('RAMP_CLIMB',     self.go_up_ramp),
-            ('RAMP_TOP_RESEED', self._step_ramp_top_reseed),
             ('ZONE_4',         self._step_zone_4),
+            ('RAMP_TOP_RESEED', self._step_ramp_top_reseed),
             ('RAMP_EXIT',      self._step_ramp_exit),
             ('DOWN_RAMP',      self.go_down_ramp),
             ('SAFE_POINT',     self.go_to((7.95, 4.0, 0.02), precise=False)),

@@ -225,40 +225,51 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
           (d) else → return to button approach, dropoff, go back to (a)
 
         Note that (a) does NOT re-push the button — _door_opened gated that.
+        On every exit path (success, exhausted, tank-full, traverse fail) we
+        route via BUTTON_APPROACH so the follow-on DROPOFF step doesn't have to
+        plan from deep inside zone 3.
         """
         if not self._door_opened:
             self.get_logger().warn('door never opened — skipping zone 3 collection')
             return
-        while self._zone3_remaining > 0:
-            # (a) Door traverse — door is already open, this is just a Nav2 goal.
-            if not self._go_to_with_recovery(
-                    DOOR_PROBE_POSE, label='DOOR_TRAVERSE', precise=True):
-                self.get_logger().error('could not traverse door')
-                raise MissionAbortException()
+        try:
+            while self._zone3_remaining > 0:
+                # (a) Door traverse — door is already open, this is just a Nav2 goal.
+                if not self._go_to_with_recovery(
+                        DOOR_PROBE_POSE, label='DOOR_TRAVERSE', precise=True):
+                    self.get_logger().error('could not traverse door')
+                    raise MissionAbortException()
 
-            # (b) Collect with mid-zone tank-full interrupt.
-            stopped_for_full = self._collect_zone_3_pass()
+                # (b) Collect with mid-zone tank-full interrupt.
+                stopped_for_full = self._collect_zone_3_pass()
 
-            # (c) Zone exhausted (  finished its waypoint list).
-            if not stopped_for_full:
+                # (c) Zone exhausted (  finished its waypoint list).
+                if not stopped_for_full:
+                    self.get_logger().info(
+                        f'zone 3 exploration complete; assuming clear '
+                        f'(belief: {self._zone3_remaining} remaining)')
+                    self._zone3_remaining = 0
+                    break
+
+                if self._zone3_remaining == 0:
+                    self.get_logger().info('zone 3 cleared!')
+                    break
+
+                # (d) Tank full but duplos remain — return and dump.
                 self.get_logger().info(
-                    f'zone 3 exploration complete; assuming clear '
-                    f'(belief: {self._zone3_remaining} remaining)')
-                self._zone3_remaining = 0
-                break
-
-            if self._zone3_remaining == 0:
-                self.get_logger().info('zone 3 cleared!')
-                break
-
-            # (d) Tank full but duplos remain — return and dump.
-            self.get_logger().info(
-                f'tank full ({self.get_duplo_count()}), '
-                f'{self._zone3_remaining} duplos still in zone 3 — returning to dropoff')
-            self.set_sweeper_mode(SweeperMode.COLLECT)  # opportunistic en route
-            self.go_to(BUTTON_APPROACH, precise=True)
-            self._step_dropoff()
-            # loop continues; OPEN_DOOR is NOT re-run since we're inside one step
+                    f'tank full ({self.get_duplo_count()}), '
+                    f'{self._zone3_remaining} duplos still in zone 3 — returning to dropoff')
+                self.set_sweeper_mode(SweeperMode.COLLECT)  # opportunistic en route
+                self._go_to_with_recovery(
+                    BUTTON_APPROACH, label='BUTTON_APPROACH-predump', precise=True)
+                self._step_dropoff()
+                # loop continues; OPEN_DOOR is NOT re-run since we're inside one step
+        finally:
+            if not self.abort_event.is_set():
+                self.get_logger().info('zone 3 exit: routing via BUTTON_APPROACH')
+                self.set_sweeper_mode(SweeperMode.COLLECT)
+                self._go_to_with_recovery(
+                    BUTTON_APPROACH, label='BUTTON_APPROACH-exit', precise=True)
 
     def _collect_zone_3_pass(self) -> bool:
         """One pass through zone 3 waypoints. Returns True if we stopped because

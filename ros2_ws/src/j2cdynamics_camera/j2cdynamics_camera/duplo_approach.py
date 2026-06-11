@@ -63,9 +63,12 @@ CONTROL_HZ          = 10.0
 # inflated (robot footprint would touch). Lower thresholds catch soft inflation
 # and stop the robot well before the wall, which was preventing pickups of
 # wall-near duplos. 99 = "stop only when about to actually intersect something".
-SAFETY_LOOKAHEAD_M_GLOBAL = [0.05, 0.50]
+SAFETY_LOOKAHEAD_M_GLOBAL = [0.05, 0.25, 0.50]  # added 0.25 mid-range to catch walls earlier
 SAFETY_LOOKAHEAD_M_LOCAL  = [0.05, 0.25]        # m ahead of base_link; shorter = less cautious near walls
-SAFETY_THRESHOLD    = 99                  # 100=lethal/keepout, 99=inscribed (footprint touches)
+SAFETY_THRESHOLD    = 90                  # was 99 (inscribed). 90 catches deep inflation
+                                          # ~5cm before the footprint actually intersects, which
+                                          # keeps wall-near pickups feasible (visual servo steers
+                                          # tangentially) without grazing the wall in practice.
 SAFETY_BASE_FRAME   = 'base_link'
 
 # ── Reachability filter (don't even target unreachable duplos) ───────────────
@@ -360,9 +363,11 @@ class DuploApproach(Node):
     
     def _forward_blocked(self) -> bool:
         return (self._costmap_blocked(self._global_map, self._global_data,
-                                   self._global_frame, SAFETY_LOOKAHEAD_M_GLOBAL, threshold=99)
+                                   self._global_frame, SAFETY_LOOKAHEAD_M_GLOBAL,
+                                   threshold=SAFETY_THRESHOLD)
          or self._costmap_blocked(self._local_map,  self._local_data,
-                                   self._local_frame, SAFETY_LOOKAHEAD_M_LOCAL, threshold=60))
+                                   self._local_frame, SAFETY_LOOKAHEAD_M_LOCAL,
+                                   threshold=60))
     # Detection selection
     def find_best_duplo(self, msg):
         """Pick the highest-confidence duplo bbox that ground-projects to a

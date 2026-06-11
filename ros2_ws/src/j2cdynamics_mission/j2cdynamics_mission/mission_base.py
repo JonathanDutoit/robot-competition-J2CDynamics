@@ -67,9 +67,10 @@ CRITICAL_NAV_ATTEMPTS     = 4      # max retries for go_to_with_recovery
 # robot is stuck (BT churn, costmap blocked by duplos visible in scan, etc.).
 # Cancel the goal + run a stronger recovery (clear costmaps + backup + spin)
 # and return failure so the caller can move on.
-STUCK_TIMEOUT_S    = 8.0
-STUCK_MOTION_M     = 0.05      # m; below this counts as "didn't move"
-STUCK_SPIN_RAD     = 1.0       # rad spin during deblock to rebuild local costmap
+STUCK_TIMEOUT_S    = 6.0       # was 8 — fire sooner so we recover faster
+STUCK_MOTION_M     = 0.08      # was 0.05 — slightly wider so micro-oscillations don't reset
+STUCK_SPIN_RAD     = math.pi   # 180° per spin (was 1.0 rad) — actually rebuilds local view
+STUCK_DEBLOCK_SPINS = 2        # do 2 × 180° = full revolution for the deblock
 
 # Mission lifecycle
 MISSION_TIMEOUT       = 600.0   # total mission budget (seconds)
@@ -369,8 +370,9 @@ class MissionBase(BasicNavigator):
 
     def _deblock(self, label: str = 'deblock') -> None:
         """Heavier recovery used when stuck-detection fires: cancel active task,
-        clear costmaps, backup, then spin to rebuild the local costmap from a
-        new angle. Best-effort, all wrapped in try/except."""
+        clear costmaps, backup, then spin enough to fully rebuild the local
+        costmap from new angles. STUCK_DEBLOCK_SPINS × STUCK_SPIN_RAD should
+        sum to ≥ 2π so we see every direction. Best-effort, wrapped in try/except."""
         try:
             self.cancelTask()
         except Exception:
@@ -378,17 +380,22 @@ class MissionBase(BasicNavigator):
         self._run_recovery(label)
         if self.abort_event.is_set():
             return
-        try:
-            self.get_logger().info(f'{label}: spin {STUCK_SPIN_RAD:.2f} rad')
-            self.spin(spin_dist=STUCK_SPIN_RAD,
-                      time_allowance=int(RECOVERY_TIMEOUT_S))
-            t0 = time.time()
-            while not self.isTaskComplete():
-                if time.time() - t0 > RECOVERY_TIMEOUT_S:
-                    self.cancelTask()
-                    break
-        except Exception as e:
-            self.get_logger().warn(f'{label}: spin failed ({e})')
+        for i in range(STUCK_DEBLOCK_SPINS):
+            if self.abort_event.is_set():
+                return
+            try:
+                self.get_logger().info(
+                    f'{label}: spin {STUCK_SPIN_RAD:.2f} rad ({i + 1}/{STUCK_DEBLOCK_SPINS})')
+                self.spin(spin_dist=STUCK_SPIN_RAD,
+                          time_allowance=int(RECOVERY_TIMEOUT_S))
+                t0 = time.time()
+                while not self.isTaskComplete():
+                    if time.time() - t0 > RECOVERY_TIMEOUT_S:
+                        self.cancelTask()
+                        break
+            except Exception as e:
+                self.get_logger().warn(f'{label}: spin failed ({e})')
+                break   # don't loop on a broken behavior_server
 
     def _go_to_with_recovery(self, pose_tuple, label: str,
                              max_attempts: int = CRITICAL_NAV_ATTEMPTS,

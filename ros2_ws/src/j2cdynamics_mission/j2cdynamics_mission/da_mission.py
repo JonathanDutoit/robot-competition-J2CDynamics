@@ -267,18 +267,13 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
         self.set_sweeper_mode(SweeperMode.COLLECT)
         count_before = self.get_duplo_count()
 
-        # Stash hit in a mutable so the closure can flip it.
         stopped_for_full = [False]
-        def stop_condition() -> bool:
-            if self.get_duplo_count() >= MAX_CAPACITY:
-                stopped_for_full[0] = True
-                return True
-            return False
+        stop_condition = self._make_full_stop(stopped_for_full)
 
-        self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3', stop_condition=stop_condition)
+        self.explore_zone(WAYPOINTS_ZONE_3, TIMEOUT_ZONE_3, label='ZONE_3',
+                          stop_condition=stop_condition)
 
         picked_up = max(0, self.get_duplo_count() - count_before)
-        # Clamp in case opportunistic pickups en route inflated the count.
         picked_up = min(picked_up, self._zone3_remaining)
         self._zone3_remaining -= picked_up
 
@@ -289,19 +284,35 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
             f'stopped_for_full={stopped_for_full[0]})')
         return stopped_for_full[0]
 
+    def _make_full_stop(self, stopped_box):
+        """Build a stop_condition closure for explore_zone that:
+          • forces a firmware count refresh before reading (the joint_state value
+            may lag — without a refresh we can trip on a stale read),
+          • logs LOUD when it fires so the trigger is never 'random' in the logs,
+          • sets stopped_box[0]=True so the caller can branch on the outcome.
+        stopped_box is a mutable list so the closure can mutate from outside scope."""
+        def _stop():
+            self.request_duplo_count_refresh()
+            # Let the JointState callback receive the refreshed value before reading.
+            rclpy.spin_once(self, timeout_sec=0.05)
+            n = self.get_duplo_count()
+            if n >= MAX_CAPACITY:
+                self.get_logger().warn(
+                    f'TANK FULL ({n}/{MAX_CAPACITY}) — interrupting zone for dropoff')
+                stopped_box[0] = True
+                return True
+            return False
+        return _stop
+
     def _step_collect_zone_1(self) -> None:
         self.set_sweeper_mode(SweeperMode.COLLECT)
         count_before = self.get_duplo_count()
 
-        # Stash hit in a mutable so the closure can flip it.
         stopped_for_full = [False]
-        def condition() -> bool:
-            if self.get_duplo_count() >= MAX_CAPACITY:
-                stopped_for_full[0] = True
-                return True
-            return False
+        condition = self._make_full_stop(stopped_for_full)
 
-        self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_3', stop_condition=condition)
+        self.explore_zone(WAYPOINTS_ZONE_1, TIMEOUT_ZONE_1, label='ZONE_3',
+                          stop_condition=condition)
 
         picked_up = max(0, self.get_duplo_count() - count_before)
         # Clamp in case opportunistic pickups en route inflated the count.

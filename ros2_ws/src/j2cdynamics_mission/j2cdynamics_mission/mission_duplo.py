@@ -232,6 +232,25 @@ class DuploMixin:
 
     # ── Generic waypoint exploration ────────────────────────────────────────
 
+    def _waypoint_wakeup(self, label: str = 'wakeup') -> None:
+        """Lighter than _deblock: clear costmaps + 90° spin to rebuild local
+        view. Used at waypoint boundaries in explore_zone — Nav2 often gives
+        up 'between obstacles' because its local view is stale, and a single
+        spin makes the next waypoint attempt succeed."""
+        self._clear_costmaps(label)
+        if self.abort_event.is_set():
+            return
+        try:
+            self.get_logger().info(f'{label}: spin 90°')
+            self.spin(spin_dist=math.pi / 2, time_allowance=6)
+            t0 = time.time()
+            while not self.isTaskComplete():
+                if time.time() - t0 > 6:
+                    self.cancelTask()
+                    break
+        except Exception as e:
+            self.get_logger().warn(f'{label}: spin failed ({e})')
+
     def explore_zone(self, waypoints_file: str, duration_s: float,
                  label: str = 'ZONE',
                  opportunistic_collect: bool = True,
@@ -286,6 +305,9 @@ class DuploMixin:
                 failed[k] = failed.get(k, 0) + 1
                 self.get_logger().warn(
                     f'{label}: {k} unreachable ({failed[k]}/{max_node_retries})')
+                # Wake up before deciding to retry or skip — stale local costmap
+                # is a common cause of "planner can't find a path from here".
+                self._waypoint_wakeup(label=f'{label}-wakeup-unreach')
                 if failed[k] >= max_node_retries:
                     self.get_logger().warn(
                         f'{label}: skipping {k} after {max_node_retries} attempts')
@@ -308,6 +330,9 @@ class DuploMixin:
                 failed[k] = failed.get(k, 0) + 1
                 self.get_logger().warn(
                     f'{label}: {k} nav failed ({failed[k]}/{max_node_retries})')
+                # Wake up so the NEXT waypoint (whether retry or skip) sees a
+                # fresh local costmap and the planner has a clean view.
+                self._waypoint_wakeup(label=f'{label}-wakeup-nav')
                 if failed[k] >= max_node_retries:
                     self.get_logger().warn(
                         f'{label}: skipping {k} after {max_node_retries} attempts')

@@ -57,7 +57,7 @@ PLAN_TIMEOUT_S     = 8.0
 
 # Nav2 recovery (clear costmaps + back up via behavior_server)
 RECOVERY_FAILURE_STREAK   = 3      # consecutive go_to failures → auto recovery
-RECOVERY_BACKUP_DIST_M    = 0.15
+RECOVERY_BACKUP_DIST_M    = 0.20
 RECOVERY_BACKUP_SPEED_M_S = 0.10
 RECOVERY_TIMEOUT_S        = 10.0
 CRITICAL_NAV_ATTEMPTS     = 4      # max retries for go_to_with_recovery
@@ -319,12 +319,23 @@ class MissionBase(BasicNavigator):
         return bool(result and result.path.poses)
 
     # ── Nav2 recovery ───────────────────────────────────────────────────────
+    def _drain_pending_task(self, timeout_s: float = 1.0) -> None:
+        """After cancelTask(), wait for the previous goal to actually terminate
+        so the next behavior_server action gets a clean slate."""
+        t0 = time.time()
+        while not self.isTaskComplete():
+            if time.time() - t0 > timeout_s:
+                break
+            time.sleep(0.05)
+        time.sleep(0.1)  # let BasicNavigator's internal state settle
 
     def _run_recovery(self, label: str = 'recovery') -> None:
         """Best-effort Nav2 recovery: clear both costmaps + small backup via the
         behavior server. Each step is wrapped in try/except."""
         if self.abort_event.is_set():
             return
+
+        self._drain_pending_task()
         try:
             self.get_logger().info(f'{label}: clearAllCostmaps')
             self.clearAllCostmaps()
@@ -337,9 +348,7 @@ class MissionBase(BasicNavigator):
             self.get_logger().info(
                 f'{label}: backup {RECOVERY_BACKUP_DIST_M}m '
                 f'@ {RECOVERY_BACKUP_SPEED_M_S}m/s')
-            self.backup(backup_dist=RECOVERY_BACKUP_DIST_M,
-                        backup_speed=RECOVERY_BACKUP_SPEED_M_S,
-                        time_allowance=int(RECOVERY_TIMEOUT_S))
+            self._open_loop_rotate(RECOVERY_BACKUP_DIST_M, RECOVERY_BACKUP_SPEED_M_S)
             t0 = time.time()
             while not self.isTaskComplete():
                 if time.time() - t0 > RECOVERY_TIMEOUT_S:
@@ -377,6 +386,7 @@ class MissionBase(BasicNavigator):
             self.cancelTask()
         except Exception:
             pass
+        self._drain_pending_task()
         self._run_recovery(label)
         if self.abort_event.is_set():
             return

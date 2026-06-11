@@ -135,7 +135,7 @@ REACQUIRE_ROTATE_RATE   = 0.4   # rad/s; in-place sweep toward last bearing whil
 #   by = 0.30 → ~0.70 m
 #   by = 0.10 → ~1.20 m
 _BY_DIST_REF = [
-    (1.00, 0.05),
+    (1.00, 0.10),
     (0.75, 0.15),
     (0.50, 0.40),
     (0.30, 0.75),

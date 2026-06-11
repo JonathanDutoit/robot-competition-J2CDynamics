@@ -50,7 +50,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('calibration_file', default_value='camera_calibration_do.yaml', description='Camera calibration file'),
         camera_node,
-        duplo_map,
-        ground_projection,
+        #duplo_map,
+        #ground_projection,
         duplo_approach,
     ])

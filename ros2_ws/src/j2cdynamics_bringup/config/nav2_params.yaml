@@ -78,7 +78,7 @@ controller_server:
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
-    failure_tolerance: 1.5
+    failure_tolerance: 0.3
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker", "precise_goal_checker"]
     controller_plugins: ["FollowPath"]
@@ -102,7 +102,7 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
       xy_goal_tolerance: 0.15
-      yaw_goal_tolerance: 0.25   # ~5.7° — tune vs. the 2 cm ramp margin
+      yaw_goal_tolerance: 0.15   # ~5.7° — tune vs. the 2 cm ramp margin
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
@@ -128,12 +128,12 @@ controller_server:
       vx_samples:    20
       vy_samples:    1
       vtheta_samples: 20
-      sim_time:       1.7            # s — how far ahead to simulate trajectories
+      sim_time:       1.2           # s — how far ahead to simulate trajectories
       linear_granularity:  0.05
       angular_granularity: 0.025
-      transform_tolerance: 0.3
+      transform_tolerance: 0.2
       xy_goal_tolerance: 0.15
-      trans_stopped_velocity: 0.25
+      trans_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: true
       stateful: true
 
@@ -147,11 +147,11 @@ controller_server:
         - PathDist
         - GoalDist
 
-      BaseObstacle.scale:  0.5
+      BaseObstacle.scale:  0.02
       PathAlign.scale:     32.0
-      PathAlign.forward_point_distance: 0.1
+      PathAlign.forward_point_distance: 0.3
       GoalAlign.scale:     20.0
-      GoalAlign.forward_point_distance: 0.1
+      GoalAlign.forward_point_distance: 0.3
       PathDist.scale:      32.0
       GoalDist.scale:      24.0
       RotateToGoal.scale:  10.0
@@ -176,7 +176,7 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"  # A* / Dijkstra global planner
-      tolerance: 0.25        # m — how close to the goal the plan needs to get
+      tolerance: 0.45        # m — how close to the goal the plan needs to get
       use_astar: true       # false = Dijkstra
       allow_unknown: true   # allow planning through unexplored space
 
@@ -234,6 +234,7 @@ velocity_smoother:
     use_sim_time: false
     smoothing_frequency: 20.0
     scale_velocities: false
+    #feedback: "OPEN_LOOP"
     feedback: "CLOSED_LOOP"
     max_velocity:     [ 0.30,  0.0,  0.85]   # [vx, vy, vtheta]  (match DWB max_vel_x)
     min_velocity:     [-0.30,  0.0, -0.85]
@@ -249,8 +250,8 @@ local_costmap:
   local_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency:   30.0   # Hz
-      publish_frequency:  10.0 # Hz
+      update_frequency:   10.0    # Hz
+      publish_frequency:  5.0    # Hz
       global_frame: odom
       robot_base_frame: base_link
       rolling_window: true
@@ -264,8 +265,8 @@ local_costmap:
         - inflation_layer
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 5.0
-        inflation_radius: 0.235   # m - 23 robot radius + 2cm margin that sums to 50cm
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.245   # m - 23 robot radius + 2cm margin that sums to 50cm
       filters: ["keepout_filter"]
       keepout_filter:
         plugin: "nav2_costmap_2d::KeepoutFilter"
@@ -298,8 +299,8 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency:   1.0
-      publish_frequency:  1.0
+      update_frequency:   1.0    # Hz — global map updates slowly
+      publish_frequency:  1.0    # Hz
       global_frame: map
       robot_base_frame: base_link
       footprint: "[[0.200,  0.215], [ 0.200, -0.215], [-0.200, -0.215], [-0.200,  0.215]]"
@@ -313,16 +314,17 @@ global_costmap:
         map_subscribe_transient_local: true
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0         # was 1.0 — steeper decay; less smeared inflation near walls
-        inflation_radius: 0.235
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.245   # m - 23 robot radius + 2cm margin that sums to 50cm
+      # Keepout zones — danger areas painted black into map_keepout.pgm. Fed by
+      # filter_mask_server + costmap_filter_info_server (launched in localization
+      # mode). With the default all-free mask this adds zero cost.
       filters: ["keepout_filter"]
       keepout_filter:
         plugin: "nav2_costmap_2d::KeepoutFilter"
         enabled: true
         filter_info_topic: "/costmap_filter_info"
       always_send_full_costmap: true
-
-
 
 # ── Localization & keepout servers ────────────────────────────────────────────
 # AMCL + map_server now run as their own launch nodes (see amcl.yaml and

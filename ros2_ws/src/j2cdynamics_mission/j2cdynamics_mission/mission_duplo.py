@@ -253,7 +253,7 @@ class DuploMixin:
 
     def explore_zone(self, waypoints_file: str, duration_s: float,
                  label: str = 'ZONE',
-                 opportunistic_collect: bool = True,
+                 opportunistic_collect: bool = False,
                  max_node_retries: int = 1,
                  stop_condition = None
                  ) -> bool:

@@ -35,7 +35,7 @@ _DUPLO_COUNTER_JOINT = 'duplo_counter'
 #  POSES & MISSION CONSTANTS
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_POSE             = (0.45, 0.45, 1.57)
+BASE_POSE             = (0.45, 0.45, -1.57)
 DROPFF_FIRST_WAYPOINT = (1.0, 0.45, 1.57)
 START_POSE            = (0.557, 0.626, 1.57)
 BUTTON_APPROACH       = (4.45, 7.40, 1.57)
@@ -328,14 +328,29 @@ class DaMissionRunner(DuploMixin, ButtonMixin, MissionBase):
 
     def _step_dropoff(self) -> None:
         n_before = self.get_duplo_count()
-        self.set_sweeper_mode(SweeperMode.DROPOFF)
-        self.dropoff()
+        self._self_dropoff()
+        time.sleep(60)
         self.set_sweeper_mode(SweeperMode.IDLE)
         n_after = self.get_duplo_count()
         msg = f'dropoff complete: count {n_before} → {n_after}'
         if n_before > 0 and n_after == n_before:
             msg += ' (no change — check hardware!)'
         self.get_logger().info(msg)
+
+    def _self_dropoff(self) -> None: 
+        # Base pose with recovery+retry.
+        base_ok = self.go_to(self.BASE_POSE, precise=False, timeout_s=20)
+        if not base_ok:
+            self.get_logger().warn('dropoff: BASE_POSE attempt 1 failed — running recovery')
+            self._run_recovery('dropoff-recovery')
+            base_ok = self.go_to(self.BASE_POSE, precise=False, timeout_s=20)
+
+        if not base_ok:
+            self.get_logger().error(
+                'dropoff: Nav2 could not reach BASE_POSE after recovery — '
+                'performing reverse from current pose (deposit may be incomplete)')
+
+        self.set_sweeper_mode(SweeperMode.DROPOFF)
 
 
 def main() -> None:

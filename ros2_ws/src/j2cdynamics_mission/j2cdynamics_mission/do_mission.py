@@ -38,9 +38,10 @@ DROPFF_FIRST_WAYPOINT = (1.5, 0.4, 3.14)
 START_POSE            = (1.25, 0.4, 0.02)
 # START_POSE          = (8.38, 5.88, 1.50)  # alt: start at ramp top for debugging
 
-RAMP_APPROACH = (8.0, 4.0, 0.02)
-RAMP_TOP      = (8.22, 5.88, 1.50)
-RAMP_EXIT     = (8.0, 6.0, -1.50)
+RAMP_APPROACH     = (7.95, 4.0, 0.02)
+RAMP_TOP          = (8.17, 5.88, 1.50)
+RAMP_EXIT_FIRST   = (8.30, 6.25, 0.0)
+RAMP_EXIT_SECOND  = (8.30, 6.25, 3.25)
 
 WAYPOINTS_ZONE_1 = '/maps/arena/waypoints_zone1_do.yaml'
 WAYPOINTS_ZONE_4 = '/maps/arena/waypoints_zone4.yaml'
@@ -74,13 +75,18 @@ class DoMissionRunner(DuploMixin, RampMixin, MissionBase):
         (e.g. back at START_POSE if SETUP needs to re-seed AMCL)."""
         return [
             ('SETUP',          self._step_setup),
-            ('ZONE_1',         self._step_zone_1),
-            ('DROPOFF_1',      self.dropoff),
+            #('ZONE_1',         self._step_zone_1),
+            #('DROPOFF_1',      self.dropoff),
             ('RAMP_APPROACH',  self._step_ramp_approach),
             ('RAMP_CLIMB',     self.go_up_ramp),
             ('RAMP_TOP_RESEED', self._step_ramp_top_reseed),
             ('ZONE_4',         self._step_zone_4),
             ('RAMP_EXIT',      self._step_ramp_exit),
+            ('DOWN_RAMP',      self.go_down_ramp),
+            ('SAFE_POINT',     self.go_to((7.95, 4.0, 0.02), precise=False)),
+            #('ESTIMATE_POSITION', self._ramp_down_pose_estimate),
+            ('DROPOFF_2',       self.dropoff),
+            ('ZONE_1_SECOND', self._step_zone_1),
         ]
 
     # ── Per-step helpers ─────────────────────────────────────────────────────
@@ -115,8 +121,13 @@ class DoMissionRunner(DuploMixin, RampMixin, MissionBase):
         self.explore_zone(WAYPOINTS_ZONE_4, TIMEOUT_ZONE_4, label='ZONE_4')
 
     def _step_ramp_exit(self) -> None:
-        self.go_to(RAMP_EXIT, precise=True)
+        self._go_to_with_recovery(RAMP_EXIT_FIRST, label="RAMP FIRST WAYPOINT", precise=False)
+        if not self._go_to_with_recovery(RAMP_EXIT_SECOND, label="RAMP EXIT", precise=True):
+            self.get_logger().error(f'RAMP DOWN {RAMP_EXIT_SECOND} failed after all attempts')
+            raise MissionAbortException()
 
+    def _ramp_down_pose_estimate(self) -> None:
+        self.setInitialPose(make_pose(*RAMP_APPROACH))
 
 def main() -> None:
     rclpy.init()

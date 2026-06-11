@@ -2,17 +2,22 @@ _comment: coverage grid half=left spacing=0.5 arena=7.77x7.73m start_corner=(0.1
 waypoints:
 
 # right corner
-- - 8.48
-  - 7.36
+- - 8.16
+  - 6.79
   - 3.14
 
-# Idk
-- - 7.14
-  - 6.54
-  - 0.02
+# left corner
+- - 7.44
+  - 7.26
+  - -1.57
 
 # Idk
 - - 6.79
   - 5.98
   - -1.57
+
+
+
+
+
  

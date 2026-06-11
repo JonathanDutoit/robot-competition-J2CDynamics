@@ -30,6 +30,9 @@ RAMP_TIME            = 6.5            # s   — climb duration
 RAMP_DOWN_SPEED      = 0.10           # m/s — descent (positive; sign set at call site)
 RAMP_DOWN_TIME       = 12.0           # s
 
+RAMP_DOWN_FOWARD_SPEED = 0.20
+RAMP_DOWN_FORWARD_TIME = 3
+
 
 class RampMixin:
     """Open-loop ramp climb/descent. Stateless — uses _open_loop_drive and
@@ -45,11 +48,11 @@ class RampMixin:
         self.get_logger().info('Ramp: rotate 180°')
         self._open_loop_rotate(RAMP_ROTATE_SPEED, RAMP_ROTATE_TIME)
 
-        self.get_logger().info('Ramp: backing into ramp button')
+        self.get_logger().info('Ramp: backing into ramp wall')
         self._open_loop_drive(-RAMP_SPEED, RAMP_BACKOFF_TIME)
 
         self.get_logger().info('Ramp: rotate back toward ramp')
-        self._open_loop_rotate(-RAMP_ROTATE_SPEED / 1.5, RAMP_ROTATE_TIME)
+        self._open_loop_rotate(-RAMP_ROTATE_SPEED / 1.45, RAMP_ROTATE_TIME)
 
         self.get_logger().info('Ramp: drive up')
         self._open_loop_drive(RAMP_SPEED, RAMP_TIME)
@@ -59,5 +62,19 @@ class RampMixin:
         """Open-loop descent. Sign of RAMP_DOWN_SPEED is positive here;
         caller's intent is "drive backward off the ramp" so we pass negative."""
         self.get_logger().info('Ramp: descending')
-        self._open_loop_drive(-RAMP_DOWN_SPEED, RAMP_DOWN_TIME)
+
+        self.get_logger().info('Ramp: going back to the wall')
+        self._open_loop_drive(-RAMP_SPEED, RAMP_BACKOFF_TIME)
+
+        self.get_logger().info('Ramp: rotate back toward ramp')
+        self._open_loop_rotate(RAMP_ROTATE_SPEED / 1.4, RAMP_ROTATE_TIME)
+
+        self.get_logger().info('Ramp: going down the ramp')
+        self._open_loop_drive(RAMP_DOWN_SPEED, RAMP_DOWN_TIME * 1.5)
+        
+        self.get_logger().info('Ramp: going forward')
+        self._open_loop_drive(RAMP_DOWN_FOWARD_SPEED, RAMP_DOWN_FORWARD_TIME)
+
+        self.get_logger().info('Ramp: rotate back toward base')
+        self._open_loop_rotate(-RAMP_ROTATE_SPEED / 1.8, RAMP_ROTATE_TIME)
         return True

@@ -24,7 +24,7 @@ void DifferentialDriveController::update() {
 
 void DifferentialDriveController::getVelocities() {
     _state.leftWheelVelocity = _leftController->getVelocity();
-    _state.rightWheelVelocity = _rightController->getVelocity();
+    _state.rightWheelVelocity = -_rightController->getVelocity();
 }
 
 void DifferentialDriveController::setVelocities() {

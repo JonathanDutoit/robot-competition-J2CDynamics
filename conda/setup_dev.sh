@@ -11,10 +11,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROBOT_NAME="${1:-}"  # First argument, empty if not provided
 
 if [[ -n "$ROBOT_NAME" ]]; then
-    ENV_FILE="$SCRIPT_DIR/../docker/${ROBOT_NAME}.env"
+    ENV_FILE="$SCRIPT_DIR/../robots/${ROBOT_NAME}/manifest.env"
     echo "Loading environment for robot: $ROBOT_NAME"
 else
-    ENV_FILE="$SCRIPT_DIR/../docker/.env"
+    ENV_FILE="$SCRIPT_DIR/../robots/do/manifest.env"
     echo "Loading default environment"
 fi
 

@@ -109,7 +109,7 @@ class DuploApproach(Node):
 
         self.pub = self.create_publisher(Twist, 'duplo_vel', 10)
 
-        self.enabled = True
+        self.enabled = False
         self.create_subscription(
             Bool,
             '/enable_duplo_collection',

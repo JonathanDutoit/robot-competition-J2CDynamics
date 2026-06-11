@@ -1,7 +1,10 @@
 import math
+import os
 import rclpy
 import json
+import yaml
 import numpy as np
+import cv2
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from nav_msgs.msg import OccupancyGrid
@@ -64,6 +67,47 @@ SAFETY_LOOKAHEAD_M_GLOBAL = [0.05, 0.50]
 SAFETY_LOOKAHEAD_M_LOCAL  = [0.05, 0.25]        # m ahead of base_link; shorter = less cautious near walls
 SAFETY_THRESHOLD    = 99                  # 100=lethal/keepout, 99=inscribed (footprint touches)
 SAFETY_BASE_FRAME   = 'base_link'
+
+# ── Reachability filter (don't even target unreachable duplos) ───────────────
+# Project the bbox-bottom pixel onto the ground in base_link, transform to map,
+# look up the global-costmap cell. If it's keepout (100), lethal (100), or
+# inscribed-inflated (99), skip the detection — the visual servo would just
+# burn time approaching something the costmap says we can't reach. Threshold
+# matches SAFETY_THRESHOLD so the criterion is "would the safety gate fire
+# if we drove there?".
+DUPLO_REACHABLE_THRESHOLD = SAFETY_THRESHOLD
+
+
+class _BBoxToWorld:
+    """Pinhole + flat-ground projector for a detected duplo's bbox-bottom
+    pixel. Returns (x, y) in base_link frame. Inline copy of GroundProjector
+    from j2cdynamics_perception/ground_projection.py — kept here to avoid a
+    cross-package Python dep.
+
+    K must be scaled to match the coordinate system of the bbox pixels
+    (MAIN_SIZE in this code base, not the calibration's native image size).
+    """
+
+    def __init__(self, K, dist, height, pitch, x_offset=0.0, y_offset=0.0):
+        self.K = np.asarray(K, np.float64).reshape(3, 3)
+        self.dist = np.asarray(dist, np.float64).reshape(-1)
+        # camera-optical (x-right, y-down, z-fwd) → base (x-fwd, y-left, z-up)
+        R0 = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], dtype=float)
+        c, s = math.cos(pitch), math.sin(pitch)
+        Ry = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]], dtype=float)
+        self.R = Ry @ R0
+        self.t = np.array([float(x_offset), float(y_offset), float(height)], dtype=float)
+
+    def project(self, u, v):
+        pt = cv2.undistortPoints(
+            np.array([[[float(u), float(v)]]], dtype=np.float32),
+            self.K, self.dist)[0, 0]
+        ray = self.R @ np.array([pt[0], pt[1], 1.0])
+        if ray[2] >= -1e-6:
+            return None   # ray points up/horizontal — doesn't hit ground
+        s = -self.t[2] / ray[2]
+        p = self.t + s * ray
+        return float(p[0]), float(p[1])
 # Blocked-while-in-approach timer: if the gate has been firing continuously for
 # this long while we're in approach, the target is unreachable (e.g. on carpet).
 # Abandon faster than the 10s hard timeout so we don't burn 40s/waypoint.
@@ -147,6 +191,15 @@ class DuploApproach(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self._last_blocked = False   # for dashboard
 
+        # Reachability filter: ground-project each detection and reject those
+        # in keepout/inflation. Requires camera intrinsics + extrinsics from
+        # the same calibration yaml ground_projection uses. Fail-open: if no
+        # calibration is passed, the filter is silently disabled.
+        self.declare_parameter('calibration_file', '')
+        cal_path = self.get_parameter('calibration_file').value
+        self._projector = self._load_projector(cal_path) if cal_path else None
+        self._n_filtered_total = 0   # diagnostic counter (logged on dashboard payload)
+
         self.dt = 1.0 / CONTROL_HZ
         self.timer = self.create_timer(self.dt, self.on_timer)
 
@@ -207,6 +260,78 @@ class DuploApproach(Node):
             self._local_frame = new_frame
 
 
+    # ── Reachability filter ────────────────────────────────────────────────
+
+    def _load_projector(self, path):
+        """Load camera_calibration_*.yaml and build a BBoxToWorld projector.
+        K is scaled from its calibration resolution to MAIN_SIZE (the
+        coordinate system of bboxes published by the detector). Returns None
+        on any failure — caller falls back to "every detection is reachable"."""
+        if not path or not os.path.exists(path):
+            self.get_logger().warn(
+                f'calibration_file "{path}" not found — reachability filter disabled')
+            return None
+        try:
+            with open(path) as f:
+                cal = yaml.safe_load(f) or {}
+            K = np.array(cal['camera_matrix'], dtype=float).reshape(3, 3)
+            calib_size = list(cal.get('image_size', [640, 480]))
+            sx = float(MAIN_SIZE[0]) / float(calib_size[0])
+            sy = float(MAIN_SIZE[1]) / float(calib_size[1])
+            K[0, 0] *= sx;  K[0, 2] *= sx
+            K[1, 1] *= sy;  K[1, 2] *= sy
+            proj = _BBoxToWorld(
+                K.flatten(), cal.get('dist_coeffs', [0.0] * 5),
+                cal['height'], cal['pitch'],
+                cal.get('x_offset', 0.0), cal.get('y_offset', 0.0))
+            self.get_logger().info(
+                f'reachability: calibration loaded (K scaled {calib_size} → {list(MAIN_SIZE)})')
+            return proj
+        except Exception as e:
+            self.get_logger().warn(
+                f'calibration load failed ({e}); reachability filter disabled')
+            return None
+
+    def _is_duplo_reachable(self, u, v) -> bool:
+        """True iff the bbox-bottom pixel (u, v) projects to a low-cost cell
+        of the global costmap. FAIL-OPEN by design — if we don't have the
+        projector, costmap, or TF yet, return True so we don't accidentally
+        block all detections on startup."""
+        if self._projector is None:
+            return True
+        if self._global_map is None or self._global_data is None or self._global_frame is None:
+            return True
+
+        # Project bbox bottom-center to base_link.
+        base_xy = self._projector.project(u, v)
+        if base_xy is None:
+            return True   # ray didn't hit ground (looking up or over horizon)
+
+        # Transform base_link → costmap (typically 'map').
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                self._global_frame, SAFETY_BASE_FRAME, rclpy.time.Time())
+        except Exception:
+            return True
+
+        # Apply 2D rigid transform.
+        bx, by = base_xy
+        q = tf.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        cyaw, syaw = math.cos(yaw), math.sin(yaw)
+        wx = tf.transform.translation.x + bx * cyaw - by * syaw
+        wy = tf.transform.translation.y + bx * syaw + by * cyaw
+
+        # Look up global costmap cell at the world point.
+        info = self._global_map.info
+        col = int((wx - info.origin.position.x) / info.resolution)
+        row = int((wy - info.origin.position.y) / info.resolution)
+        if not (0 <= col < info.width and 0 <= row < info.height):
+            return True   # outside grid → can't say; allow
+        cost = int(self._global_data[row, col])
+        return cost < DUPLO_REACHABLE_THRESHOLD
+
     def _costmap_blocked(self, map, data, frame, lookahead, threshold) -> bool:
         """True if any forward look-ahead point lies in a costly cell of the costmap"""
         if map is None or frame is None:
@@ -238,10 +363,17 @@ class DuploApproach(Node):
                                    self._global_frame, SAFETY_LOOKAHEAD_M_GLOBAL, threshold=99)
          or self._costmap_blocked(self._local_map,  self._local_data,
                                    self._local_frame, SAFETY_LOOKAHEAD_M_LOCAL, threshold=60))
-    # Detection selection 
+    # Detection selection
     def find_best_duplo(self, msg):
+        """Pick the highest-confidence duplo bbox that ground-projects to a
+        REACHABLE cell of the global costmap. Detections in keepout / inflation
+        are dropped so the FSM never even enters approach for an unreachable
+        target. If all detections are filtered, returns None → FSM stays
+        in 'search' instead of getting stuck in approach + blocked-timeout."""
         best_score = -1.0
         best = None
+        n_seen = 0
+        n_filtered = 0
 
         for det in msg.detections:
             for res in det.results:
@@ -249,17 +381,29 @@ class DuploApproach(Node):
                     continue
                 if res.hypothesis.score < MIN_CONFIDENCE:
                     continue
+                n_seen += 1
+
+                cx = det.bbox.center.position.x
+                by_px = det.bbox.center.position.y + det.bbox.size_y / 2.0
+
+                # Reachability gate: skip duplos in keepout / behind walls.
+                if not self._is_duplo_reachable(cx, by_px):
+                    n_filtered += 1
+                    continue
 
                 if res.hypothesis.score > best_score:
                     best_score = res.hypothesis.score
-
-                    cx = det.bbox.center.position.x
-                    by = det.bbox.center.position.y + det.bbox.size_y / 2.0
-
                     best = (
                         (cx - IMAGE_WIDTH / 2.0) / (IMAGE_WIDTH / 2.0),
-                        by / IMAGE_HEIGHT
+                        by_px / IMAGE_HEIGHT
                     )
+
+        if n_filtered > 0:
+            self._n_filtered_total += n_filtered
+            self.get_logger().info(
+                f'reachability: dropped {n_filtered}/{n_seen} detection(s) '
+                f'in keepout / inflation (total {self._n_filtered_total})',
+                throttle_duration_sec=2.0)
 
         return best
 

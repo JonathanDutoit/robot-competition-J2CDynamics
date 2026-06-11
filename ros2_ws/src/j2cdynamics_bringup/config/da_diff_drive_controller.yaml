@@ -1,9 +1,9 @@
 controller_manager:
   ros__parameters:
-    update_rate: 30
+    update_rate: 50.0
 controller_manager:
   ros__parameters:
-    update_rate: 30
+    update_rate: 50.0
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster

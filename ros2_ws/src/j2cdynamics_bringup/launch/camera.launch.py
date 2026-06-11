@@ -38,7 +38,13 @@ def generate_launch_description():
         package='j2cdynamics_camera',
         executable='duplo_approach',
         name='duplo_approach',
-        output='screen'
+        output='screen',
+        # Same calibration as ground_projection — duplo_approach uses it to
+        # ground-project bbox-bottom pixels and reject detections in keepout /
+        # behind walls before the FSM even enters approach.
+        parameters=[{
+            'calibration_file': calibration_file_path
+        }]
     )
 
     return LaunchDescription([

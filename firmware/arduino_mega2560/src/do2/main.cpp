@@ -38,13 +38,13 @@ EsconDriver rightMotor(PIN_RIGHT_MAXON_PWM, PIN_RIGHT_MAXON_EN, PIN_RIGHT_MAXON_
                         PIN_RIGHT_MAXON_CURR_ANA);
 DifferentialDriveController driveController(&leftMotor, &rightMotor, cmd, robotState); // Example wheel diameter and gear ratio
 
+DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
+
 DRI0018DriverChannel leftSweeper(PIN_LEFT_SWEEPER_PWM, PIN_LEFT_SWEEPER_DIR);
 DRI0018DriverChannel rightSweeper(PIN_RIGHT_SWEEPER_PWM, PIN_RIGHT_SWEEPER_DIR);
-SweeperController sweepersController(&leftSweeper, &rightSweeper, sweeperState);
+SweeperController sweepersController(&leftSweeper, &rightSweeper, sweeperState, duploCounter);
 
 PlateController plateController(sweeperState, robotState);
-
-DuploCounter duploCounter(PIN_DUPLO_IR_SENSOR);
 
 // Define tasks schedule
 PeriodicTask controlTask(20); // 20 ms period for control loop (50 Hz)
@@ -52,71 +52,77 @@ PeriodicTask duploTask(100); // 100 ms period for duplo counter update (10 Hz)
 PeriodicTask sweepersTask(20); // 50 ms period for sweepers control loop (50 Hz)
 PeriodicTask plateTurningTask(0.1); // 0.1 ms period for plate control loop (10000 Hz)
 
+unsigned long lastDuploOutTime = 0;
+bool unjamInProgress = false;
+uint8_t unjamStep = 0;
+
 void setup()
 {
-  // Initialize components
-  leftMotor.init();
-  rightMotor.init();
-  driveController.init();
+    // Initialize components
+    leftMotor.init();
+    rightMotor.init();
+    driveController.init();
 
-  leftSweeper.init();
-  rightSweeper.init();
-  sweepersController.init();
+    leftSweeper.init();
+    rightSweeper.init();
+    sweepersController.init();
 
-  plateController.init();
+    plateController.init();
 
-  duploCounter.init();
+    duploCounter.init();
 
-  serialBridge.init();
-  if (!serialBridge.registerHandler(&sweeperHandler)) {
-    Serial.println("ERROR: Failed to register SWEEPER command handler");
-  }
-  if (!serialBridge.registerHandler(&resetHandler)) {
-    Serial.println("ERROR: Failed to register RESET command handler");
-  }
+    serialBridge.init();
+    if (!serialBridge.registerHandler(&sweeperHandler)) {
+        Serial.println("ERROR: Failed to register SWEEPER command handler");
+    }
+    if (!serialBridge.registerHandler(&resetHandler)) {
+        Serial.println("ERROR: Failed to register RESET command handler");
+    }
 
-  Serial.println("Robot initialized");
+    Serial.println("Robot initialized");
 }
 
 void loop()
 {
-  // Update tasks
-  if (controlTask.ready()){
-      driveController.update();
-  }
+    // Update tasks
+    if (controlTask.ready()){
+        driveController.update();
+    }
 
-  if (duploTask.ready()){
-      duploCounter.update();
-      uint8_t currentCount = duploCounter.getCount();
+    if (duploTask.ready()){
+        duploCounter.update();
+        uint8_t currentCount = duploCounter.getCount();
 
-      if (currentCount > previousDuploCount) {
-            if (currentCount < MAX_DUPLO_COUNT) {
-                plateController.rotateQuarterTurn(); // Rotate the plate by a quarter turn for each new duplo detected
-            }
-      }
-      
-      previousDuploCount = currentCount;
-      robotState.duploCount = currentCount;
-  }
+        if (currentCount > previousDuploCount) {
+                lastDuploOutTime = millis();   // Reset the timer when a new duplo is detected
 
-  if (sweepersTask.ready()){
-      sweepersController.update();
-  }
+                if (currentCount < MAX_DUPLO_COUNT) {
+                    plateController.rotateQuarterTurn(); // Rotate the plate by a quarter turn for each new duplo detected
+                }
+        }
+        
+        previousDuploCount = currentCount;
+        robotState.duploCount = currentCount;
+    }
 
-  if (plateTurningTask.ready()){
-      plateController.update();
-  }
+    if (sweepersTask.ready()){
+        sweepersController.update();
+    }
 
-  serialBridge.update();
+    if (plateTurningTask.ready()){
+        plateController.update();
+    }
+
+    serialBridge.update();
 
 
-  // FSM logic
-  if (sweeperState.mode == SweeperMode::Dropoff &&
-    previousMode != SweeperMode::Dropoff) {
-    duploCounter.reset();
-  } else if (sweeperState.mode != SweeperMode::Dropoff &&
-    previousMode == SweeperMode::Dropoff) {
-    duploCounter.reset();
-  }
-  previousMode = sweeperState.mode;
+    // FSM logic
+    if (sweeperState.mode == SweeperMode::Dropoff &&
+        previousMode != SweeperMode::Dropoff) {
+        duploCounter.reset();
+    } else if (sweeperState.mode != SweeperMode::Dropoff &&
+        previousMode == SweeperMode::Dropoff) {
+        duploCounter.reset();
+    }
+    previousMode = sweeperState.mode;
 }

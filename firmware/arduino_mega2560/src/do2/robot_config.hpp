@@ -66,5 +66,8 @@
 // --- MISSION PARAMETERS ---
 // --------------------------
 #define MAX_DUPLO_COUNT                     6
+#define COLLECTING_JAM_THRESHOLD_MS         500 // 0.5 seconds
+#define DROP_OFF_JAM_THRESHOLD_MS           1500 // 1.5 seconds
+#define UNJAM_STEP_DELAY_MS                 300 // Delay between unjam steps
 
 #endif

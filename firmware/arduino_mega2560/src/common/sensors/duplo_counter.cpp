@@ -1,3 +1,4 @@
+#include <do2/robot_config.hpp>
 #include <sensors/duplo_counter.hpp>
 #include <common_config.hpp>
 
@@ -23,22 +24,44 @@ void DuploCounter::update() {
 
     uint16_t raw = analogRead(_sensorPin);
     float delta = raw - _baselineAdc;
+    bool detected = delta > DUPLO_DETECTION_DELTA;
+    bool released = delta < DUPLO_RELEASE_DETECTION_DELTA;
 
     switch (_state) {
 
-        case State::NO_DUPLO:
-            if (delta > DUPLO_DETECTION_DELTA) {
-                _state = State::DUPLO_PRESENT;
+        case DuploCounterState::NO_DUPLO:
+            if (detected) {
+                _state = DuploCounterState::DUPLO_PRESENT;
+                _firstDetectTime = now;
+                _lastDetectTime = now;
+                _wasDetected = true;
             }
             break;
 
-        case State::DUPLO_PRESENT:
-            if (delta < DUPLO_RELEASE_DETECTION_DELTA) {
-                _count++;
-                _state = State::NO_DUPLO;
-                
-                // start refractory period
-                _ignoreUntil = now + DUPLO_DETECTION_REFRACTORY_MS;
+        case DuploCounterState::DUPLO_PRESENT:
+            if (detected) {
+                _lastDetectTime = now;
+
+                if (now - _firstDetectTime > COLLECTING_JAM_THRESHOLD_MS) {
+                    _state = DuploCounterState::BLOCKED;
+                }
+            } else if (released) {
+                 _state = DuploCounterState::NO_DUPLO;
+
+                if (_wasDetected) {
+                    _count++;
+                    _ignoreUntil = now + COLLECTING_JAM_THRESHOLD_MS;
+                }
+
+                _wasDetected = false;
+            }
+            break;
+        
+        case DuploCounterState::BLOCKED:
+            // stay blocked until object disappears
+            if (!detected) {
+                _state = DuploCounterState::NO_DUPLO;
+                _wasDetected = false;
             }
             break;
     }
@@ -46,6 +69,11 @@ void DuploCounter::update() {
 
 uint8_t DuploCounter::getCount() const {
     return _count;
+}
+
+bool DuploCounter::isBlocked() const
+{
+    return _state == DuploCounterState::BLOCKED;
 }
 
 void DuploCounter::reset() {

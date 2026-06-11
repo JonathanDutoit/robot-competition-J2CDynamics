@@ -97,7 +97,7 @@ void loop()
                 lastDuploOutTime = millis();   // Reset the timer when a new duplo is detected
 
                 if (currentCount < MAX_DUPLO_COUNT) {
-                    plateController.rotateQuarterTurn(); // Rotate the plate by a quarter turn for each new duplo detected
+                    plateController.rotateTurnStep(); // Rotate the plate by a quarter turn for each new duplo detected
                 }
         }
         

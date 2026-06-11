@@ -21,30 +21,47 @@ void PlateController::update()
     switch (_sweeperState.mode)
     {
         case SweeperMode::Idle:
-            _previousMode = SweeperMode::Idle;
-            _stepper.stop();
+            if (_previousMode != SweeperMode::Idle)
+            {
+                _stepper.stop();
+                _previousMode = SweeperMode::Idle;
+            }
+
+            _stepper.run();
             break;
 
         case SweeperMode::Collect:
-            _previousMode = SweeperMode::Collect;
+            if (_previousMode != SweeperMode::Collect)
+            {
+                _stepper.stop();
+                _stepper.setCurrentPosition(_stepper.currentPosition());
+                _stepper.moveTo(_stepper.currentPosition());
+
+                _previousMode = SweeperMode::Collect;
+            }
+
             _stepper.run();
             break;
 
         case SweeperMode::Dropoff:
-            if (_previousMode != SweeperMode::Dropoff) {
+            if (_previousMode != SweeperMode::Dropoff)
+            {
+                _stepper.stop();
                 rotateContinuous();
+
                 _previousMode = SweeperMode::Dropoff;
             }
+
             _stepper.runSpeed();
             break;
     }
 }
 
-void PlateController::rotateQuarterTurn()
+void PlateController::rotateTurnStep()
 {
     if (_stepper.distanceToGo() != 0 || _sweeperState.mode != SweeperMode::Collect)
         return;
-    _stepper.move(-QUARTER_TURN_STEPS);
+    _stepper.move(-COLLECTING_TURN_STEPS);
 }
 
 void PlateController::rotateContinuous()

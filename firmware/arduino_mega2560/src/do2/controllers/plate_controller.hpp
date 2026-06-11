@@ -10,7 +10,7 @@ public:
     PlateController(SweeperState& sweeperState, RobotState& robotState);
     void init() override;
     void update() override;
-    void rotateQuarterTurn();
+    void rotateTurnStep();
     void rotateContinuous();
     void stop();
 

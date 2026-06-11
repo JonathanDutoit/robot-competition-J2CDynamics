@@ -55,10 +55,10 @@
 #define STEP_PER_REV                        200 // for a 1.8 degree stepper
 #define STEPPER_MICROSTEPPING               2 // microstepping factor (e.g., 16 for 1/16 microstepping)
 #define STEPPER_EFFECTIVE_STEPS_PER_REV     (STEP_PER_REV * STEPPER_MICROSTEPPING) // effective steps per revolution considering microstepping
-#define QUARTER_TURN_STEPS                  (STEPPER_EFFECTIVE_STEPS_PER_REV / 6) // steps for a quarter turn
+#define COLLECTING_TURN_STEPS               (STEPPER_EFFECTIVE_STEPS_PER_REV / 6) // steps for a quarter turn
 
 #define STEPPER_MAX_SPEED_STEPS_PER_SEC     100.0f // in steps per second
-#define DROP_OFF_SPEED                      10.0f // in steps per second (same as max speed for continuous rotation)
+#define DROP_OFF_SPEED                      50.0f // in steps per second (same as max speed for continuous rotation)
 
 #define STEPPER_ACCELERATION_STEPS_PER_SEC2 25.0f
 
@@ -67,7 +67,8 @@
 // --------------------------
 #define MAX_DUPLO_COUNT                     6
 #define COLLECTING_JAM_THRESHOLD_MS         500 // 0.5 seconds
-#define DROP_OFF_JAM_THRESHOLD_MS           1500 // 1.5 seconds
+#define DROP_OFF_JAM_THRESHOLD_MS           3000 // 1.5 seconds
 #define UNJAM_STEP_DELAY_MS                 300 // Delay between unjam steps
+#define UNJAM_MAX_ATTEMPTS                  3 // Max unjam attempts before declaring fault
 
 #endif

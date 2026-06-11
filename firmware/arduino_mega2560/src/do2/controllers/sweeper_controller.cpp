@@ -13,9 +13,6 @@ _rightController(rightController),
 _sweeperState(sweeperState),
 _duploCounter(duploCounter)
 {
-    _lastDropoffTime = 0;
-    _previousCount = 0;
-    _unjamRequested = false;
     _unjamStep = 0;
     _unjamAttempts = 0;
 }
@@ -61,32 +58,13 @@ void SweeperController::_handleCollect()
 
 void SweeperController::_handleDropoff()
 {
-    uint32_t now = millis();
-
-    uint8_t count = _duploCounter.getCount();
-
-    // Detect output event
-    if (count > _previousCount)
-    {
-        _lastDropoffTime = now;
-        _previousCount = count;
-        _unjamRequested = false;   // reset recovery trigger
-    }
-
-    // Jam condition: nothing exiting for too long
-    if ((now - _lastDropoffTime) > DROP_OFF_JAM_THRESHOLD_MS)
-    {
-        _unjamRequested = true;
-    }
-
-    if (_unjamRequested)
+    if (_duploCounter.isBlocked())
     {
         _startUnjam();
+        return;
     }
-    else
-    {
-        _startDropoff();
-    }
+
+    _startDropoff();
 }
 
 void SweeperController::_startUnjam()
@@ -103,7 +81,7 @@ void SweeperController::_startUnjam()
             break;
 
         case 1:
-            if (now - _stepStartTime > 300)
+            if (now - _stepStartTime > UNJAM_STEP_DELAY_MS)
             {
                 _stepStartTime = now;
                 _unjamStep = 2;
@@ -118,14 +96,15 @@ void SweeperController::_startUnjam()
             break;
 
         case 3:
-            if (now - _stepStartTime > 300)
+            if (now - _stepStartTime > UNJAM_STEP_DELAY_MS)
             {
                 _unjamAttempts++;
 
-                if (_unjamAttempts >= 3)
+                if (_unjamAttempts >= UNJAM_MAX_ATTEMPTS)
                 {
                     _sweeperState.mode = SweeperMode::Fault;
                     _stopBrushes();
+                    _resetUnjamState();
                 }
                 else
                 {
@@ -138,10 +117,8 @@ void SweeperController::_startUnjam()
 
 void SweeperController::_resetUnjamState()
 {
-    _unjamRequested = false;
     _unjamStep = 0;
     _unjamAttempts = 0;
-    _previousCount = 0;
 }
 
 void SweeperController::_startCollecting()
